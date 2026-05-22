@@ -1,0 +1,264 @@
+{
+  "schemaVersion": "codex-config.schema-foundation.v1",
+  "officialSnapshot": "2026-05-17",
+  "fields": [
+    {
+      "path": "features.fast_mode",
+      "label": "Fast 模式",
+      "group": "常用",
+      "kind": "boolean",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "控制 Codex 的 Fast 模式；留空表示使用 Codex 默认值。"
+    },
+    {
+      "path": "model",
+      "label": "模型",
+      "group": "模型",
+      "kind": "text",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "Codex 默认使用的模型。"
+    },
+    {
+      "path": "model_provider",
+      "label": "模型提供方",
+      "group": "模型",
+      "kind": "text",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "对应 model_providers 中的提供方名称；留空表示使用 Codex 默认值。"
+    },
+    {
+      "path": "oss_provider",
+      "label": "本地模型提供方",
+      "group": "模型",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "使用开源/本地模型时的默认提供方。",
+      "options": ["lmstudio", "ollama"]
+    },
+    {
+      "path": "model_reasoning_effort",
+      "label": "推理强度",
+      "group": "模型",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "控制模型推理深度；留空表示使用 Codex 默认值。",
+      "options": ["none", "minimal", "low", "medium", "high", "xhigh"]
+    },
+    {
+      "path": "model_reasoning_summary",
+      "label": "推理摘要",
+      "group": "模型",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "控制 Codex 是否展示模型推理摘要。",
+      "options": ["auto", "concise", "detailed", "none"]
+    },
+    {
+      "path": "model_verbosity",
+      "label": "输出详细度",
+      "group": "模型",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "控制支持该能力的模型输出简洁或详细。",
+      "options": ["low", "medium", "high"]
+    },
+    {
+      "path": "service_tier",
+      "label": "服务层级",
+      "group": "模型",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "请求使用的服务层级；留空表示 Codex 默认值。",
+      "options": ["auto", "default", "flex", "priority", "fast"]
+    },
+    {
+      "path": "sandbox_mode",
+      "label": "沙盒模式",
+      "group": "执行安全",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "dangerous",
+      "note": "控制 Codex 执行命令时可访问的文件范围。",
+      "options": ["read-only", "workspace-write", "danger-full-access"]
+    },
+    {
+      "path": "approval_policy",
+      "label": "审批策略",
+      "group": "执行安全",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "caution",
+      "note": "控制 Codex 什么时候需要你批准命令执行；on-failure 已废弃，仅用于保留旧配置。",
+      "options": ["untrusted", "on-request", "never", "on-failure"]
+    },
+    {
+      "path": "web_search",
+      "label": "网页搜索模式",
+      "group": "交互显示",
+      "kind": "select",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "caution",
+      "note": "控制网页搜索工具模式：disabled / cached / live。",
+      "options": ["disabled", "cached", "live"]
+    },
+    {
+      "path": "hide_agent_reasoning",
+      "label": "隐藏推理过程",
+      "group": "交互显示",
+      "kind": "boolean",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "normal",
+      "note": "隐藏 agent reasoning 内容。"
+    },
+    {
+      "path": "show_raw_agent_reasoning",
+      "label": "显示原始推理事件",
+      "group": "交互显示",
+      "kind": "boolean",
+      "editable": true,
+      "profileBehavior": "allowed",
+      "risk": "caution",
+      "note": "高级调试开关；普通使用建议保持未设置。"
+    },
+    {
+      "path": "profile",
+      "label": "当前 profile",
+      "group": "Profile",
+      "kind": "status",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "normal",
+      "note": "第一期中只读。"
+    },
+    {
+      "path": "model_providers",
+      "label": "模型提供方表",
+      "group": "复杂配置",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "secret",
+      "note": "第一期只显示；后续用专用编辑器管理 provider、base_url、env_key、headers。"
+    },
+    {
+      "path": "mcp_servers",
+      "label": "MCP servers",
+      "group": "复杂配置",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "caution",
+      "note": "第一期只显示；后续用专用编辑器管理 command、args、env。"
+    },
+    {
+      "path": "profiles",
+      "label": "Profiles 表",
+      "group": "复杂配置",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "normal",
+      "note": "第一期保留 active profile 的 scalar 编辑；完整 profile 管理后续实现。"
+    },
+    {
+      "path": "tools",
+      "label": "工具配置",
+      "group": "复杂配置",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "caution",
+      "note": "第一期只显示；后续再做结构化编辑。"
+    },
+    {
+      "path": "apps",
+      "label": "App/connector 配置",
+      "group": "复杂配置",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "caution",
+      "note": "第一期只显示；后续再做结构化编辑。"
+    },
+    {
+      "path": "history",
+      "label": "历史记录",
+      "group": "交互显示",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "normal",
+      "note": "第一期只显示；后续再做结构化编辑。"
+    },
+    {
+      "path": "notify",
+      "label": "通知",
+      "group": "交互显示",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "normal",
+      "note": "第一期只显示；后续再做结构化编辑。"
+    },
+    {
+      "path": "permissions",
+      "label": "权限配置",
+      "group": "执行安全",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "dangerous",
+      "note": "第一期只显示；后续需要危险配置确认 UI。"
+    },
+    {
+      "path": "sandbox_workspace_write",
+      "label": "Workspace 写入沙盒细节",
+      "group": "执行安全",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "dangerous",
+      "note": "第一期只显示；后续需要危险配置确认 UI。"
+    },
+    {
+      "path": "experimental_use_unified_exec_tool",
+      "label": "实验性 unified exec tool",
+      "group": "实验/调试",
+      "kind": "boolean",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "experimental",
+      "note": "实验性字段第一期只显示。"
+    },
+    {
+      "path": "debug",
+      "label": "调试配置",
+      "group": "实验/调试",
+      "kind": "object",
+      "editable": false,
+      "profileBehavior": "root-only",
+      "risk": "experimental",
+      "note": "第一期只显示；后续再做结构化编辑。"
+    }
+  ]
+}
