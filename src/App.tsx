@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
+  BookOpen,
   CheckCircle2,
   DatabaseBackup,
   Edit3,
+  Eye,
   FileCode2,
   Gauge,
-  MousePointer2,
+  Power,
   Plus,
   RefreshCw,
   Trash2,
@@ -14,7 +16,6 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
 type HealthStatus = "ready" | "readOnly" | "needsAttention";
@@ -41,6 +42,7 @@ type AppState = {
   profileFields: FieldState[];
   catalogFields: FieldState[];
   modelProviders: ModelProviderState;
+  skills: SkillState;
   rawToml: string;
   parseIssue?: { message: string };
   profileStatus?: {
@@ -93,6 +95,36 @@ type BackupSummary = {
 type ModelProviderState = {
   providers: ModelProviderEntry[];
   reservedIds: string[];
+};
+
+type SkillState = {
+  roots: SkillRoot[];
+  skills: SkillSummary[];
+};
+
+type SkillRoot = {
+  path: string;
+  label: string;
+  exists: boolean;
+};
+
+type SkillSummary = {
+  name: string;
+  description?: string;
+  path: string;
+  directory: string;
+  source: string;
+  enabled: boolean;
+  configured: boolean;
+  size: number;
+  modifiedMs?: number;
+};
+
+type SkillContent = {
+  name: string;
+  description?: string;
+  path: string;
+  rawMarkdown: string;
 };
 
 type ModelProviderEntry = {
@@ -167,18 +199,23 @@ type PreviewKind =
   | "modelProviderSave"
   | "modelProviderDelete";
 
+type MainTab = "config" | "skills";
+
 function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewKind, setPreviewKind] = useState<PreviewKind | null>(null);
+  const [activeTab, setActiveTab] = useState<MainTab>("config");
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [profileDraftValues, setProfileDraftValues] = useState<Record<string, string>>({});
   const [modelProviderDraft, setModelProviderDraft] =
     useState<ModelProviderDraft>(emptyModelProviderDraft());
   const [rawTomlDraft, setRawTomlDraft] = useState("");
-  const [binaryPathDraft, setBinaryPathDraft] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
+  const [skillQuery, setSkillQuery] = useState("");
+  const [selectedSkillPath, setSelectedSkillPath] = useState<string | null>(null);
+  const [skillContent, setSkillContent] = useState<SkillContent | null>(null);
   const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -196,13 +233,22 @@ function App() {
       setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
+      setSelectedSkillPath(nextState.skills.skills[0]?.path ?? null);
+      setSkillContent(null);
       setRawTomlDraft(nextState.rawToml);
-      setBinaryPathDraft(nextState.preferences.codexBinaryPath ?? "");
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
+  }
+
+  function switchTab(tab: MainTab) {
+    setActiveTab(tab);
+    setPreview(null);
+    setPreviewKind(null);
+    setPendingDeleteProviderId(null);
+    setStatusMessage(null);
   }
 
   async function previewFastMode() {
@@ -235,7 +281,6 @@ function App() {
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
       setRawTomlDraft(result.state.rawToml);
-      setBinaryPathDraft(result.state.preferences.codexBinaryPath ?? "");
       setPreview(null);
       setPreviewKind(null);
       setStatusMessage(
@@ -295,7 +340,6 @@ function App() {
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
       setRawTomlDraft(result.state.rawToml);
-      setBinaryPathDraft(result.state.preferences.codexBinaryPath ?? "");
       setPreview(null);
       setPreviewKind(null);
       setStatusMessage(
@@ -365,7 +409,6 @@ function App() {
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
       setRawTomlDraft(result.state.rawToml);
-      setBinaryPathDraft(result.state.preferences.codexBinaryPath ?? "");
       setPreview(null);
       setPreviewKind(null);
       setStatusMessage(
@@ -421,7 +464,6 @@ function App() {
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
       setRawTomlDraft(result.state.rawToml);
-      setBinaryPathDraft(result.state.preferences.codexBinaryPath ?? "");
       setPreview(null);
       setPreviewKind(null);
       setStatusMessage(
@@ -483,7 +525,6 @@ function App() {
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
       setRawTomlDraft(result.state.rawToml);
-      setBinaryPathDraft(result.state.preferences.codexBinaryPath ?? "");
       setPreview(null);
       setPreviewKind(null);
       setStatusMessage(
@@ -530,7 +571,6 @@ function App() {
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
       setRawTomlDraft(result.state.rawToml);
-      setBinaryPathDraft(result.state.preferences.codexBinaryPath ?? "");
       setPreview(null);
       setPreviewKind(null);
       setStatusMessage(
@@ -558,7 +598,6 @@ function App() {
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
       setRawTomlDraft(result.state.rawToml);
-      setBinaryPathDraft(result.state.preferences.codexBinaryPath ?? "");
       setPreview(null);
       setPreviewKind(null);
       setStatusMessage(
@@ -571,47 +610,45 @@ function App() {
     }
   }
 
-  async function saveBinaryPath(path: string | null) {
+  async function readSkill(path: string) {
     setError(null);
     setStatusMessage(null);
+    setSelectedSkillPath(path);
 
     try {
-      const nextState = await invoke<AppState>("save_codex_binary_path", {
-        path,
-      });
-      setState(nextState);
-      setDraftValues(draftValuesFromFields(nextState.fields));
-      setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setPendingDeleteProviderId(null);
-      setRawTomlDraft(nextState.rawToml);
-      setBinaryPathDraft(nextState.preferences.codexBinaryPath ?? "");
-      setPreview(null);
-      setPreviewKind(null);
-      setStatusMessage(
-        path && path.trim()
-          ? "已保存 Codex 命令路径。"
-          : "已清除手动 Codex 命令路径。",
+      setSkillContent(
+        await invoke<SkillContent>("read_skill_content", {
+          path,
+        }),
       );
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
   }
 
-  async function chooseBinaryPath() {
+  async function saveSkillEnabled(path: string, enabled: boolean) {
     setError(null);
     setStatusMessage(null);
 
     try {
-      const selected = await open({
-        multiple: false,
-        directory: false,
-        title: "选择 Codex 命令",
+      const result = await invoke<SaveResult>("save_skill_enabled", {
+        path,
+        enabled,
+        fileToken: state?.fileToken ?? null,
       });
-
-      if (typeof selected === "string") {
-        setBinaryPathDraft(selected);
-      }
+      setState(result.state);
+      setDraftValues(draftValuesFromFields(result.state.fields));
+      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
+      setModelProviderDraft(emptyModelProviderDraft());
+      setPendingDeleteProviderId(null);
+      setRawTomlDraft(result.state.rawToml);
+      setPreview(null);
+      setPreviewKind(null);
+      setStatusMessage(
+        result.changed
+          ? `已${enabled ? "启用" : "停用"} skill。重启 Codex 后生效。`
+          : "Skill 启停状态没有变化。",
+      );
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -633,9 +670,10 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
+        <div className="top-title">
           <p className="eyebrow">codex-config</p>
           <h1>Codex 配置</h1>
+          {state && <TopCodexSummary state={state} />}
         </div>
         <button className="icon-button" onClick={loadState} disabled={loading}>
           <RefreshCw size={18} />
@@ -656,86 +694,95 @@ function App() {
           <section className="status-grid">
             <ConfigTarget state={state} />
             <HealthStrip state={state} />
-            <BinarySettings
-              state={state}
-              draft={binaryPathDraft}
-              onDraftChange={setBinaryPathDraft}
-              onChoose={chooseBinaryPath}
-              onSave={() => saveBinaryPath(binaryPathDraft)}
-              onClear={() => saveBinaryPath(null)}
-            />
           </section>
-          <section className="workspace">
-            <div className="left-pane">
-              <FastModeTask
-                state={state}
-                onPreview={previewFastMode}
-                onSave={saveFastMode}
-                preview={preview}
-                previewKind={previewKind}
-              />
-              <SettingsForm
-                fields={state.fields}
-                draftValues={draftValues}
-                dirty={settingsDirty}
-                writable={state.writable}
-                title="全局配置"
-                emptyMessage="config.toml 当前无法解析。请先在右侧原始 TOML 中查看错误，修复后刷新。"
-                previewReady={previewKind === "rootSettings" && Boolean(preview?.changed)}
-                onChange={updateDraftValue}
-                onPreview={previewSettings}
-                onSave={saveSettings}
-              />
-              <ModelProvidersPanel
-                state={state}
-                draft={modelProviderDraft}
-                savePreviewReady={previewKind === "modelProviderSave" && Boolean(preview?.changed)}
-                pendingDeleteId={
-                  previewKind === "modelProviderDelete" && preview?.changed
-                    ? pendingDeleteProviderId
-                    : null
-                }
-                onDraftChange={updateModelProviderDraft}
-                onPreview={previewModelProvider}
-                onSave={saveModelProvider}
-                onPreviewDelete={previewDeleteModelProvider}
-                onDelete={deleteModelProvider}
-              />
-              <ProfileSettingsForm
-                state={state}
-                draftValues={profileDraftValues}
-                dirty={profileSettingsDirty}
-                previewReady={previewKind === "profileSettings" && Boolean(preview?.changed)}
-                onChange={updateProfileDraftValue}
-                onPreview={previewProfileSettings}
-                onSave={saveProfileSettings}
-              />
-              <FieldCatalog
-                fields={state.catalogFields}
-                query={catalogQuery}
-                onQueryChange={setCatalogQuery}
-              />
-              <ProfileWarnings warnings={state.profileWarnings} />
-            </div>
-            <div className="right-pane">
-              <DiffPanel preview={preview} />
-              <RawToml
-                state={state}
-                draft={rawTomlDraft}
-                dirty={rawTomlDirty}
-                writable={rawTomlWritable}
-                previewReady={previewKind === "rawToml" && Boolean(preview?.changed)}
-                onChange={updateRawTomlDraft}
-                onPreview={previewRawToml}
-                onSave={saveRawToml}
-              />
-              <Backups
-                backups={state.backups}
-                backupDir={state.backupDir}
-                writable={state.writable}
-                onRestore={restoreBackup}
-              />
-            </div>
+          <TabBar activeTab={activeTab} onChange={switchTab} />
+          <section className={`workspace ${activeTab === "skills" ? "skills-workspace" : ""}`}>
+            {activeTab === "config" ? (
+              <>
+                <div className="left-pane">
+                  <FastModeTask
+                    state={state}
+                    onPreview={previewFastMode}
+                    onSave={saveFastMode}
+                    preview={preview}
+                    previewKind={previewKind}
+                  />
+                  <SettingsForm
+                    fields={state.fields}
+                    draftValues={draftValues}
+                    dirty={settingsDirty}
+                    writable={state.writable}
+                    title="全局配置"
+                    emptyMessage="config.toml 当前无法解析。请先在右侧原始 TOML 中查看错误，修复后刷新。"
+                    previewReady={previewKind === "rootSettings" && Boolean(preview?.changed)}
+                    onChange={updateDraftValue}
+                    onPreview={previewSettings}
+                    onSave={saveSettings}
+                  />
+                  <ModelProvidersPanel
+                    state={state}
+                    draft={modelProviderDraft}
+                    savePreviewReady={previewKind === "modelProviderSave" && Boolean(preview?.changed)}
+                    pendingDeleteId={
+                      previewKind === "modelProviderDelete" && preview?.changed
+                        ? pendingDeleteProviderId
+                        : null
+                    }
+                    onDraftChange={updateModelProviderDraft}
+                    onPreview={previewModelProvider}
+                    onSave={saveModelProvider}
+                    onPreviewDelete={previewDeleteModelProvider}
+                    onDelete={deleteModelProvider}
+                  />
+                  <ProfileSettingsForm
+                    state={state}
+                    draftValues={profileDraftValues}
+                    dirty={profileSettingsDirty}
+                    previewReady={previewKind === "profileSettings" && Boolean(preview?.changed)}
+                    onChange={updateProfileDraftValue}
+                    onPreview={previewProfileSettings}
+                    onSave={saveProfileSettings}
+                  />
+                  <FieldCatalog
+                    fields={state.catalogFields}
+                    query={catalogQuery}
+                    onQueryChange={setCatalogQuery}
+                  />
+                  <ProfileWarnings warnings={state.profileWarnings} />
+                </div>
+                <div className="right-pane">
+                  <DiffPanel preview={preview} />
+                  <RawToml
+                    state={state}
+                    draft={rawTomlDraft}
+                    dirty={rawTomlDirty}
+                    writable={rawTomlWritable}
+                    previewReady={previewKind === "rawToml" && Boolean(preview?.changed)}
+                    onChange={updateRawTomlDraft}
+                    onPreview={previewRawToml}
+                    onSave={saveRawToml}
+                  />
+                  <Backups
+                    backups={state.backups}
+                    backupDir={state.backupDir}
+                    writable={state.writable}
+                    onRestore={restoreBackup}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="single-pane">
+                <SkillsPanel
+                  state={state}
+                  query={skillQuery}
+                  selectedPath={selectedSkillPath}
+                  content={skillContent}
+                  onQueryChange={setSkillQuery}
+                  onSelect={readSkill}
+                  onSaveToggle={saveSkillEnabled}
+                />
+              </div>
+            )}
           </section>
         </>
       )}
@@ -936,6 +983,42 @@ function configTarget(path: string) {
   };
 }
 
+function TopCodexSummary({ state }: { state: AppState }) {
+  const codex = state.health.codex;
+
+  return (
+    <div className="top-codex-summary">
+      <code>{codex.binaryPath ?? "未检测到 Codex 命令"}</code>
+      <span>{codex.version ?? codex.message ?? "版本未知"}</span>
+    </div>
+  );
+}
+
+function TabBar({
+  activeTab,
+  onChange,
+}: {
+  activeTab: MainTab;
+  onChange: (tab: MainTab) => void;
+}) {
+  return (
+    <nav className="tabbar" aria-label="配置区域">
+      <button
+        className={activeTab === "config" ? "tab-button active" : "tab-button"}
+        onClick={() => onChange("config")}
+      >
+        Codex 配置
+      </button>
+      <button
+        className={activeTab === "skills" ? "tab-button active" : "tab-button"}
+        onClick={() => onChange("skills")}
+      >
+        Skills
+      </button>
+    </nav>
+  );
+}
+
 function HealthStrip({ state }: { state: AppState }) {
   const health = state.health;
   const tone =
@@ -972,58 +1055,6 @@ function HealthStrip({ state }: { state: AppState }) {
         </div>
       </dl>
       {state.readonlyReason && <p>{state.readonlyReason}</p>}
-    </section>
-  );
-}
-
-function BinarySettings({
-  state,
-  draft,
-  onDraftChange,
-  onChoose,
-  onSave,
-  onClear,
-}: {
-  state: AppState;
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onChoose: () => void;
-  onSave: () => void;
-  onClear: () => void;
-}) {
-  const savedPath = state.preferences.codexBinaryPath ?? "";
-  const dirty = draft.trim() !== savedPath;
-  const canClear = Boolean(savedPath);
-
-  return (
-    <section className="binary-panel">
-      <div>
-        <p className="eyebrow">Codex 命令位置</p>
-        <h2>{state.health.codex.binaryPath ?? "未检测到"}</h2>
-        <p>
-          {state.health.codex.version ??
-            state.health.codex.message ??
-            "如果桌面应用没有继承终端 PATH，可以手动选择 codex 命令。"}
-        </p>
-      </div>
-      <div className="binary-editor">
-        <input
-          className="field-control binary-input"
-          value={draft}
-          placeholder="/opt/homebrew/bin/codex"
-          onChange={(event) => onDraftChange(event.currentTarget.value)}
-        />
-        <button className="small-button" onClick={onChoose}>
-          <MousePointer2 size={15} />
-          选择
-        </button>
-        <button className="small-button" disabled={!dirty} onClick={onSave}>
-          保存路径
-        </button>
-        <button className="small-button" disabled={!canClear} onClick={onClear}>
-          清除
-        </button>
-      </div>
     </section>
   );
 }
@@ -1351,6 +1382,137 @@ function ModelProvidersPanel({
           <p className="muted">
             内置 provider ID 保留不可覆盖：{state.modelProviders.reservedIds.join(", ")}。
           </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SkillsPanel({
+  state,
+  query,
+  selectedPath,
+  content,
+  onQueryChange,
+  onSelect,
+  onSaveToggle,
+}: {
+  state: AppState;
+  query: string;
+  selectedPath: string | null;
+  content: SkillContent | null;
+  onQueryChange: (value: string) => void;
+  onSelect: (path: string) => void;
+  onSaveToggle: (path: string, enabled: boolean) => void;
+}) {
+  const normalized = query.trim().toLowerCase();
+  const skills = normalized
+    ? state.skills.skills.filter((skill) =>
+        [skill.name, skill.description, skill.path, skill.source]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(normalized),
+      )
+    : state.skills.skills;
+  const selectedSkill =
+    state.skills.skills.find((skill) => skill.path === selectedPath) ?? skills[0];
+  const selectedContent =
+    content && content.path === selectedSkill?.path ? content.rawMarkdown : "";
+
+  return (
+    <section className="panel skills-panel">
+      <div className="panel-heading skills-heading">
+        <BookOpen size={18} />
+        <div>
+          <h2>全局 Skills</h2>
+          <p className="muted">
+            发现全局 <code>SKILL.md</code>；启停写入 <code>skills.config</code>。
+          </p>
+        </div>
+      </div>
+
+      <div className="skill-roots">
+        {state.skills.roots.map((root) => (
+          <span className={root.exists ? "skill-root ok" : "skill-root"} key={root.path}>
+            {root.label}: {root.exists ? root.path : "未找到"}
+          </span>
+        ))}
+      </div>
+
+      <div className="skills-layout">
+        <div className="skills-list">
+          <input
+            className="field-control skill-search"
+            value={query}
+            placeholder="搜索 skill 名称、描述或路径"
+            onChange={(event) => onQueryChange(event.currentTarget.value)}
+          />
+          {skills.length === 0 ? (
+            <div className="empty-state">没有发现匹配的全局 skill。</div>
+          ) : (
+            skills.map((skill) => {
+              const nextEnabled = !skill.enabled;
+
+              return (
+                <div
+                  className={`skill-row ${skill.path === selectedSkill?.path ? "active" : ""}`}
+                  key={skill.path}
+                >
+                  <button onClick={() => onSelect(skill.path)}>
+                    <span className={skill.enabled ? "skill-status enabled" : "skill-status"}>
+                      {skill.enabled ? "enabled" : "disabled"}
+                    </span>
+                    <strong>{skill.name}</strong>
+                    {skill.description && (
+                      <p title={skill.description}>{shortDescription(skill.description)}</p>
+                    )}
+                    <code>{skill.path}</code>
+                    <small>
+                      {skill.source} · {formatBytes(skill.size)}
+                      {skill.configured ? " · configured" : ""}
+                    </small>
+                  </button>
+                  <div className="skill-actions">
+                    <button className="small-button" onClick={() => onSelect(skill.path)}>
+                      <Eye size={14} />
+                      查看内容
+                    </button>
+                    <button
+                      className="small-button"
+                      disabled={!state.writable}
+                      onClick={() => onSaveToggle(skill.path, nextEnabled)}
+                    >
+                      <Power size={14} />
+                      {nextEnabled ? "启用" : "停用"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="skill-preview">
+          {selectedSkill ? (
+            <>
+              <div className="skill-preview-heading">
+                <div>
+                  <h3>{selectedSkill.name}</h3>
+                  <p>{selectedSkill.directory}</p>
+                </div>
+                <span className={selectedSkill.enabled ? "skill-status enabled" : "skill-status"}>
+                  {selectedSkill.enabled ? "enabled" : "disabled"}
+                </span>
+              </div>
+              <pre>{selectedContent || "选择左侧 skill 后会显示 SKILL.md 内容。"}</pre>
+              <p className="muted">
+                保存启停配置后需要重启 Codex，新状态才会进入下一次 skills 列表。
+              </p>
+            </>
+          ) : (
+            <div className="empty-state">没有可预览的 skill。</div>
+          )}
         </div>
       </div>
     </section>
@@ -1867,6 +2029,11 @@ function Backups({
       )}
     </section>
   );
+}
+
+function shortDescription(description: string) {
+  const compact = description.replace(/\s+/g, " ").trim();
+  return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
 }
 
 function formatBytes(bytes: number) {

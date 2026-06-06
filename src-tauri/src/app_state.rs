@@ -5,6 +5,7 @@ use crate::config_locator;
 use crate::config_schema::{self, FieldDefinition};
 use crate::effective_config::{self, ProfileStatus, ProfileWarning};
 use crate::model_provider_store::{self, ModelProviderState};
+use crate::skill_store::{self, SkillState};
 use crate::toml_store::{self, FileToken, ParseIssue};
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +23,7 @@ pub struct AppState {
     pub profile_fields: Vec<FieldState>,
     pub catalog_fields: Vec<FieldState>,
     pub model_providers: ModelProviderState,
+    pub skills: SkillState,
     pub raw_toml: String,
     pub parse_issue: Option<ParseIssue>,
     pub profile_status: Option<ProfileStatus>,
@@ -92,7 +94,15 @@ pub fn load_state() -> Result<AppState, String> {
 
     let writable = readonly_reason.is_none();
     let schema = config_schema::schema()?;
-    let (fields, profile_fields, catalog_fields, model_providers, profile_status, profile_warnings) =
+    let (
+        fields,
+        profile_fields,
+        catalog_fields,
+        model_providers,
+        skills,
+        profile_status,
+        profile_warnings,
+    ) =
         match loaded.document.as_ref() {
             Some(document) => {
                 let profile_status = effective_config::profile_status(document);
@@ -101,6 +111,7 @@ pub fn load_state() -> Result<AppState, String> {
                     profile_fields_from_document(document, writable, &profile_status, schema),
                     catalog_fields_from_document(document, schema),
                     model_provider_store::state_from_document(document),
+                    skill_store::state_from_document(Some(document)),
                     Some(profile_status),
                     effective_config::profile_warnings(document),
                 )
@@ -113,6 +124,7 @@ pub fn load_state() -> Result<AppState, String> {
                     providers: Vec::new(),
                     reserved_ids: Vec::new(),
                 },
+                skill_store::state_from_document(None),
                 None,
                 Vec::new(),
             ),
@@ -135,6 +147,7 @@ pub fn load_state() -> Result<AppState, String> {
         profile_fields,
         catalog_fields,
         model_providers,
+        skills,
         raw_toml: loaded.raw,
         parse_issue: loaded.parse_issue,
         profile_status,
