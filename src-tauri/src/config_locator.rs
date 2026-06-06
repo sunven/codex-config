@@ -32,8 +32,10 @@ pub fn locate() -> Result<ConfigLocation, String> {
     })
 }
 
+pub fn user_home_dir() -> Option<PathBuf> {
+    env::var_os("HOME").map(PathBuf::from)
+}
+
 fn home_dir() -> PathBuf {
-    env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
+    user_home_dir().unwrap_or_else(|| PathBuf::from("."))
 }

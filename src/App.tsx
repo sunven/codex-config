@@ -21,6 +21,7 @@ import "./App.css";
 type HealthStatus = "ready" | "readOnly" | "needsAttention";
 
 type AppState = {
+  homeDir?: string;
   configPath: string;
   resolvedPath: string;
   backupDir: string;
@@ -285,7 +286,7 @@ function App() {
       setPreviewKind(null);
       setStatusMessage(
         result.changed
-          ? `已保存。备份：${result.backupPath ?? "新配置无需备份"}`
+          ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
           : "没有需要保存的变更。",
       );
     } catch (error) {
@@ -344,7 +345,7 @@ function App() {
       setPreviewKind(null);
       setStatusMessage(
         result.changed
-          ? `已保存。备份：${result.backupPath ?? "新配置无需备份"}`
+          ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
           : "没有需要保存的变更。",
       );
     } catch (error) {
@@ -413,7 +414,10 @@ function App() {
       setPreviewKind(null);
       setStatusMessage(
         result.changed
-          ? `已保存 profile 配置。备份：${result.backupPath ?? "新配置无需备份"}`
+          ? `已保存 profile 配置。备份：${backupPathLabel(
+              result.backupPath,
+              result.state.homeDir,
+            )}`
           : "没有需要保存的变更。",
       );
     } catch (error) {
@@ -468,7 +472,10 @@ function App() {
       setPreviewKind(null);
       setStatusMessage(
         result.changed
-          ? `已保存原始 TOML。备份：${result.backupPath ?? "新配置无需备份"}`
+          ? `已保存原始 TOML。备份：${backupPathLabel(
+              result.backupPath,
+              result.state.homeDir,
+            )}`
           : "没有需要保存的原始 TOML 变更。",
       );
     } catch (error) {
@@ -529,7 +536,10 @@ function App() {
       setPreviewKind(null);
       setStatusMessage(
         result.changed
-          ? `已保存 model provider。备份：${result.backupPath ?? "新配置无需备份"}`
+          ? `已保存 model provider。备份：${backupPathLabel(
+              result.backupPath,
+              result.state.homeDir,
+            )}`
           : "没有需要保存的 model provider 变更。",
       );
     } catch (error) {
@@ -575,7 +585,10 @@ function App() {
       setPreviewKind(null);
       setStatusMessage(
         result.changed
-          ? `已删除 model provider。备份：${result.backupPath ?? "新配置无需备份"}`
+          ? `已删除 model provider。备份：${backupPathLabel(
+              result.backupPath,
+              result.state.homeDir,
+            )}`
           : "没有需要删除的 model provider。",
       );
     } catch (error) {
@@ -602,7 +615,7 @@ function App() {
       setPreviewKind(null);
       setStatusMessage(
         `已恢复备份。恢复前备份：${
-          result.backupPath ?? "新配置无需备份"
+          backupPathLabel(result.backupPath, result.state.homeDir)
         }`,
       );
     } catch (error) {
@@ -765,6 +778,7 @@ function App() {
                   <Backups
                     backups={state.backups}
                     backupDir={state.backupDir}
+                    homeDir={state.homeDir}
                     writable={state.writable}
                     onRestore={restoreBackup}
                   />
@@ -952,10 +966,47 @@ function ConfigTarget({ state }: { state: AppState }) {
       {target.tone === "real" ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
       <div>
         <strong>{target.label}</strong>
-        <p>{state.configPath}</p>
+        <p>{displayPath(state.configPath, state.homeDir)}</p>
       </div>
     </section>
   );
+}
+
+function backupPathLabel(path: string | undefined, homeDir: string | undefined) {
+  return path ? displayPath(path, homeDir) : "新配置无需备份";
+}
+
+function displayPath(path: string, homeDir: string | undefined) {
+  const home = normalizedHomeDir(homeDir);
+
+  if (!home) {
+    return path;
+  }
+
+  if (path.replace(/[\\/]+$/, "") === home) {
+    return "~";
+  }
+
+  for (const separator of ["/", "\\"]) {
+    const prefix = `${home}${separator}`;
+    if (path.startsWith(prefix)) {
+      return `~${separator}${path.slice(prefix.length)}`;
+    }
+  }
+
+  return path;
+}
+
+function normalizedHomeDir(homeDir: string | undefined) {
+  const trimmed = homeDir?.trim();
+
+  if (!trimmed || trimmed === "." || trimmed === "/" || trimmed === "\\") {
+    return undefined;
+  }
+
+  const normalized = trimmed.replace(/[\\/]+$/, "");
+
+  return normalized && !/^[A-Za-z]:$/.test(normalized) ? normalized : undefined;
 }
 
 function configTarget(path: string) {
@@ -988,7 +1039,11 @@ function TopCodexSummary({ state }: { state: AppState }) {
 
   return (
     <div className="top-codex-summary">
-      <code>{codex.binaryPath ?? "未检测到 Codex 命令"}</code>
+      <code>
+        {codex.binaryPath
+          ? displayPath(codex.binaryPath, state.homeDir)
+          : "未检测到 Codex 命令"}
+      </code>
       <span>{codex.version ?? codex.message ?? "版本未知"}</span>
     </div>
   );
@@ -1435,7 +1490,7 @@ function SkillsPanel({
       <div className="skill-roots">
         {state.skills.roots.map((root) => (
           <span className={root.exists ? "skill-root ok" : "skill-root"} key={root.path}>
-            {root.label}: {root.exists ? root.path : "未找到"}
+            {root.label}: {root.exists ? displayPath(root.path, state.homeDir) : "未找到"}
           </span>
         ))}
       </div>
@@ -1467,7 +1522,7 @@ function SkillsPanel({
                     {skill.description && (
                       <p title={skill.description}>{shortDescription(skill.description)}</p>
                     )}
-                    <code>{skill.path}</code>
+                    <code>{displayPath(skill.path, state.homeDir)}</code>
                     <small>
                       {skill.source} · {formatBytes(skill.size)}
                       {skill.configured ? " · configured" : ""}
@@ -1499,7 +1554,7 @@ function SkillsPanel({
               <div className="skill-preview-heading">
                 <div>
                   <h3>{selectedSkill.name}</h3>
-                  <p>{selectedSkill.directory}</p>
+                  <p>{displayPath(selectedSkill.directory, state.homeDir)}</p>
                 </div>
                 <span className={selectedSkill.enabled ? "skill-status enabled" : "skill-status"}>
                   {selectedSkill.enabled ? "enabled" : "disabled"}
@@ -1991,11 +2046,13 @@ function DiffPanel({ preview }: { preview: PreviewResult | null }) {
 function Backups({
   backups,
   backupDir,
+  homeDir,
   writable,
   onRestore,
 }: {
   backups: BackupSummary[];
   backupDir: string;
+  homeDir?: string;
   writable: boolean;
   onRestore: (backupId: string) => void;
 }) {
@@ -2005,7 +2062,7 @@ function Backups({
         <DatabaseBackup size={18} />
         <h2>备份</h2>
       </div>
-      <p className="muted">{backupDir}</p>
+      <p className="muted">{displayPath(backupDir, homeDir)}</p>
       {backups.length === 0 ? (
         <p>暂无备份。</p>
       ) : (

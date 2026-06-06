@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppState {
+    pub home_dir: Option<String>,
     pub config_path: String,
     pub resolved_path: String,
     pub backup_dir: String,
@@ -131,6 +132,7 @@ pub fn load_state() -> Result<AppState, String> {
         };
 
     Ok(AppState {
+        home_dir: config_locator::user_home_dir().map(|path| path.display().to_string()),
         config_path: location.config_path.display().to_string(),
         resolved_path: location.resolved_path.display().to_string(),
         backup_dir: location.backup_dir.display().to_string(),
