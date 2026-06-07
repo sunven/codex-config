@@ -6,6 +6,7 @@ mod codex_session_store;
 mod config_locator;
 mod config_schema;
 mod effective_config;
+mod mcp_server_store;
 mod model_provider_store;
 mod schema_write;
 mod skill_store;
@@ -14,6 +15,7 @@ mod test_support;
 mod toml_store;
 
 use app_state::AppState;
+use mcp_server_store::{McpServerDraft, McpServerSaveResult};
 use model_provider_store::{ModelProviderDraft, ModelProviderSaveResult};
 use skill_store::SkillContent;
 use toml_store::{DraftChange, FileToken, PreviewResult, SaveResult};
@@ -73,6 +75,32 @@ fn delete_model_provider(
 }
 
 #[tauri::command]
+fn preview_save_mcp_server(draft: McpServerDraft) -> Result<PreviewResult, String> {
+    mcp_server_store::preview_save_server(draft).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_mcp_server(
+    draft: McpServerDraft,
+    file_token: Option<FileToken>,
+) -> Result<McpServerSaveResult, String> {
+    mcp_server_store::save_server(draft, file_token).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn preview_delete_mcp_server(id: String) -> Result<PreviewResult, String> {
+    mcp_server_store::preview_delete_server(id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn delete_mcp_server(
+    id: String,
+    file_token: Option<FileToken>,
+) -> Result<McpServerSaveResult, String> {
+    mcp_server_store::delete_server(id, file_token).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn restore_backup(backup_id: String, file_token: Option<FileToken>) -> Result<SaveResult, String> {
     toml_store::restore_backup(backup_id, file_token).map_err(|error| error.to_string())
 }
@@ -123,6 +151,10 @@ pub fn run() {
             save_model_provider,
             preview_delete_model_provider,
             delete_model_provider,
+            preview_save_mcp_server,
+            save_mcp_server,
+            preview_delete_mcp_server,
+            delete_mcp_server,
             restore_backup,
             save_codex_binary_path,
             delete_session,

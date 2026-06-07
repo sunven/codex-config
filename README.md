@@ -38,6 +38,7 @@ Current implementation status:
 - Bundled schema metadata drives the editable scalar field catalog and the backend write registry.
 - Full-field catalog/search shows representative official Codex config fields, including complex areas such as `model_providers`, `mcp_servers`, `profiles`, `tools`, and `apps`.
 - Dedicated `model_providers` editor for custom providers: create, edit, rename, delete, preview, save with backup, and protected built-in provider IDs.
+- Dedicated `mcp_servers` editor: create, edit, rename, delete, preview, save with backup, and preserve unknown advanced fields on existing servers.
 - Global and profile fields are grouped in the UI.
 - Field-level diff plus raw TOML diff preview.
 - Advanced TOML editor for configuring complex fields before dedicated visual editors exist. Raw edits are parsed, reserialized, reparsed, previewed, protected by file tokens, and backed up before save.
@@ -48,7 +49,7 @@ Current implementation status:
 - Optimistic file tokens to block overwriting config changed outside the app.
 
 Planned next:
-- Dedicated editors for MCP servers and profile management.
+- Dedicated editor for profile management.
 - Runtime schema refresh workflow.
 - Dedicated visual controls for remaining complex nested settings.
 

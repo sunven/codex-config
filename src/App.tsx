@@ -45,6 +45,7 @@ type AppState = {
   profileFields: FieldState[];
   catalogFields: FieldState[];
   modelProviders: ModelProviderState;
+  mcpServers: McpServerState;
   codexSessions: CodexSessionState;
   skills: SkillState;
   rawToml: string;
@@ -139,6 +140,10 @@ type ModelProviderState = {
   reservedIds: string[];
 };
 
+type McpServerState = {
+  servers: McpServerEntry[];
+};
+
 type SkillState = {
   roots: SkillRoot[];
   skills: SkillSummary[];
@@ -187,6 +192,16 @@ type ModelProviderEntry = {
   hasAdvancedFields: boolean;
 };
 
+type McpServerEntry = {
+  id: string;
+  command?: string;
+  args: string[];
+  env: Record<string, string>;
+  startupTimeoutMs?: number;
+  enabled?: boolean;
+  hasAdvancedFields: boolean;
+};
+
 type ModelProviderDraft = {
   id: string;
   originalId?: string;
@@ -203,6 +218,16 @@ type ModelProviderDraft = {
   queryParams: Record<string, string>;
   httpHeaders: Record<string, string>;
   envHttpHeaders: Record<string, string>;
+};
+
+type McpServerDraft = {
+  id: string;
+  originalId?: string;
+  command?: string;
+  args: string[];
+  env: Record<string, string>;
+  startupTimeoutMs?: number;
+  enabled?: boolean;
 };
 
 type PreviewResult = {
@@ -239,9 +264,11 @@ type PreviewKind =
   | "profileSettings"
   | "rawToml"
   | "modelProviderSave"
-  | "modelProviderDelete";
+  | "modelProviderDelete"
+  | "mcpServerSave"
+  | "mcpServerDelete";
 
-type MainTab = "config" | "sessions" | "skills";
+type MainTab = "config" | "sessions" | "mcp" | "skills";
 
 function App() {
   const [state, setState] = useState<AppState | null>(null);
@@ -253,12 +280,14 @@ function App() {
   const [profileDraftValues, setProfileDraftValues] = useState<Record<string, string>>({});
   const [modelProviderDraft, setModelProviderDraft] =
     useState<ModelProviderDraft>(emptyModelProviderDraft());
+  const [mcpServerDraft, setMcpServerDraft] = useState<McpServerDraft>(emptyMcpServerDraft());
   const [rawTomlDraft, setRawTomlDraft] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
   const [skillQuery, setSkillQuery] = useState("");
   const [selectedSkillPath, setSelectedSkillPath] = useState<string | null>(null);
   const [skillContent, setSkillContent] = useState<SkillContent | null>(null);
   const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
+  const [pendingDeleteServerId, setPendingDeleteServerId] = useState<string | null>(null);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -275,7 +304,9 @@ function App() {
       setDraftValues(draftValuesFromFields(nextState.fields));
       setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setPendingDeleteSessionId(null);
       setSelectedSkillPath(nextState.skills.skills[0]?.path ?? null);
       setSkillContent(null);
@@ -292,6 +323,7 @@ function App() {
     setPreview(null);
     setPreviewKind(null);
     setPendingDeleteProviderId(null);
+    setPendingDeleteServerId(null);
     setPendingDeleteSessionId(null);
     setStatusMessage(null);
   }
@@ -324,7 +356,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -383,7 +417,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -452,7 +488,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -510,7 +548,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -537,6 +577,14 @@ function App() {
   function updateModelProviderDraft(draft: ModelProviderDraft) {
     setModelProviderDraft(draft);
     setPendingDeleteProviderId(null);
+    setPreview(null);
+    setPreviewKind(null);
+    setStatusMessage(null);
+  }
+
+  function updateMcpServerDraft(draft: McpServerDraft) {
+    setMcpServerDraft(draft);
+    setPendingDeleteServerId(null);
     setPreview(null);
     setPreviewKind(null);
     setStatusMessage(null);
@@ -574,7 +622,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -623,7 +673,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -634,6 +686,108 @@ function App() {
               result.state.homeDir,
             )}`
           : "没有需要删除的 model provider。",
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function previewMcpServer() {
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      const nextPreview = await invoke<PreviewResult>("preview_save_mcp_server", {
+        draft: compactMcpServerDraft(mcpServerDraft),
+      });
+      setPreview(nextPreview);
+      setPreviewKind("mcpServerSave");
+      setPendingDeleteServerId(null);
+
+      if (!nextPreview.changed) {
+        setStatusMessage("MCP server 没有可预览的变更。");
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function saveMcpServer() {
+    setError(null);
+
+    try {
+      const result = await invoke<SaveResult>("save_mcp_server", {
+        draft: compactMcpServerDraft(mcpServerDraft),
+        fileToken: state?.fileToken ?? null,
+      });
+      setState(result.state);
+      setDraftValues(draftValuesFromFields(result.state.fields));
+      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
+      setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
+      setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
+      setRawTomlDraft(result.state.rawToml);
+      setPreview(null);
+      setPreviewKind(null);
+      setStatusMessage(
+        result.changed
+          ? `已保存 MCP server。备份：${backupPathLabel(
+              result.backupPath,
+              result.state.homeDir,
+            )}`
+          : "没有需要保存的 MCP server 变更。",
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function previewDeleteMcpServer(id: string) {
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      const nextPreview = await invoke<PreviewResult>("preview_delete_mcp_server", {
+        id,
+      });
+      setPreview(nextPreview);
+      setPreviewKind("mcpServerDelete");
+      setPendingDeleteServerId(nextPreview.changed ? id : null);
+
+      if (!nextPreview.changed) {
+        setStatusMessage("MCP server 没有可删除的变更。");
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function deleteMcpServer(id: string) {
+    setError(null);
+
+    try {
+      const result = await invoke<SaveResult>("delete_mcp_server", {
+        id,
+        fileToken: state?.fileToken ?? null,
+      });
+      setState(result.state);
+      setDraftValues(draftValuesFromFields(result.state.fields));
+      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
+      setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
+      setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
+      setRawTomlDraft(result.state.rawToml);
+      setPreview(null);
+      setPreviewKind(null);
+      setStatusMessage(
+        result.changed
+          ? `已删除 MCP server。备份：${backupPathLabel(
+              result.backupPath,
+              result.state.homeDir,
+            )}`
+          : "没有需要删除的 MCP server。",
       );
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
@@ -653,7 +807,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -697,7 +853,9 @@ function App() {
       setDraftValues(draftValuesFromFields(result.state.fields));
       setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setRawTomlDraft(result.state.rawToml);
       setPreview(null);
       setPreviewKind(null);
@@ -727,7 +885,9 @@ function App() {
       setDraftValues(draftValuesFromFields(nextState.fields));
       setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
       setPendingDeleteSessionId(null);
       setRawTomlDraft(nextState.rawToml);
       setPreview(null);
@@ -867,6 +1027,46 @@ function App() {
                   onDelete={deleteSession}
                 />
               </div>
+            ) : activeTab === "mcp" ? (
+              <>
+                <div className="left-pane">
+                  <McpServersPanel
+                    state={state}
+                    draft={mcpServerDraft}
+                    savePreviewReady={previewKind === "mcpServerSave" && Boolean(preview?.changed)}
+                    pendingDeleteId={
+                      previewKind === "mcpServerDelete" && preview?.changed
+                        ? pendingDeleteServerId
+                        : null
+                    }
+                    onDraftChange={updateMcpServerDraft}
+                    onPreview={previewMcpServer}
+                    onSave={saveMcpServer}
+                    onPreviewDelete={previewDeleteMcpServer}
+                    onDelete={deleteMcpServer}
+                  />
+                </div>
+                <div className="right-pane">
+                  <DiffPanel preview={preview} />
+                  <RawToml
+                    state={state}
+                    draft={rawTomlDraft}
+                    dirty={rawTomlDirty}
+                    writable={rawTomlWritable}
+                    previewReady={previewKind === "rawToml" && Boolean(preview?.changed)}
+                    onChange={updateRawTomlDraft}
+                    onPreview={previewRawToml}
+                    onSave={saveRawToml}
+                  />
+                  <Backups
+                    backups={state.backups}
+                    backupDir={state.backupDir}
+                    homeDir={state.homeDir}
+                    writable={state.writable}
+                    onRestore={restoreBackup}
+                  />
+                </div>
+              </>
             ) : (
               <div className="single-pane">
                 <SkillsPanel
@@ -953,6 +1153,40 @@ function compactModelProviderDraft(draft: ModelProviderDraft): ModelProviderDraf
   };
 }
 
+function emptyMcpServerDraft(): McpServerDraft {
+  return {
+    id: "",
+    command: "",
+    args: [],
+    env: {},
+    startupTimeoutMs: undefined,
+    enabled: undefined,
+  };
+}
+
+function draftFromMcpServer(server: McpServerEntry): McpServerDraft {
+  return {
+    id: server.id,
+    originalId: server.id,
+    command: server.command ?? "",
+    args: [...server.args],
+    env: { ...server.env },
+    startupTimeoutMs: server.startupTimeoutMs,
+    enabled: server.enabled,
+  };
+}
+
+function compactMcpServerDraft(draft: McpServerDraft): McpServerDraft {
+  return {
+    ...draft,
+    id: draft.id.trim(),
+    originalId: draft.originalId?.trim() || undefined,
+    command: optionalText(draft.command),
+    args: draft.args.map((arg) => arg.trim()).filter(Boolean),
+    env: cleanStringMap(draft.env),
+  };
+}
+
 function optionalText(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -995,6 +1229,30 @@ function modelProviderDirty(draft: ModelProviderDraft, providers: ModelProviderE
       Object.keys(compact.queryParams).length ||
       Object.keys(compact.httpHeaders).length ||
       Object.keys(compact.envHttpHeaders).length,
+  );
+}
+
+function mcpServerDirty(draft: McpServerDraft, servers: McpServerEntry[]) {
+  const compact = compactMcpServerDraft(draft);
+  const original = compact.originalId
+    ? servers.find((server) => server.id === compact.originalId)
+    : undefined;
+
+  if (original) {
+    return (
+      JSON.stringify(compact) !==
+      JSON.stringify(compactMcpServerDraft(draftFromMcpServer(original)))
+    );
+  }
+
+  return Boolean(
+    compact.id ||
+      compact.originalId ||
+      compact.command ||
+      compact.args.length ||
+      Object.keys(compact.env).length ||
+      compact.startupTimeoutMs !== undefined ||
+      compact.enabled !== undefined,
   );
 }
 
@@ -1179,7 +1437,7 @@ function compareSessionGroupKeys(left: string, right: string) {
 }
 
 function sessionYearMonthGroupInfo(session: CodexSessionSummary) {
-  const [year, month] = session.relativePath.split(/[\/]/);
+  const [year, month] = session.relativePath.split(/[\\/]/);
 
   if (/^\d{4}$/.test(year ?? "") && /^(0[1-9]|1[0-2])$/.test(month ?? "")) {
     return {
@@ -1233,6 +1491,12 @@ function TabBar({
         onClick={() => onChange("sessions")}
       >
         Sessions
+      </button>
+      <button
+        className={activeTab === "mcp" ? "tab-button active" : "tab-button"}
+        onClick={() => onChange("mcp")}
+      >
+        MCP Servers
       </button>
       <button
         className={activeTab === "skills" ? "tab-button active" : "tab-button"}
@@ -1659,16 +1923,16 @@ function SessionsPanel({
                 key={year.key}
                 onClick={() => setActiveYear(year.key)}
                 role="tab"
-                type="button"
-              >
-                <strong>{year.label}</strong>
-                <span className="session-year-meta">
-                  <span>{year.sessionCount} sessions</span>
-                  <span>{formatBytes(year.totalSize)}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+              type="button"
+            >
+              <strong>{year.label}</strong>
+              <span className="session-year-meta">
+                <span>{year.sessionCount} sessions</span>
+                <span>{formatBytes(year.totalSize)}</span>
+              </span>
+            </button>
+          ))}
+        </div>
         )}
         <div className="session-current">
           <div>
@@ -1719,7 +1983,7 @@ function SessionsPanel({
                         <div className="session-main">
                           <div className="session-title-row">
                             <strong>{session.title}</strong>
-                            <span className="skill-status">{formatBytes(session.size)}</span>
+                            <span className="session-size-badge">{formatBytes(session.size)}</span>
                           </div>
                           <code>{displayPath(session.path, state.homeDir)}</code>
                           <div className="session-meta">
@@ -1749,6 +2013,170 @@ function SessionsPanel({
         ) : (
           <div className="empty-state">当前 Codex Home 下没有 session 记录。</div>
         )}
+      </div>
+    </section>
+  );
+}
+
+function McpServersPanel({
+  state,
+  draft,
+  savePreviewReady,
+  pendingDeleteId,
+  onDraftChange,
+  onPreview,
+  onSave,
+  onPreviewDelete,
+  onDelete,
+}: {
+  state: AppState;
+  draft: McpServerDraft;
+  savePreviewReady: boolean;
+  pendingDeleteId: string | null;
+  onDraftChange: (draft: McpServerDraft) => void;
+  onPreview: () => void;
+  onSave: () => void;
+  onPreviewDelete: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const servers = state.mcpServers.servers;
+  const dirty = mcpServerDirty(draft, servers);
+
+  function patch(patch: Partial<McpServerDraft>) {
+    onDraftChange({ ...draft, ...patch });
+  }
+
+  return (
+    <section className="panel provider-panel">
+      <div className="panel-heading">
+        <FileCode2 size={18} />
+        <div>
+          <h2>MCP servers</h2>
+          <p className="muted">管理写入 <code>mcp_servers</code> 的 server 启动配置。</p>
+        </div>
+        <div className="panel-actions">
+          <button
+            className="small-button"
+            disabled={!state.writable || !dirty}
+            onClick={onPreview}
+          >
+            预览
+          </button>
+          <button
+            className="primary-button compact"
+            disabled={!state.writable || !dirty || !savePreviewReady}
+            onClick={onSave}
+          >
+            保存 server
+          </button>
+        </div>
+      </div>
+
+      <div className="provider-layout">
+        <div className="provider-list">
+          <button
+            className="provider-row new-provider"
+            onClick={() => onDraftChange(emptyMcpServerDraft())}
+          >
+            <Plus size={16} />
+            新建 MCP server
+          </button>
+          {servers.length === 0 ? (
+            <div className="empty-state">还没有配置 MCP server。</div>
+          ) : (
+            servers.map((server) => (
+              <div
+                className={`provider-row ${draft.originalId === server.id ? "active" : ""}`}
+                key={server.id}
+              >
+                <button onClick={() => onDraftChange(draftFromMcpServer(server))}>
+                  <strong>{server.id}</strong>
+                  <code>{server.command || "command unset"}</code>
+                  <span>
+                    {server.args.length ? server.args.join(" ") : "args unset"}
+                    {server.enabled === false ? " · disabled" : ""}
+                    {server.hasAdvancedFields ? " · advanced fields" : ""}
+                  </span>
+                </button>
+                <div className="provider-row-actions">
+                  <button
+                    className="small-button"
+                    disabled={!state.writable}
+                    onClick={() => onPreviewDelete(server.id)}
+                  >
+                    预览删除
+                  </button>
+                  <button
+                    className="small-button"
+                    disabled={!state.writable || pendingDeleteId !== server.id}
+                    onClick={() => onDelete(server.id)}
+                  >
+                    <Trash2 size={14} />
+                    删除
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="provider-form">
+          <div className="form-grid two-col">
+            <LabeledInput
+              label="Server ID"
+              value={draft.id}
+              placeholder="filesystem"
+              onChange={(value) => patch({ id: value })}
+            />
+            <LabeledInput
+              label="Command"
+              value={draft.command ?? ""}
+              placeholder="npx"
+              onChange={(value) => patch({ command: value })}
+            />
+            <LabeledNumber
+              label="Startup timeout ms"
+              value={draft.startupTimeoutMs}
+              onChange={(value) => patch({ startupTimeoutMs: value })}
+            />
+            <label className="input-block">
+              <span>Enabled</span>
+              <select
+                className="field-control"
+                value={draft.enabled === undefined ? "unset" : String(draft.enabled)}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  patch({
+                    enabled:
+                      value === "unset"
+                        ? undefined
+                        : value === "true",
+                  });
+                }}
+              >
+                <option value="unset">unset</option>
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </label>
+          </div>
+
+          <StringListEditor
+            label="Args"
+            values={draft.args}
+            placeholder="@modelcontextprotocol/server-filesystem"
+            onChange={(args) => patch({ args })}
+          />
+          <StringMapEditor
+            label="Env"
+            values={draft.env}
+            onChange={(env) => patch({ env })}
+          />
+          <p className="muted">
+            编辑器会保留当前 server 下未识别的高级字段；删除 server 会移除整个
+            <code>mcp_servers.&lt;id&gt;</code> 表。
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -1932,6 +2360,59 @@ function LabeledNumber({
         }}
       />
     </label>
+  );
+}
+
+function StringListEditor({
+  label,
+  values,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  values: string[];
+  placeholder?: string;
+  onChange: (values: string[]) => void;
+}) {
+  function updateValue(index: number, value: string) {
+    const next = [...values];
+    next[index] = value;
+    onChange(next);
+  }
+
+  function remove(index: number) {
+    const next = [...values];
+    next.splice(index, 1);
+    onChange(next);
+  }
+
+  return (
+    <div className="map-editor">
+      <div className="map-editor-heading">
+        <strong>{label}</strong>
+        <button className="small-button" onClick={() => onChange([...values, ""])}>
+          <Plus size={14} />
+          添加
+        </button>
+      </div>
+      {values.length === 0 ? (
+        <p className="muted">未设置。</p>
+      ) : (
+        values.map((value, index) => (
+          <div className="list-row" key={`${label}-${index}`}>
+            <input
+              className="field-control"
+              value={value}
+              placeholder={placeholder ?? "value"}
+              onChange={(event) => updateValue(index, event.currentTarget.value)}
+            />
+            <button className="small-button" onClick={() => remove(index)}>
+              删除
+            </button>
+          </div>
+        ))
+      )}
+    </div>
   );
 }
 

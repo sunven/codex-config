@@ -5,6 +5,7 @@ use crate::codex_session_store::{self, CodexSessionState};
 use crate::config_locator;
 use crate::config_schema::{self, FieldDefinition};
 use crate::effective_config::{self, ProfileStatus, ProfileWarning};
+use crate::mcp_server_store::{self, McpServerState};
 use crate::model_provider_store::{self, ModelProviderState};
 use crate::skill_store::{self, SkillState};
 use crate::toml_store::{self, FileToken, ParseIssue};
@@ -25,6 +26,7 @@ pub struct AppState {
     pub profile_fields: Vec<FieldState>,
     pub catalog_fields: Vec<FieldState>,
     pub model_providers: ModelProviderState,
+    pub mcp_servers: McpServerState,
     pub codex_sessions: CodexSessionState,
     pub skills: SkillState,
     pub raw_toml: String,
@@ -103,36 +105,40 @@ pub fn load_state() -> Result<AppState, String> {
         profile_fields,
         catalog_fields,
         model_providers,
+        mcp_servers,
         skills,
         profile_status,
         profile_warnings,
-    ) =
-        match loaded.document.as_ref() {
-            Some(document) => {
-                let profile_status = effective_config::profile_status(document);
-                (
-                    fields_from_document(document, writable, schema),
-                    profile_fields_from_document(document, writable, &profile_status, schema),
-                    catalog_fields_from_document(document, schema),
-                    model_provider_store::state_from_document(document),
-                    skill_store::state_from_document(Some(document)),
-                    Some(profile_status),
-                    effective_config::profile_warnings(document),
-                )
-            }
-            None => (
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                ModelProviderState {
-                    providers: Vec::new(),
-                    reserved_ids: Vec::new(),
-                },
-                skill_store::state_from_document(None),
-                None,
-                Vec::new(),
-            ),
-        };
+    ) = match loaded.document.as_ref() {
+        Some(document) => {
+            let profile_status = effective_config::profile_status(document);
+            (
+                fields_from_document(document, writable, schema),
+                profile_fields_from_document(document, writable, &profile_status, schema),
+                catalog_fields_from_document(document, schema),
+                model_provider_store::state_from_document(document),
+                mcp_server_store::state_from_document(document),
+                skill_store::state_from_document(Some(document)),
+                Some(profile_status),
+                effective_config::profile_warnings(document),
+            )
+        }
+        None => (
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            ModelProviderState {
+                providers: Vec::new(),
+                reserved_ids: Vec::new(),
+            },
+            McpServerState {
+                servers: Vec::new(),
+            },
+            skill_store::state_from_document(None),
+            None,
+            Vec::new(),
+        ),
+    };
 
     Ok(AppState {
         home_dir: config_locator::user_home_dir().map(|path| path.display().to_string()),
@@ -152,6 +158,7 @@ pub fn load_state() -> Result<AppState, String> {
         profile_fields,
         catalog_fields,
         model_providers,
+        mcp_servers,
         codex_sessions,
         skills,
         raw_toml: loaded.raw,
