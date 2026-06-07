@@ -1,6 +1,7 @@
 use crate::app_preferences::{self, AppPreferences};
 use crate::backup_store::{self, BackupSummary};
 use crate::codex_probe::{self, CodexProbe};
+use crate::codex_session_store::{self, CodexSessionState};
 use crate::config_locator;
 use crate::config_schema::{self, FieldDefinition};
 use crate::effective_config::{self, ProfileStatus, ProfileWarning};
@@ -24,6 +25,7 @@ pub struct AppState {
     pub profile_fields: Vec<FieldState>,
     pub catalog_fields: Vec<FieldState>,
     pub model_providers: ModelProviderState,
+    pub codex_sessions: CodexSessionState,
     pub skills: SkillState,
     pub raw_toml: String,
     pub parse_issue: Option<ParseIssue>,
@@ -81,6 +83,7 @@ pub fn load_state() -> Result<AppState, String> {
     let preferences = app_preferences::load();
     let codex = codex_probe::probe_with_preferences(&preferences);
     let backups = backup_store::list(&location.backup_dir);
+    let codex_sessions = codex_session_store::state(&location.codex_home);
 
     let mut readonly_reason = None;
     let mut status = HealthStatus::Ready;
@@ -149,6 +152,7 @@ pub fn load_state() -> Result<AppState, String> {
         profile_fields,
         catalog_fields,
         model_providers,
+        codex_sessions,
         skills,
         raw_toml: loaded.raw,
         parse_issue: loaded.parse_issue,

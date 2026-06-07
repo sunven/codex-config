@@ -561,6 +561,228 @@ code {
   min-width: 0;
 }
 
+.sessions-panel .panel-heading {
+  align-items: flex-start;
+}
+
+.sessions-heading {
+  gap: 12px;
+}
+
+.sessions-heading > div:not(.session-current) {
+  min-width: 0;
+}
+
+.session-current {
+  background: #fbfcfa;
+  border: 1px solid #e2e7df;
+  border-radius: 8px;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(112px, 1fr));
+  margin-left: auto;
+  padding: 6px 10px;
+}
+
+.session-current div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.session-current span {
+  color: #647068;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.session-current strong {
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.session-year-tabs {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  justify-content: center;
+  min-height: 42px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.session-year-tab {
+  align-items: flex-start;
+  background: #ffffff;
+  border: 1px solid #dce2d8;
+  border-radius: 8px;
+  color: #26352c;
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 54px;
+  min-width: 146px;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.session-year-tab.active {
+  background: #e7f2eb;
+  border-color: #8fb99f;
+  box-shadow: 0 0 0 3px rgba(77, 139, 102, 0.12);
+}
+
+.session-year-tab strong {
+  color: #17211b;
+  font-size: 0.88rem;
+}
+
+.session-year-tab span {
+  color: #66736b;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.session-year-meta {
+  display: flex;
+  gap: 10px;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.session-month-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.session-month-heading {
+  align-items: center;
+  background: transparent;
+  border-bottom: 1px solid #dce2d8;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 0 2px 7px;
+  text-align: left;
+  width: 100%;
+}
+
+.session-month-heading:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid rgba(77, 139, 102, 0.35);
+  outline-offset: 2px;
+}
+
+.session-month-icon {
+  color: #526059;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.session-month-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-month-heading span {
+  color: #66736b;
+  font-size: 0.76rem;
+}
+
+.session-month-heading strong {
+  color: #526059;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.session-month-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.session-row {
+  align-items: flex-start;
+  background: #f8faf6;
+  border: 1px solid #e2e7df;
+  border-radius: 8px;
+  color: #26352c;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.session-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.session-title-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.session-title-row strong {
+  color: #1f2923;
+  overflow-wrap: anywhere;
+}
+
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.session-meta {
+  color: #66736b;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.session-meta span {
+  overflow-wrap: anywhere;
+}
+
+.session-parse-error {
+  color: #90332f;
+  font-size: 0.8rem;
+}
+
+.session-footnote {
+  margin: 0 0 10px;
+}
+
 .skills-panel .panel-heading {
   align-items: flex-start;
 }
@@ -1129,6 +1351,7 @@ code {
   }
 
   .provider-layout,
+  .session-current,
   .skills-layout,
   .form-grid.two-col,
   .form-grid.three-col,
@@ -1142,5 +1365,10 @@ code {
 
   .field-diff-values {
     justify-content: flex-start;
+  }
+
+  .session-current {
+    margin-left: 0;
+    width: 100%;
   }
 }

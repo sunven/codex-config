@@ -2,6 +2,7 @@ mod app_preferences;
 mod app_state;
 mod backup_store;
 mod codex_probe;
+mod codex_session_store;
 mod config_locator;
 mod config_schema;
 mod effective_config;
@@ -83,6 +84,12 @@ fn save_codex_binary_path(path: Option<String>) -> Result<AppState, String> {
 }
 
 #[tauri::command]
+fn delete_session(id: String) -> Result<AppState, String> {
+    codex_session_store::delete(id).map_err(|error| error.to_string())?;
+    app_state::load_state().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn read_skill_content(path: String) -> Result<SkillContent, String> {
     skill_store::read_skill_content(path).map_err(|error| error.to_string())
 }
@@ -118,6 +125,7 @@ pub fn run() {
             delete_model_provider,
             restore_backup,
             save_codex_binary_path,
+            delete_session,
             read_skill_content,
             preview_skill_enabled,
             save_skill_enabled

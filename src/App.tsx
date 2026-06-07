@@ -3,6 +3,8 @@ import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   DatabaseBackup,
   Edit3,
   Eye,
@@ -43,6 +45,7 @@ type AppState = {
   profileFields: FieldState[];
   catalogFields: FieldState[];
   modelProviders: ModelProviderState;
+  codexSessions: CodexSessionState;
   skills: SkillState;
   rawToml: string;
   parseIssue?: { message: string };
@@ -58,6 +61,44 @@ type AppState = {
 
 type AppPreferences = {
   codexBinaryPath?: string;
+};
+
+type CodexSessionState = {
+  sessionsDir: string;
+  sessions: CodexSessionSummary[];
+};
+
+type CodexSessionSummary = {
+  id: string;
+  sessionId?: string;
+  title: string;
+  cwd?: string;
+  path: string;
+  relativePath: string;
+  createdAt?: string;
+  lastTimestamp?: string;
+  cliVersion?: string;
+  modelProvider?: string;
+  size: number;
+  modifiedMs?: number;
+  messageCount: number;
+  userMessageCount: number;
+  parseError?: string;
+};
+
+type CodexSessionMonthGroup = {
+  key: string;
+  label: string;
+  sessions: CodexSessionSummary[];
+  totalSize: number;
+};
+
+type CodexSessionYearGroup = {
+  key: string;
+  label: string;
+  months: CodexSessionMonthGroup[];
+  sessionCount: number;
+  totalSize: number;
 };
 
 type FileToken = {
@@ -200,7 +241,7 @@ type PreviewKind =
   | "modelProviderSave"
   | "modelProviderDelete";
 
-type MainTab = "config" | "skills";
+type MainTab = "config" | "sessions" | "skills";
 
 function App() {
   const [state, setState] = useState<AppState | null>(null);
@@ -218,6 +259,7 @@ function App() {
   const [selectedSkillPath, setSelectedSkillPath] = useState<string | null>(null);
   const [skillContent, setSkillContent] = useState<SkillContent | null>(null);
   const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -234,6 +276,7 @@ function App() {
       setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
       setModelProviderDraft(emptyModelProviderDraft());
       setPendingDeleteProviderId(null);
+      setPendingDeleteSessionId(null);
       setSelectedSkillPath(nextState.skills.skills[0]?.path ?? null);
       setSkillContent(null);
       setRawTomlDraft(nextState.rawToml);
@@ -249,6 +292,7 @@ function App() {
     setPreview(null);
     setPreviewKind(null);
     setPendingDeleteProviderId(null);
+    setPendingDeleteSessionId(null);
     setStatusMessage(null);
   }
 
@@ -667,6 +711,33 @@ function App() {
     }
   }
 
+  async function deleteSession(id: string) {
+    if (pendingDeleteSessionId !== id) {
+      setPendingDeleteSessionId(id);
+      setStatusMessage("再次点击删除会删除这个 Codex 会话 .jsonl 文件。");
+      return;
+    }
+
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      const nextState = await invoke<AppState>("delete_session", { id });
+      setState(nextState);
+      setDraftValues(draftValuesFromFields(nextState.fields));
+      setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
+      setModelProviderDraft(emptyModelProviderDraft());
+      setPendingDeleteProviderId(null);
+      setPendingDeleteSessionId(null);
+      setRawTomlDraft(nextState.rawToml);
+      setPreview(null);
+      setPreviewKind(null);
+      setStatusMessage("已删除 Codex session 文件。");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   const settingChanges = state ? settingsChanges(state.fields, draftValues, "root") : [];
   const profileSettingChanges = state
     ? settingsChanges(state.profileFields, profileDraftValues, "profile")
@@ -709,7 +780,11 @@ function App() {
             <HealthStrip state={state} />
           </section>
           <TabBar activeTab={activeTab} onChange={switchTab} />
-          <section className={`workspace ${activeTab === "skills" ? "skills-workspace" : ""}`}>
+          <section
+            className={`workspace ${
+              activeTab === "skills" || activeTab === "sessions" ? "skills-workspace" : ""
+            }`}
+          >
             {activeTab === "config" ? (
               <>
                 <div className="left-pane">
@@ -784,6 +859,14 @@ function App() {
                   />
                 </div>
               </>
+            ) : activeTab === "sessions" ? (
+              <div className="single-pane">
+                <SessionsPanel
+                  state={state}
+                  pendingDeleteId={pendingDeleteSessionId}
+                  onDelete={deleteSession}
+                />
+              </div>
             ) : (
               <div className="single-pane">
                 <SkillsPanel
@@ -1034,6 +1117,87 @@ function configTarget(path: string) {
   };
 }
 
+function formatIsoDateTime(value: string | undefined) {
+  if (!value) {
+    return "未知";
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : value;
+}
+
+function groupCodexSessionsByYear(sessions: CodexSessionSummary[]) {
+  const yearsByKey = new Map<string, CodexSessionYearGroup>();
+
+  for (const session of sessions) {
+    const groupInfo = sessionYearMonthGroupInfo(session);
+    const year =
+      yearsByKey.get(groupInfo.yearKey) ??
+      {
+        key: groupInfo.yearKey,
+        label: groupInfo.yearLabel,
+        months: [],
+        sessionCount: 0,
+        totalSize: 0,
+      };
+    let month = year.months.find((candidate) => candidate.key === groupInfo.monthKey);
+
+    if (!month) {
+      month = {
+        key: groupInfo.monthKey,
+        label: groupInfo.monthLabel,
+        sessions: [],
+        totalSize: 0,
+      };
+      year.months.push(month);
+    }
+
+    month.sessions.push(session);
+    month.totalSize += session.size;
+    year.sessionCount += 1;
+    year.totalSize += session.size;
+    yearsByKey.set(year.key, year);
+  }
+
+  return Array.from(yearsByKey.values())
+    .map((year) => ({
+      ...year,
+      months: year.months.sort((left, right) => compareSessionGroupKeys(left.key, right.key)),
+    }))
+    .sort((left, right) => compareSessionGroupKeys(left.key, right.key));
+}
+
+function compareSessionGroupKeys(left: string, right: string) {
+  if (left === "unfiled") {
+    return 1;
+  }
+  if (right === "unfiled") {
+    return -1;
+  }
+
+  return right.localeCompare(left);
+}
+
+function sessionYearMonthGroupInfo(session: CodexSessionSummary) {
+  const [year, month] = session.relativePath.split(/[\/]/);
+
+  if (/^\d{4}$/.test(year ?? "") && /^(0[1-9]|1[0-2])$/.test(month ?? "")) {
+    return {
+      yearKey: year,
+      yearLabel: `${year}`,
+      monthKey: `${year}/${month}`,
+      monthLabel: `${month} 月`,
+    };
+  }
+
+  return {
+    yearKey: "unfiled",
+    yearLabel: "未分组",
+    monthKey: "unfiled",
+    monthLabel: "未分组",
+  };
+}
+
 function TopCodexSummary({ state }: { state: AppState }) {
   const codex = state.health.codex;
 
@@ -1063,6 +1227,12 @@ function TabBar({
         onClick={() => onChange("config")}
       >
         Codex 配置
+      </button>
+      <button
+        className={activeTab === "sessions" ? "tab-button active" : "tab-button"}
+        onClick={() => onChange("sessions")}
+      >
+        Sessions
       </button>
       <button
         className={activeTab === "skills" ? "tab-button active" : "tab-button"}
@@ -1438,6 +1608,147 @@ function ModelProvidersPanel({
             内置 provider ID 保留不可覆盖：{state.modelProviders.reservedIds.join(", ")}。
           </p>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function SessionsPanel({
+  state,
+  pendingDeleteId,
+  onDelete,
+}: {
+  state: AppState;
+  pendingDeleteId: string | null;
+  onDelete: (id: string) => void;
+}) {
+  const sessions = state.codexSessions.sessions;
+  const totalSessionSize = sessions.reduce((total, session) => total + session.size, 0);
+  const sessionYears = groupCodexSessionsByYear(sessions);
+  const [activeYear, setActiveYear] = useState<string | null>(null);
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
+  const selectedYearKey =
+    activeYear && sessionYears.some((year) => year.key === activeYear)
+      ? activeYear
+      : sessionYears[0]?.key ?? null;
+  const selectedYear = sessionYears.find((year) => year.key === selectedYearKey);
+
+  function toggleMonth(monthKey: string) {
+    setCollapsedMonths((current) => ({
+      ...current,
+      [monthKey]: !current[monthKey],
+    }));
+  }
+
+  return (
+    <section className="panel sessions-panel">
+      <div className="panel-heading sessions-heading">
+        <BookOpen size={18} />
+        <div>
+          <h2>Codex sessions</h2>
+          <p className="muted">
+            {displayPath(state.codexSessions.sessionsDir, state.homeDir)}
+          </p>
+        </div>
+        {sessionYears.length > 0 && (
+          <div className="session-year-tabs" role="tablist" aria-label="Session years">
+            {sessionYears.map((year) => (
+              <button
+                aria-selected={year.key === selectedYearKey}
+                className={`session-year-tab${year.key === selectedYearKey ? " active" : ""}`}
+                key={year.key}
+                onClick={() => setActiveYear(year.key)}
+                role="tab"
+                type="button"
+              >
+                <strong>{year.label}</strong>
+                <span className="session-year-meta">
+                  <span>{year.sessionCount} sessions</span>
+                  <span>{formatBytes(year.totalSize)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="session-current">
+          <div>
+            <span>会话数量</span>
+            <strong>{sessions.length}</strong>
+          </div>
+          <div>
+            <span>总大小</span>
+            <strong>{formatBytes(totalSessionSize)}</strong>
+          </div>
+        </div>
+      </div>
+
+      {sessions.length > 0 && (
+        <p className="muted session-footnote">
+          删除会移除对应的 <code>.jsonl</code> 会话文件，不会修改 <code>config.toml</code>。
+        </p>
+      )}
+
+      <div className="session-list">
+        {sessions.length === 0 ? (
+          <div className="empty-state">当前 Codex Home 下没有 session 记录。</div>
+        ) : selectedYear ? (
+          selectedYear.months.map((group) => {
+            const isCollapsed = collapsedMonths[group.key] ?? false;
+
+            return (
+              <section className="session-month-group" key={group.key}>
+                <button
+                  aria-expanded={!isCollapsed}
+                  className="session-month-heading"
+                  onClick={() => toggleMonth(group.key)}
+                  type="button"
+                >
+                  <span className="session-month-icon" aria-hidden="true">
+                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  </span>
+                  <div className="session-month-title">
+                    <h3>{group.label}</h3>
+                    <span>{group.sessions.length} sessions</span>
+                  </div>
+                  <strong>{formatBytes(group.totalSize)}</strong>
+                </button>
+                {!isCollapsed && (
+                  <div className="session-month-list">
+                    {group.sessions.map((session) => (
+                      <div className="session-row" key={session.id}>
+                        <div className="session-main">
+                          <div className="session-title-row">
+                            <strong>{session.title}</strong>
+                            <span className="skill-status">{formatBytes(session.size)}</span>
+                          </div>
+                          <code>{displayPath(session.path, state.homeDir)}</code>
+                          <div className="session-meta">
+                            <span>{formatIsoDateTime(session.lastTimestamp ?? session.createdAt)}</span>
+                            <span>{session.userMessageCount} user / {session.messageCount} messages</span>
+                            {session.cwd && <span>{displayPath(session.cwd, state.homeDir)}</span>}
+                            {session.cliVersion && <span>codex {session.cliVersion}</span>}
+                            {session.modelProvider && <span>{session.modelProvider}</span>}
+                          </div>
+                          {session.parseError && (
+                            <p className="session-parse-error">{session.parseError}</p>
+                          )}
+                        </div>
+                        <div className="session-actions">
+                          <button className="small-button" onClick={() => onDelete(session.id)}>
+                            <Trash2 size={14} />
+                            {pendingDeleteId === session.id ? "确认删除" : "删除"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })
+        ) : (
+          <div className="empty-state">当前 Codex Home 下没有 session 记录。</div>
+        )}
       </div>
     </section>
   );
@@ -2094,11 +2405,17 @@ function shortDescription(description: string) {
 }
 
 function formatBytes(bytes: number) {
-  if (bytes < 1024) {
-    return `${bytes} B`;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
   }
 
-  return `${(bytes / 1024).toFixed(1)} KB`;
+  const precision = unitIndex === 0 || value >= 100 ? 0 : 1;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
 }
 
 export default App;
