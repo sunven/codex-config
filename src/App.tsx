@@ -917,6 +917,9 @@ function App() {
         <div className="top-title">
           <p className="eyebrow">codex-config</p>
           <h1>Codex 配置</h1>
+          <p className="top-description">
+            管理本机 Codex 配置、sessions、MCP servers 和全局 skills。所有写入操作都会先预览变更。
+          </p>
           {state && <TopCodexSummary state={state} />}
         </div>
         <button className="icon-button" onClick={loadState} disabled={loading}>
@@ -926,7 +929,7 @@ function App() {
       </header>
 
       {error && (
-        <section className="notice danger">
+        <section className="notice danger" role="alert">
           <ShieldAlert size={18} />
           <span>{error}</span>
         </section>
@@ -1479,28 +1482,40 @@ function TabBar({
   onChange: (tab: MainTab) => void;
 }) {
   return (
-    <nav className="tabbar" aria-label="配置区域">
+    <nav className="tabbar" aria-label="配置区域" role="tablist">
       <button
+        aria-selected={activeTab === "config"}
         className={activeTab === "config" ? "tab-button active" : "tab-button"}
         onClick={() => onChange("config")}
+        role="tab"
+        type="button"
       >
         Codex 配置
       </button>
       <button
+        aria-selected={activeTab === "sessions"}
         className={activeTab === "sessions" ? "tab-button active" : "tab-button"}
         onClick={() => onChange("sessions")}
+        role="tab"
+        type="button"
       >
         Sessions
       </button>
       <button
+        aria-selected={activeTab === "mcp"}
         className={activeTab === "mcp" ? "tab-button active" : "tab-button"}
         onClick={() => onChange("mcp")}
+        role="tab"
+        type="button"
       >
         MCP Servers
       </button>
       <button
+        aria-selected={activeTab === "skills"}
         className={activeTab === "skills" ? "tab-button active" : "tab-button"}
         onClick={() => onChange("skills")}
+        role="tab"
+        type="button"
       >
         Skills
       </button>
@@ -1579,11 +1594,17 @@ function FastModeTask({
         </p>
       </div>
       <div className="task-actions">
-        <button className="icon-button" disabled={!canSave} onClick={onPreview}>
+        <button
+          className="icon-button"
+          aria-label="预览 Fast 模式"
+          disabled={!canSave}
+          onClick={onPreview}
+        >
           预览
         </button>
         <button
           className="primary-button"
+          aria-label="保存 Fast 模式"
           disabled={!canSave || previewKind !== "fast" || !preview?.changed}
           onClick={onSave}
         >
@@ -1618,15 +1639,22 @@ function SettingsForm({
   onSave: () => void;
 }) {
   const groupedFields = groupFields(fields);
+  const previewLabel = `预览${title}`;
+  const saveLabel =
+    title === "全局配置" ? "保存全局配置" : `保存${title}`;
 
   return (
-    <section className="panel">
+    <section className="panel settings-panel" aria-labelledby={sectionTitleId(title)}>
       <div className="panel-heading">
         <FileCode2 size={18} />
-        <h2>{title}</h2>
+        <div>
+          <h2 id={sectionTitleId(title)}>{title}</h2>
+          <p className="muted">先预览 TOML diff，再写入 config.toml。</p>
+        </div>
         <div className="panel-actions">
           <button
             className="small-button"
+            aria-label={previewLabel}
             disabled={!writable || !dirty}
             onClick={onPreview}
           >
@@ -1634,6 +1662,7 @@ function SettingsForm({
           </button>
           <button
             className="primary-button compact"
+            aria-label={saveLabel}
             disabled={!writable || !dirty || !previewReady}
             onClick={onSave}
           >
@@ -1652,13 +1681,26 @@ function SettingsForm({
               <h3>{group.name}</h3>
               {group.fields.map((field) => (
                 <div className="field-row" key={field.path}>
-                  <div>
-                    <label>{field.label}</label>
-                    <code>{field.path}</code>
+                  <div className="field-main">
+                    <div className="field-title-row">
+                      <label htmlFor={fieldControlId(title, field.path)}>{field.label}</label>
+                      <span className={`risk-badge ${field.risk}`}>{field.risk}</span>
+                      <span className={field.editable ? "edit-badge editable" : "edit-badge"}>
+                        {field.editable ? "editable" : "read-only"}
+                      </span>
+                    </div>
+                    <div className="field-path-row">
+                      <code>{field.path}</code>
+                      <span className="field-current">
+                        <span>当前值</span>
+                        <strong>{fieldDisplayValue(field)}</strong>
+                      </span>
+                    </div>
                     {field.note && <p>{field.note}</p>}
                   </div>
                   <FieldValue
                     field={field}
+                    id={fieldControlId(title, field.path)}
                     value={draftValues[field.path]}
                     onChange={(value) => onChange(field.path, value)}
                   />
@@ -1695,31 +1737,39 @@ function ModelProvidersPanel({
 }) {
   const providers = state.modelProviders.providers;
   const dirty = modelProviderDirty(draft, providers);
+  const draftProviderId = draft.id || draft.originalId || "new";
+  const previewLabel = `预览保存 provider ${draftProviderId}`;
+  const saveLabel = `保存 provider ${draftProviderId}`;
 
   function patch(patch: Partial<ModelProviderDraft>) {
     onDraftChange({ ...draft, ...patch });
   }
 
   return (
-    <section className="panel provider-panel">
+    <section className="panel provider-panel" aria-labelledby="model-providers-title">
       <div className="panel-heading">
         <FileCode2 size={18} />
         <div>
-          <h2>Model providers</h2>
+          <h2 id="model-providers-title">Model providers</h2>
           <p className="muted">管理写入 <code>model_providers</code> 的自定义 provider。</p>
         </div>
+        <span className="catalog-count">{providers.length} providers</span>
         <div className="panel-actions">
           <button
+            aria-label={previewLabel}
             className="small-button"
             disabled={!state.writable || !dirty}
             onClick={onPreview}
+            type="button"
           >
             预览
           </button>
           <button
+            aria-label={saveLabel}
             className="primary-button compact"
             disabled={!state.writable || !dirty || !savePreviewReady}
             onClick={onSave}
+            type="button"
           >
             保存 provider
           </button>
@@ -1729,8 +1779,10 @@ function ModelProvidersPanel({
       <div className="provider-layout">
         <div className="provider-list">
           <button
+            aria-label="新建 model provider"
             className="provider-row new-provider"
             onClick={() => onDraftChange(emptyModelProviderDraft())}
+            type="button"
           >
             <Plus size={16} />
             新建 provider
@@ -1738,35 +1790,62 @@ function ModelProvidersPanel({
           {providers.length === 0 ? (
             <div className="empty-state">还没有自定义 model provider。</div>
           ) : (
-            providers.map((provider) => (
-              <div
-                className={`provider-row ${draft.originalId === provider.id ? "active" : ""}`}
-                key={provider.id}
-              >
-                <button onClick={() => onDraftChange(draftFromModelProvider(provider))}>
-                  <strong>{provider.name || provider.id}</strong>
-                  <code>{provider.id}</code>
-                  {provider.baseUrl && <span>{provider.baseUrl}</span>}
-                </button>
-                <div className="provider-row-actions">
+            providers.map((provider) => {
+              const providerName = provider.name || provider.id;
+              const reserved = state.modelProviders.reservedIds.includes(provider.id);
+
+              return (
+                <div
+                  className={`provider-row ${draft.originalId === provider.id ? "active" : ""}`}
+                  key={provider.id}
+                >
                   <button
-                    className="small-button"
-                    disabled={!state.writable}
-                    onClick={() => onPreviewDelete(provider.id)}
+                    aria-label={`选择 provider ${providerName}`}
+                    onClick={() => onDraftChange(draftFromModelProvider(provider))}
+                    type="button"
                   >
-                    预览删除
+                    <div className="provider-title-row">
+                      <strong>{providerName}</strong>
+                      <span className={reserved ? "edit-badge" : "edit-badge editable"}>
+                        {reserved ? "built-in" : "custom"}
+                      </span>
+                      {provider.hasAdvancedFields && (
+                        <span className="kind-badge">advanced fields</span>
+                      )}
+                    </div>
+                    <code>{provider.id}</code>
+                    <div className="provider-meta">
+                      {provider.baseUrl && <span>{provider.baseUrl}</span>}
+                      {provider.envKey && <span>{provider.envKey}</span>}
+                      {provider.wireApi && <span>{provider.wireApi}</span>}
+                    </div>
                   </button>
-                  <button
-                    className="small-button"
-                    disabled={!state.writable || pendingDeleteId !== provider.id}
-                    onClick={() => onDelete(provider.id)}
-                  >
-                    <Trash2 size={14} />
-                    删除
-                  </button>
+                  <div className="provider-row-actions">
+                    <button
+                      aria-label={`预览删除 provider ${provider.id}`}
+                      className="small-button"
+                      disabled={!state.writable || reserved}
+                      onClick={() => onPreviewDelete(provider.id)}
+                      title={reserved ? "内置 provider 不能删除" : `预览删除 provider ${provider.id}`}
+                      type="button"
+                    >
+                      预览删除
+                    </button>
+                    <button
+                      aria-label={`确认删除 provider ${provider.id}`}
+                      className="small-button"
+                      disabled={!state.writable || reserved || pendingDeleteId !== provider.id}
+                      onClick={() => onDelete(provider.id)}
+                      title={reserved ? "内置 provider 不能删除" : `确认删除 provider ${provider.id}`}
+                      type="button"
+                    >
+                      <Trash2 size={14} />
+                      删除
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -1905,11 +1984,11 @@ function SessionsPanel({
   }
 
   return (
-    <section className="panel sessions-panel">
+    <section className="panel sessions-panel" aria-labelledby="codex-sessions-title">
       <div className="panel-heading sessions-heading">
         <BookOpen size={18} />
         <div>
-          <h2>Codex sessions</h2>
+          <h2 id="codex-sessions-title">Codex sessions</h2>
           <p className="muted">
             {displayPath(state.codexSessions.sessionsDir, state.homeDir)}
           </p>
@@ -1923,16 +2002,16 @@ function SessionsPanel({
                 key={year.key}
                 onClick={() => setActiveYear(year.key)}
                 role="tab"
-              type="button"
-            >
-              <strong>{year.label}</strong>
-              <span className="session-year-meta">
-                <span>{year.sessionCount} sessions</span>
-                <span>{formatBytes(year.totalSize)}</span>
-              </span>
-            </button>
-          ))}
-        </div>
+                type="button"
+              >
+                <strong>{year.label}</strong>
+                <span className="session-year-meta">
+                  <span>{year.sessionCount} sessions</span>
+                  <span>{formatBytes(year.totalSize)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
         )}
         <div className="session-current">
           <div>
@@ -1978,33 +2057,44 @@ function SessionsPanel({
                 </button>
                 {!isCollapsed && (
                   <div className="session-month-list">
-                    {group.sessions.map((session) => (
-                      <div className="session-row" key={session.id}>
-                        <div className="session-main">
-                          <div className="session-title-row">
-                            <strong>{session.title}</strong>
-                            <span className="session-size-badge">{formatBytes(session.size)}</span>
+                    {group.sessions.map((session) => {
+                      const deleting = pendingDeleteId === session.id;
+                      const deleteLabel = `${deleting ? "确认删除" : "预览删除"} ${session.title}`;
+
+                      return (
+                        <div className="session-row" key={session.id}>
+                          <div className="session-main">
+                            <div className="session-title-row">
+                              <strong>{session.title}</strong>
+                              <span className="session-size-badge">{formatBytes(session.size)}</span>
+                            </div>
+                            <code>{displayPath(session.path, state.homeDir)}</code>
+                            <div className="session-meta">
+                              <span>{formatIsoDateTime(session.lastTimestamp ?? session.createdAt)}</span>
+                              <span>{session.userMessageCount} user / {session.messageCount} messages</span>
+                              {session.cwd && <span>{displayPath(session.cwd, state.homeDir)}</span>}
+                              {session.cliVersion && <span>codex {session.cliVersion}</span>}
+                              {session.modelProvider && <span>{session.modelProvider}</span>}
+                            </div>
+                            {session.parseError && (
+                              <p className="session-parse-error">{session.parseError}</p>
+                            )}
                           </div>
-                          <code>{displayPath(session.path, state.homeDir)}</code>
-                          <div className="session-meta">
-                            <span>{formatIsoDateTime(session.lastTimestamp ?? session.createdAt)}</span>
-                            <span>{session.userMessageCount} user / {session.messageCount} messages</span>
-                            {session.cwd && <span>{displayPath(session.cwd, state.homeDir)}</span>}
-                            {session.cliVersion && <span>codex {session.cliVersion}</span>}
-                            {session.modelProvider && <span>{session.modelProvider}</span>}
+                          <div className="session-actions">
+                            <button
+                              aria-label={deleteLabel}
+                              className="small-button"
+                              onClick={() => onDelete(session.id)}
+                              title={deleteLabel}
+                              type="button"
+                            >
+                              <Trash2 size={14} />
+                              {deleting ? "确认删除" : "删除"}
+                            </button>
                           </div>
-                          {session.parseError && (
-                            <p className="session-parse-error">{session.parseError}</p>
-                          )}
                         </div>
-                        <div className="session-actions">
-                          <button className="small-button" onClick={() => onDelete(session.id)}>
-                            <Trash2 size={14} />
-                            {pendingDeleteId === session.id ? "确认删除" : "删除"}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -2041,31 +2131,39 @@ function McpServersPanel({
 }) {
   const servers = state.mcpServers.servers;
   const dirty = mcpServerDirty(draft, servers);
+  const draftServerId = draft.id || draft.originalId || "new";
+  const previewLabel = `预览保存 MCP server ${draftServerId}`;
+  const saveLabel = `保存 MCP server ${draftServerId}`;
 
   function patch(patch: Partial<McpServerDraft>) {
     onDraftChange({ ...draft, ...patch });
   }
 
   return (
-    <section className="panel provider-panel">
+    <section className="panel provider-panel" aria-labelledby="mcp-servers-title">
       <div className="panel-heading">
         <FileCode2 size={18} />
         <div>
-          <h2>MCP servers</h2>
+          <h2 id="mcp-servers-title">MCP servers</h2>
           <p className="muted">管理写入 <code>mcp_servers</code> 的 server 启动配置。</p>
         </div>
+        <span className="catalog-count">{servers.length} servers</span>
         <div className="panel-actions">
           <button
+            aria-label={previewLabel}
             className="small-button"
             disabled={!state.writable || !dirty}
             onClick={onPreview}
+            type="button"
           >
             预览
           </button>
           <button
+            aria-label={saveLabel}
             className="primary-button compact"
             disabled={!state.writable || !dirty || !savePreviewReady}
             onClick={onSave}
+            type="button"
           >
             保存 server
           </button>
@@ -2075,8 +2173,10 @@ function McpServersPanel({
       <div className="provider-layout">
         <div className="provider-list">
           <button
+            aria-label="新建 MCP server"
             className="provider-row new-provider"
             onClick={() => onDraftChange(emptyMcpServerDraft())}
+            type="button"
           >
             <Plus size={16} />
             新建 MCP server
@@ -2084,39 +2184,62 @@ function McpServersPanel({
           {servers.length === 0 ? (
             <div className="empty-state">还没有配置 MCP server。</div>
           ) : (
-            servers.map((server) => (
-              <div
-                className={`provider-row ${draft.originalId === server.id ? "active" : ""}`}
-                key={server.id}
-              >
-                <button onClick={() => onDraftChange(draftFromMcpServer(server))}>
-                  <strong>{server.id}</strong>
-                  <code>{server.command || "command unset"}</code>
-                  <span>
-                    {server.args.length ? server.args.join(" ") : "args unset"}
-                    {server.enabled === false ? " · disabled" : ""}
-                    {server.hasAdvancedFields ? " · advanced fields" : ""}
-                  </span>
-                </button>
-                <div className="provider-row-actions">
+            servers.map((server) => {
+              const enabled = server.enabled !== false;
+
+              return (
+                <div
+                  className={`provider-row ${draft.originalId === server.id ? "active" : ""}`}
+                  key={server.id}
+                >
                   <button
-                    className="small-button"
-                    disabled={!state.writable}
-                    onClick={() => onPreviewDelete(server.id)}
+                    aria-label={`选择 MCP server ${server.id}`}
+                    onClick={() => onDraftChange(draftFromMcpServer(server))}
+                    type="button"
                   >
-                    预览删除
+                    <div className="provider-title-row">
+                      <strong>{server.id}</strong>
+                      <span className={enabled ? "skill-status enabled" : "skill-status"}>
+                        {enabled ? "enabled" : "disabled"}
+                      </span>
+                      {server.hasAdvancedFields && (
+                        <span className="kind-badge">advanced fields</span>
+                      )}
+                    </div>
+                    <code>{server.command || "command unset"}</code>
+                    <div className="provider-meta">
+                      <span>{server.args.length ? server.args.join(" ") : "args unset"}</span>
+                      {Object.entries(server.env).map(([key, value]) => (
+                        <span key={key}>{key}={value}</span>
+                      ))}
+                    </div>
                   </button>
-                  <button
-                    className="small-button"
-                    disabled={!state.writable || pendingDeleteId !== server.id}
-                    onClick={() => onDelete(server.id)}
-                  >
-                    <Trash2 size={14} />
-                    删除
-                  </button>
+                  <div className="provider-row-actions">
+                    <button
+                      aria-label={`预览删除 MCP server ${server.id}`}
+                      className="small-button"
+                      disabled={!state.writable}
+                      onClick={() => onPreviewDelete(server.id)}
+                      title={`预览删除 MCP server ${server.id}`}
+                      type="button"
+                    >
+                      预览删除
+                    </button>
+                    <button
+                      aria-label={`确认删除 MCP server ${server.id}`}
+                      className="small-button"
+                      disabled={!state.writable || pendingDeleteId !== server.id}
+                      onClick={() => onDelete(server.id)}
+                      title={`确认删除 MCP server ${server.id}`}
+                      type="button"
+                    >
+                      <Trash2 size={14} />
+                      删除
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -2213,17 +2336,21 @@ function SkillsPanel({
     state.skills.skills.find((skill) => skill.path === selectedPath) ?? skills[0];
   const selectedContent =
     content && content.path === selectedSkill?.path ? content.rawMarkdown : "";
+  const resultLabel = normalized
+    ? `${skills.length} / ${state.skills.skills.length} skills`
+    : `${state.skills.skills.length} skills`;
 
   return (
-    <section className="panel skills-panel">
+    <section className="panel skills-panel" aria-labelledby="global-skills-title">
       <div className="panel-heading skills-heading">
         <BookOpen size={18} />
         <div>
-          <h2>全局 Skills</h2>
+          <h2 id="global-skills-title">全局 Skills</h2>
           <p className="muted">
             发现全局 <code>SKILL.md</code>；启停写入 <code>skills.config</code>。
           </p>
         </div>
+        <span className="catalog-count">{resultLabel}</span>
       </div>
 
       <div className="skill-roots">
@@ -2236,12 +2363,16 @@ function SkillsPanel({
 
       <div className="skills-layout">
         <div className="skills-list">
-          <input
-            className="field-control skill-search"
-            value={query}
-            placeholder="搜索 skill 名称、描述或路径"
-            onChange={(event) => onQueryChange(event.currentTarget.value)}
-          />
+          <label className="catalog-search-block">
+            <span>搜索全局 skills</span>
+            <input
+              className="field-control skill-search"
+              type="search"
+              value={query}
+              placeholder="搜索 skill 名称、描述或路径"
+              onChange={(event) => onQueryChange(event.currentTarget.value)}
+            />
+          </label>
           {skills.length === 0 ? (
             <div className="empty-state">没有发现匹配的全局 skill。</div>
           ) : (
@@ -2253,7 +2384,11 @@ function SkillsPanel({
                   className={`skill-row ${skill.path === selectedSkill?.path ? "active" : ""}`}
                   key={skill.path}
                 >
-                  <button onClick={() => onSelect(skill.path)}>
+                  <button
+                    aria-label={`选择 skill ${skill.name}`}
+                    onClick={() => onSelect(skill.path)}
+                    type="button"
+                  >
                     <span className={skill.enabled ? "skill-status enabled" : "skill-status"}>
                       {skill.enabled ? "enabled" : "disabled"}
                     </span>
@@ -2268,14 +2403,23 @@ function SkillsPanel({
                     </small>
                   </button>
                   <div className="skill-actions">
-                    <button className="small-button" onClick={() => onSelect(skill.path)}>
+                    <button
+                      aria-label={`查看 skill ${skill.name}`}
+                      className="small-button"
+                      onClick={() => onSelect(skill.path)}
+                      title={`查看 skill ${skill.name}`}
+                      type="button"
+                    >
                       <Eye size={14} />
                       查看内容
                     </button>
                     <button
+                      aria-label={`${nextEnabled ? "启用" : "停用"} skill ${skill.name}`}
                       className="small-button"
                       disabled={!state.writable}
                       onClick={() => onSaveToggle(skill.path, nextEnabled)}
+                      title={`${nextEnabled ? "启用" : "停用"} skill ${skill.name}`}
+                      type="button"
                     >
                       <Power size={14} />
                       {nextEnabled ? "启用" : "停用"}
@@ -2502,39 +2646,54 @@ function FieldCatalog({
           .includes(normalized),
       )
     : fields;
+  const resultLabel = normalized
+    ? `${visibleFields.length} / ${fields.length} 个字段`
+    : `${fields.length} 个字段`;
 
   return (
-    <section className="panel catalog-panel">
+    <section className="panel catalog-panel" aria-labelledby="field-catalog-title">
       <div className="panel-heading catalog-heading">
         <FileCode2 size={18} />
         <div>
-          <h2>字段目录</h2>
+          <h2 id="field-catalog-title">字段目录</h2>
           <p className="muted">所有 bundled schema 字段都可搜索；复杂字段第一期只读。</p>
         </div>
+        <span className="catalog-count">{resultLabel}</span>
       </div>
-      <input
-        className="field-control catalog-search"
-        value={query}
-        placeholder="搜索 label / TOML path / group / risk"
-        onChange={(event) => onQueryChange(event.currentTarget.value)}
-      />
+      <label className="catalog-search-block">
+        <span>搜索字段目录</span>
+        <input
+          className="field-control catalog-search"
+          type="search"
+          value={query}
+          placeholder="搜索 label / TOML path / group / risk"
+          onChange={(event) => onQueryChange(event.currentTarget.value)}
+        />
+      </label>
       <div className="catalog-list">
-        {visibleFields.map((field) => (
-          <div className="catalog-row" key={field.path}>
-            <div>
-              <strong>{field.label}</strong>
-              <code>{field.path}</code>
-              {field.note && <p>{field.note}</p>}
+        {visibleFields.length === 0 ? (
+          <div className="empty-state">没有匹配的 schema 字段。</div>
+        ) : (
+          visibleFields.map((field) => (
+            <div className="catalog-row" key={field.path}>
+              <div className="catalog-main">
+                <div className="catalog-title-row">
+                  <strong>{field.label}</strong>
+                  <span className="kind-badge">{field.kind}</span>
+                </div>
+                <code>{field.path}</code>
+                {field.note && <p>{field.note}</p>}
+              </div>
+              <div className="catalog-badges" aria-label={`${field.label} metadata`}>
+                <span className={`risk-badge ${field.risk}`}>{field.risk}</span>
+                <span className={field.editable ? "edit-badge editable" : "edit-badge"}>
+                  {field.editable ? "editable" : "read-only"}
+                </span>
+                <span className="kind-badge group-badge">{field.group || "其他"}</span>
+              </div>
             </div>
-            <div className="catalog-badges">
-              <span className={`risk-badge ${field.risk}`}>{field.risk}</span>
-              <span className="kind-badge">{field.kind}</span>
-              <span className={field.editable ? "edit-badge editable" : "edit-badge"}>
-                {field.editable ? "editable" : "read-only"}
-              </span>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </section>
   );
@@ -2634,10 +2793,12 @@ function groupFields(fields: FieldState[]) {
 
 function FieldValue({
   field,
+  id,
   value,
   onChange,
 }: {
   field: FieldState;
+  id: string;
   value?: string;
   onChange: (value: string) => void;
 }) {
@@ -2649,6 +2810,7 @@ function FieldValue({
     return (
       <select
         className="field-control compact-control"
+        id={id}
         value={value ?? "inherited"}
         onChange={(event) => onChange(event.currentTarget.value)}
       >
@@ -2663,6 +2825,7 @@ function FieldValue({
     return (
       <select
         className="field-control"
+        id={id}
         value={value ?? ""}
         onChange={(event) => onChange(event.currentTarget.value)}
       >
@@ -2680,6 +2843,7 @@ function FieldValue({
     return (
       <input
         className="field-control"
+        id={id}
         value={value ?? ""}
         placeholder="unset"
         type="number"
@@ -2691,11 +2855,38 @@ function FieldValue({
   return (
     <input
       className="field-control"
+      id={id}
       value={value ?? ""}
       placeholder="unset"
       onChange={(event) => onChange(event.currentTarget.value)}
     />
   );
+}
+
+function fieldDisplayValue(field: FieldState) {
+  if (field.value === undefined || field.value === "") {
+    return "继承 / 未设置";
+  }
+
+  return field.value;
+}
+
+function sectionTitleId(title: string) {
+  return `${slugify(title)}-settings-title`;
+}
+
+function fieldControlId(title: string, path: string) {
+  return `${slugify(title)}-${slugify(path)}-field`;
+}
+
+function slugify(value: string) {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || encodeURIComponent(value).replace(/%/g, "").toLowerCase();
 }
 
 function ProfileWarnings({ warnings }: { warnings: ProfileWarning[] }) {
@@ -2768,35 +2959,41 @@ function RawToml({
   onSave: () => void;
 }) {
   return (
-    <section className="panel raw-panel raw-editor-panel">
+    <section className="panel raw-panel raw-editor-panel" aria-labelledby="raw-toml-title">
       <div className="panel-heading">
         <Edit3 size={18} />
         <div>
-          <h2>高级 TOML 编辑</h2>
+          <h2 id="raw-toml-title">高级 TOML 编辑</h2>
           <p className="muted">用于配置字段目录中尚未提供专用控件的复杂配置。</p>
         </div>
         <div className="panel-actions">
           <button
+            aria-label="预览原始 TOML"
             className="small-button"
             disabled={!writable || !dirty}
             onClick={onPreview}
+            type="button"
           >
             预览
           </button>
           <button
+            aria-label="保存原始 TOML"
             className="primary-button compact"
             disabled={!writable || !dirty || !previewReady}
             onClick={onSave}
+            type="button"
           >
             保存 TOML
           </button>
         </div>
       </div>
       {state.parseIssue && (
-        <div className="inline-error">{state.parseIssue.message}</div>
+        <div className="inline-error" role="alert">{state.parseIssue.message}</div>
       )}
+      <label className="sr-only" htmlFor="raw-toml-editor">原始 TOML</label>
       <textarea
         className="toml-editor"
+        id="raw-toml-editor"
         value={draft}
         placeholder="# config.toml 还不存在"
         spellCheck={false}
@@ -2808,10 +3005,10 @@ function RawToml({
 
 function DiffPanel({ preview }: { preview: PreviewResult | null }) {
   return (
-    <section className="panel raw-panel">
+    <section className="panel raw-panel" aria-labelledby="diff-preview-title">
       <div className="panel-heading">
         <FileCode2 size={18} />
-        <h2>变更预览</h2>
+        <h2 id="diff-preview-title">变更预览</h2>
       </div>
       {preview?.fieldDiffs.length ? (
         <div className="field-diff-list">
@@ -2849,14 +3046,14 @@ function Backups({
   onRestore: (backupId: string) => void;
 }) {
   return (
-    <section className="panel">
+    <section className="panel backup-panel" aria-labelledby="backups-title">
       <div className="panel-heading">
         <DatabaseBackup size={18} />
-        <h2>备份</h2>
+        <h2 id="backups-title">备份</h2>
       </div>
       <p className="muted">{displayPath(backupDir, homeDir)}</p>
       {backups.length === 0 ? (
-        <p>暂无备份。</p>
+        <div className="empty-state">暂无备份。</div>
       ) : (
         <ul className="backup-list">
           {backups.slice(0, 5).map((backup) => (
@@ -2866,9 +3063,12 @@ function Backups({
                 <small>{formatBytes(backup.size)}</small>
               </div>
               <button
+                aria-label={`恢复备份 ${backup.id}`}
                 className="small-button"
                 disabled={!writable}
                 onClick={() => onRestore(backup.id)}
+                title={`恢复备份 ${backup.id}`}
+                type="button"
               >
                 恢复此备份
               </button>
