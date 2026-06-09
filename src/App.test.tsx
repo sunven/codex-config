@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -7,6 +7,12 @@ const invokeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
+}));
+
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    setTitle: vi.fn(),
+  }),
 }));
 
 function appState(overrides = {}) {
@@ -331,6 +337,9 @@ describe("App shell", () => {
     expect(screen.getByText(/管理本机 Codex 配置/)).toBeVisible();
     expect(screen.getByRole("button", { name: "刷新" })).toBeVisible();
     expect(screen.getAllByText("codex 1.2.3").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(document.title).toBe("codex-config /opt/homebrew/bin/codex codex 1.2.3");
+    });
     expect(screen.getByRole("tab", { name: "Codex 配置" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Sessions" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "MCP Servers" })).toBeVisible();
@@ -846,7 +855,10 @@ describe("Skills workspace", () => {
     await user.click(await screen.findByRole("tab", { name: "Skills" }));
 
     const skills = screen.getByRole("region", { name: "全局 Skills" });
-    await user.click(within(skills).getByRole("button", { name: "停用 skill tdd" }));
+    const skillSwitch = within(skills).getByRole("switch", { name: "停用 skill tdd" });
+    expect(skillSwitch).toBeChecked();
+
+    await user.click(skillSwitch);
 
     expect(invokeMock).toHaveBeenCalledWith("save_skill_enabled", {
       path: "/Users/test/.codex/skills/tdd/SKILL.md",

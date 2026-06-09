@@ -10,7 +10,6 @@ import {
   Eye,
   FileCode2,
   Gauge,
-  Power,
   Plus,
   RefreshCw,
   Trash2,
@@ -18,6 +17,8 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Switch } from "./components/ui/switch";
 import "./App.css";
 
 type HealthStatus = "ready" | "readOnly" | "needsAttention";
@@ -911,16 +912,25 @@ function App() {
     void loadState();
   }, []);
 
+  useEffect(() => {
+    const title = appTitle(state);
+    document.title = title;
+
+    if (!("__TAURI_INTERNALS__" in window)) {
+      return;
+    }
+
+    void getCurrentWindow().setTitle(title).catch(() => undefined);
+  }, [state]);
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <div className="top-title">
-          <p className="eyebrow">codex-config</p>
           <h1>Codex 配置</h1>
           <p className="top-description">
             管理本机 Codex 配置、sessions、MCP servers 和全局 skills。所有写入操作都会先预览变更。
           </p>
-          {state && <TopCodexSummary state={state} />}
         </div>
         <button className="icon-button" onClick={loadState} disabled={loading}>
           <RefreshCw size={18} />
@@ -1320,6 +1330,20 @@ function backupPathLabel(path: string | undefined, homeDir: string | undefined) 
   return path ? displayPath(path, homeDir) : "新配置无需备份";
 }
 
+function appTitle(state: AppState | null) {
+  const codexSummary = state ? codexTitleSummary(state) : undefined;
+
+  return codexSummary ? `codex-config ${codexSummary}` : "codex-config";
+}
+
+function codexTitleSummary(state: AppState) {
+  const codex = state.health.codex;
+  const path = codex.binaryPath ? displayPath(codex.binaryPath, state.homeDir) : undefined;
+  const version = codex.version ?? codex.message;
+
+  return [path, version].filter(Boolean).join(" ");
+}
+
 function displayPath(path: string, homeDir: string | undefined) {
   const home = normalizedHomeDir(homeDir);
 
@@ -1457,21 +1481,6 @@ function sessionYearMonthGroupInfo(session: CodexSessionSummary) {
     monthKey: "unfiled",
     monthLabel: "未分组",
   };
-}
-
-function TopCodexSummary({ state }: { state: AppState }) {
-  const codex = state.health.codex;
-
-  return (
-    <div className="top-codex-summary">
-      <code>
-        {codex.binaryPath
-          ? displayPath(codex.binaryPath, state.homeDir)
-          : "未检测到 Codex 命令"}
-      </code>
-      <span>{codex.version ?? codex.message ?? "版本未知"}</span>
-    </div>
-  );
 }
 
 function TabBar({
@@ -2377,8 +2386,6 @@ function SkillsPanel({
             <div className="empty-state">没有发现匹配的全局 skill。</div>
           ) : (
             skills.map((skill) => {
-              const nextEnabled = !skill.enabled;
-
               return (
                 <div
                   className={`skill-row ${skill.path === selectedSkill?.path ? "active" : ""}`}
@@ -2413,17 +2420,15 @@ function SkillsPanel({
                       <Eye size={14} />
                       查看内容
                     </button>
-                    <button
-                      aria-label={`${nextEnabled ? "启用" : "停用"} skill ${skill.name}`}
-                      className="small-button"
-                      disabled={!state.writable}
-                      onClick={() => onSaveToggle(skill.path, nextEnabled)}
-                      title={`${nextEnabled ? "启用" : "停用"} skill ${skill.name}`}
-                      type="button"
-                    >
-                      <Power size={14} />
-                      {nextEnabled ? "启用" : "停用"}
-                    </button>
+                    <div className="skill-switch-control">
+                      <span>{skill.enabled ? "启用" : "停用"}</span>
+                      <Switch
+                        aria-label={`${skill.enabled ? "停用" : "启用"} skill ${skill.name}`}
+                        checked={skill.enabled}
+                        disabled={!state.writable}
+                        onCheckedChange={(checked) => onSaveToggle(skill.path, checked)}
+                      />
+                    </div>
                   </div>
                 </div>
               );
