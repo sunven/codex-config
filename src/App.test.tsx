@@ -816,9 +816,9 @@ describe("Skills workspace", () => {
     expect(skills).toHaveTextContent("Agent global skills");
     expect(skills).toHaveTextContent("未找到");
     expect(skills).toHaveTextContent("2 skills");
-    expect(skills).toHaveTextContent("enabled");
-    expect(skills).toHaveTextContent("disabled");
     expect(skills).toHaveTextContent("configured");
+    expect(within(skills).getByRole("switch", { name: "停用 skill tdd" })).toBeChecked();
+    expect(within(skills).getByRole("switch", { name: "启用 skill triage" })).not.toBeChecked();
 
     const search = within(skills).getByRole("searchbox", { name: "搜索全局 skills" });
     await user.type(search, "triage");
@@ -828,7 +828,8 @@ describe("Skills workspace", () => {
     expect(skills).not.toHaveTextContent("Test-driven development workflow");
 
     await user.clear(search);
-    await user.click(within(skills).getByRole("button", { name: "查看 skill tdd" }));
+    expect(within(skills).queryByRole("button", { name: "查看 skill tdd" })).not.toBeInTheDocument();
+    await user.click(within(skills).getByRole("button", { name: "选择 skill tdd" }));
 
     expect(invokeMock).toHaveBeenCalledWith("read_skill_content", {
       path: "/Users/test/.codex/skills/tdd/SKILL.md",

@@ -1000,7 +1000,8 @@ code {
 }
 
 .skills-panel .panel-heading {
-  align-items: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .skills-heading > div {
@@ -1015,9 +1016,11 @@ code {
 
 .skill-roots {
   display: flex;
+  flex: 1 1 360px;
   flex-wrap: wrap;
   gap: 5px;
-  margin-bottom: 10px;
+  margin-left: 8px;
+  min-width: 0;
 }
 
 .skill-root {
@@ -1058,7 +1061,8 @@ code {
   flex-direction: column;
   gap: 7px;
   min-width: 0;
-  padding: 8px;
+  padding: 12px;
+  position: relative;
 }
 
 .skill-row.active {
@@ -1075,7 +1079,7 @@ code {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  padding: 0;
+  padding: 0 120px 0 0;
   text-align: left;
   width: 100%;
 }
@@ -1123,7 +1127,11 @@ code {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  justify-content: space-between;
+  justify-content: flex-end;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 1;
 }
 
 .skill-switch-control {

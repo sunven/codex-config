@@ -188,11 +188,6 @@ fn discovery_roots(location: &config_locator::ConfigLocation) -> Vec<SkillRootCa
                 home.join(".agents").join("skills"),
                 "Agent global skills",
             );
-            push_root(
-                &mut roots,
-                home.join("gstack").join(".agents").join("skills"),
-                "GStack global skills",
-            );
         }
     }
 

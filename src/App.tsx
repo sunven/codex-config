@@ -7,7 +7,6 @@ import {
   ChevronRight,
   DatabaseBackup,
   Edit3,
-  Eye,
   FileCode2,
   Gauge,
   Plus,
@@ -2355,19 +2354,15 @@ function SkillsPanel({
         <BookOpen size={18} />
         <div>
           <h2 id="global-skills-title">全局 Skills</h2>
-          <p className="muted">
-            发现全局 <code>SKILL.md</code>；启停写入 <code>skills.config</code>。
-          </p>
         </div>
         <span className="catalog-count">{resultLabel}</span>
-      </div>
-
-      <div className="skill-roots">
-        {state.skills.roots.map((root) => (
-          <span className={root.exists ? "skill-root ok" : "skill-root"} key={root.path}>
-            {root.label}: {root.exists ? displayPath(root.path, state.homeDir) : "未找到"}
-          </span>
-        ))}
+        <div className="skill-roots">
+          {state.skills.roots.map((root) => (
+            <span className={root.exists ? "skill-root ok" : "skill-root"} key={root.path}>
+              {root.label}: {root.exists ? displayPath(root.path, state.homeDir) : "未找到"}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="skills-layout">
@@ -2396,9 +2391,6 @@ function SkillsPanel({
                     onClick={() => onSelect(skill.path)}
                     type="button"
                   >
-                    <span className={skill.enabled ? "skill-status enabled" : "skill-status"}>
-                      {skill.enabled ? "enabled" : "disabled"}
-                    </span>
                     <strong>{skill.name}</strong>
                     {skill.description && (
                       <p title={skill.description}>{shortDescription(skill.description)}</p>
@@ -2410,16 +2402,6 @@ function SkillsPanel({
                     </small>
                   </button>
                   <div className="skill-actions">
-                    <button
-                      aria-label={`查看 skill ${skill.name}`}
-                      className="small-button"
-                      onClick={() => onSelect(skill.path)}
-                      title={`查看 skill ${skill.name}`}
-                      type="button"
-                    >
-                      <Eye size={14} />
-                      查看内容
-                    </button>
                     <div className="skill-switch-control">
                       <span>{skill.enabled ? "启用" : "停用"}</span>
                       <Switch
