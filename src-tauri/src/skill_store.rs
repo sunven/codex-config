@@ -31,6 +31,8 @@ pub struct SkillSummary {
     pub description: Option<String>,
     pub path: String,
     pub directory: String,
+    pub symlink: bool,
+    pub target_directory: Option<String>,
     pub source: String,
     pub enabled: bool,
     pub configured: bool,
@@ -109,8 +111,8 @@ pub fn state_from_document(document: Option<&DocumentMut>) -> SkillState {
 
 pub fn read_skill_content(path: String) -> Result<SkillContent, String> {
     let skill_path = verified_skill_path(&path)?;
-    let raw_markdown =
-        fs::read_to_string(&skill_path).map_err(|error| format!("failed to read skill: {error}"))?;
+    let raw_markdown = fs::read_to_string(&skill_path)
+        .map_err(|error| format!("failed to read skill: {error}"))?;
     let metadata = parse_metadata(&raw_markdown);
 
     Ok(SkillContent {
@@ -173,6 +175,38 @@ pub fn save_skill_enabled(
     })
 }
 
+pub fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
+    let source_dir = PathBuf::from(directory);
+    if !source_dir.is_dir() {
+        return Err("skill directory must be a directory".to_string());
+    }
+
+    let skill_path = source_dir.join("SKILL.md");
+    if !skill_path.is_file() {
+        return Err("skill directory must contain SKILL.md".to_string());
+    }
+    fs::read_to_string(&skill_path).map_err(|error| format!("failed to read skill: {error}"))?;
+
+    let location = config_locator::locate()?;
+    let root = agent_global_skills_root(&location)?;
+    let link_name = source_dir
+        .file_name()
+        .ok_or_else(|| "skill directory must have a name".to_string())?;
+    let link_path = root.join(link_name);
+
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("failed to create Agent global skills root: {error}"))?;
+    let changed = create_skill_directory_symlink(&source_dir, &link_path)?;
+
+    let state = crate::app_state::load_state()?;
+
+    Ok(SaveResult {
+        backup_path: None,
+        changed,
+        state,
+    })
+}
+
 fn discovery_roots(location: &config_locator::ConfigLocation) -> Vec<SkillRootCandidate> {
     let mut roots = Vec::new();
     push_root(
@@ -192,6 +226,38 @@ fn discovery_roots(location: &config_locator::ConfigLocation) -> Vec<SkillRootCa
     }
 
     roots
+}
+
+fn agent_global_skills_root(location: &config_locator::ConfigLocation) -> Result<PathBuf, String> {
+    discovery_roots(location)
+        .into_iter()
+        .find(|root| root.label == "Agent global skills")
+        .map(|root| root.path)
+        .ok_or_else(|| "Agent global skills root is not discoverable".to_string())
+}
+
+fn create_skill_directory_symlink(source: &Path, link: &Path) -> Result<bool, String> {
+    if fs::symlink_metadata(link).is_ok() {
+        if canonical_or_self(link) == canonical_or_self(source) {
+            return Ok(false);
+        }
+
+        return Err("a skill entry with this directory name already exists".to_string());
+    }
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(source, link)
+            .map_err(|error| format!("failed to create skill symlink: {error}"))?;
+        Ok(true)
+    }
+
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_dir(source, link)
+            .map_err(|error| format!("failed to create skill symlink: {error}"))?;
+        Ok(true)
+    }
 }
 
 fn push_root(roots: &mut Vec<SkillRootCandidate>, path: PathBuf, label: &str) {
@@ -215,12 +281,23 @@ fn home_dir() -> Option<PathBuf> {
 
 fn skill_paths(root: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
-    collect_skill_paths(root, MAX_SCAN_DEPTH, &mut paths);
+    let mut visited = BTreeSet::<PathBuf>::new();
+    collect_skill_paths(root, MAX_SCAN_DEPTH, &mut visited, &mut paths);
     paths
 }
 
-fn collect_skill_paths(directory: &Path, depth: usize, paths: &mut Vec<PathBuf>) {
+fn collect_skill_paths(
+    directory: &Path,
+    depth: usize,
+    visited: &mut BTreeSet<PathBuf>,
+    paths: &mut Vec<PathBuf>,
+) {
     if depth == 0 || !directory.is_dir() {
+        return;
+    }
+
+    let canonical_directory = canonical_or_self(directory);
+    if !visited.insert(canonical_directory) {
         return;
     }
 
@@ -234,15 +311,18 @@ fn collect_skill_paths(directory: &Path, depth: usize, paths: &mut Vec<PathBuf>)
     };
     let mut child_dirs = entries
         .filter_map(Result::ok)
-        .filter_map(|entry| match entry.file_type() {
-            Ok(file_type) if file_type.is_dir() => Some(entry.path()),
-            _ => None,
+        .filter_map(|entry| {
+            let path = entry.path();
+            match fs::metadata(&path) {
+                Ok(metadata) if metadata.is_dir() => Some(path),
+                _ => None,
+            }
         })
         .collect::<Vec<_>>();
     child_dirs.sort();
 
     for child in child_dirs {
-        collect_skill_paths(&child, depth - 1, paths);
+        collect_skill_paths(&child, depth - 1, visited, paths);
     }
 }
 
@@ -256,20 +336,21 @@ fn skill_summary(
     let config_entry = config_entry_for_path(path, config);
     let metadata_fs =
         fs::metadata(path).map_err(|error| format!("failed to stat skill: {error}"))?;
+    let directory = path.parent().unwrap_or(path);
+    let symlink = fs::symlink_metadata(directory)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false);
+    let target_directory = symlink.then(|| canonical_or_self(directory).display().to_string());
 
     Ok(SkillSummary {
         name: metadata.name.unwrap_or_else(|| fallback_skill_name(path)),
         description: metadata.description,
         path: path.display().to_string(),
-        directory: path
-            .parent()
-            .unwrap_or(path)
-            .display()
-            .to_string(),
+        directory: directory.display().to_string(),
+        symlink,
+        target_directory,
         source: root.label.clone(),
-        enabled: config_entry
-            .and_then(|entry| entry.enabled)
-            .unwrap_or(true),
+        enabled: config_entry.and_then(|entry| entry.enabled).unwrap_or(true),
         configured: config_entry.is_some(),
         size: metadata_fs.len(),
         modified_ms: metadata_fs.modified().ok().and_then(|time| {
@@ -305,9 +386,7 @@ fn skill_config_entries(document: &DocumentMut) -> BTreeMap<String, SkillConfigE
         let canonical_path = fs::canonicalize(&raw_path)
             .ok()
             .map(|path| path.display().to_string());
-        let key = canonical_path
-            .clone()
-            .unwrap_or_else(|| raw_path.clone());
+        let key = canonical_path.clone().unwrap_or_else(|| raw_path.clone());
 
         entries.insert(
             key,
@@ -330,7 +409,11 @@ fn config_entry_for_path<'a>(
 
     config
         .get(&canonical)
-        .or_else(|| config.values().find(|entry| entry.raw_path == path.display().to_string()))
+        .or_else(|| {
+            config
+                .values()
+                .find(|entry| entry.raw_path == path.display().to_string())
+        })
         .or_else(|| {
             config
                 .values()
@@ -372,11 +455,7 @@ fn set_skill_enabled_in_document(
 }
 
 fn ensure_skills_table(document: &mut DocumentMut) -> Result<(), String> {
-    if !document
-        .get("skills")
-        .map(Item::is_table)
-        .unwrap_or(false)
-    {
+    if !document.get("skills").map(Item::is_table).unwrap_or(false) {
         document["skills"] = Item::Table(Table::new());
     }
 
@@ -425,7 +504,6 @@ fn verified_skill_path(raw_path: &str) -> Result<PathBuf, String> {
     let roots = discovery_roots(&location);
     let allowed = roots.iter().any(|root| {
         root.path.exists()
-            && requested.starts_with(canonical_or_self(&root.path))
             && skill_paths(&root.path)
                 .into_iter()
                 .any(|skill_path| canonical_or_self(&skill_path) == requested)
@@ -510,8 +588,8 @@ fn metadata_from_frontmatter(lines: &[&str]) -> SkillMetadata {
                     collected.push(next.trim());
                     index += 1;
                 }
-                description = Some(collected.join(" ").trim().to_string())
-                    .filter(|value| !value.is_empty());
+                description =
+                    Some(collected.join(" ").trim().to_string()).filter(|value| !value.is_empty());
             } else {
                 description = scalar_value(value);
             }
@@ -579,6 +657,247 @@ description: |
             Some("Demo skill for tests.".to_string())
         );
         assert!(state.skills[0].enabled);
+        assert!(!state.skills[0].symlink);
+        assert_eq!(state.skills[0].target_directory, None);
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn discovers_skill_directory_symlinks() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let source_dir = location.codex_home.join("source-demo");
+        let link_dir = location.codex_home.join("skills").join("linked-demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(link_dir.parent().unwrap()).unwrap();
+        fs::write(
+            source_dir.join("SKILL.md"),
+            r#"---
+name: linked-demo
+description: Skill through a directory symlink.
+---
+"#,
+        )
+        .unwrap();
+        create_dir_symlink(&source_dir, &link_dir);
+
+        let state = state_from_document(Some(&DocumentMut::new()));
+
+        assert_eq!(state.skills.len(), 1);
+        assert_eq!(state.skills[0].name, "linked-demo");
+        assert_eq!(
+            state.skills[0].description,
+            Some("Skill through a directory symlink.".to_string())
+        );
+        assert!(state.skills[0].symlink);
+        assert_eq!(
+            state.skills[0].target_directory,
+            Some(canonical_or_self(&source_dir).display().to_string())
+        );
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn symlinked_skills_can_be_read_and_configured() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let source_dir = location.codex_home.join("source-demo");
+        let link_dir = location.codex_home.join("skills").join("linked-demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(link_dir.parent().unwrap()).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: linked-demo\n---\n").unwrap();
+        create_dir_symlink(&source_dir, &link_dir);
+
+        let state = state_from_document(Some(&DocumentMut::new()));
+        let skill_path = state.skills[0].path.clone();
+
+        let content = read_skill_content(skill_path.clone()).unwrap();
+        let preview = preview_skill_enabled(skill_path, false).unwrap();
+
+        assert_eq!(content.name, "linked-demo");
+        assert!(preview.changed);
+        assert!(preview.candidate_raw_toml.contains("enabled = false"));
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn duplicate_skill_directory_symlinks_are_deduplicated() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let source_dir = location.codex_home.join("source-demo");
+        let first_link_dir = location.codex_home.join("skills").join("linked-demo");
+        let second_link_dir = location.codex_home.join("skills").join("linked-demo-copy");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(first_link_dir.parent().unwrap()).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: linked-demo\n---\n").unwrap();
+        create_dir_symlink(&source_dir, &first_link_dir);
+        create_dir_symlink(&source_dir, &second_link_dir);
+
+        let state = state_from_document(Some(&DocumentMut::new()));
+
+        assert_eq!(state.skills.len(), 1);
+        assert_eq!(state.skills[0].name, "linked-demo");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn symlink_cycles_do_not_duplicate_or_block_skill_discovery() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let skill_dir = location.codex_home.join("skills").join("demo");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+        create_dir_symlink(&location.codex_home.join("skills"), &skill_dir.join("loop"));
+
+        let state = state_from_document(Some(&DocumentMut::new()));
+
+        assert_eq!(state.skills.len(), 1);
+        assert_eq!(state.skills[0].name, "demo");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn invalid_skill_directory_symlinks_are_ignored() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let skills_dir = location.codex_home.join("skills");
+        let valid_dir = skills_dir.join("demo");
+        let no_skill_dir = location.codex_home.join("not-a-skill");
+        fs::create_dir_all(&valid_dir).unwrap();
+        fs::create_dir_all(&no_skill_dir).unwrap();
+        fs::write(valid_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+        create_dir_symlink(&no_skill_dir, &skills_dir.join("not-a-skill-link"));
+        create_dir_symlink(
+            &location.codex_home.join("missing-target"),
+            &skills_dir.join("broken-link"),
+        );
+
+        let state = state_from_document(Some(&DocumentMut::new()));
+
+        assert_eq!(state.skills.len(), 1);
+        assert_eq!(state.skills[0].name, "demo");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_a_skill_directory_creates_a_discoverable_symlink() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = std::env::var_os("HOME").unwrap();
+        let home = PathBuf::from(home);
+        let source_dir = home.join("source-demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let result = import_skill_directory(source_dir.display().to_string()).unwrap();
+
+        assert!(result.changed);
+        assert_eq!(result.state.skills.skills.len(), 1);
+        assert_eq!(result.state.skills.skills[0].name, "demo");
+        assert!(result
+            .state
+            .skills
+            .roots
+            .iter()
+            .any(|root| root.label == "Agent global skills"));
+    }
+
+    #[test]
+    fn importing_rejects_paths_that_are_not_directories() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = std::env::var_os("HOME").unwrap();
+        let path = PathBuf::from(home).join("SKILL.md");
+        fs::write(&path, "---\nname: nope\n---\n").unwrap();
+
+        let error = import_skill_directory(path.display().to_string()).unwrap_err();
+
+        assert_eq!(error, "skill directory must be a directory");
+    }
+
+    #[test]
+    fn importing_rejects_directories_without_skill_markdown() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = std::env::var_os("HOME").unwrap();
+        let source_dir = PathBuf::from(home).join("source-demo");
+        fs::create_dir_all(&source_dir).unwrap();
+
+        let error = import_skill_directory(source_dir.display().to_string()).unwrap_err();
+
+        assert_eq!(error, "skill directory must contain SKILL.md");
+    }
+
+    #[test]
+    fn importing_fails_when_agent_global_root_is_not_discoverable() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let source_dir = location.codex_home.join("source-demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let error = import_skill_directory(source_dir.display().to_string()).unwrap_err();
+
+        assert_eq!(error, "Agent global skills root is not discoverable");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_does_not_overwrite_existing_skill_entries() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = std::env::var_os("HOME").unwrap();
+        let home = PathBuf::from(home);
+        let source_dir = home.join("demo");
+        let existing_dir = home.join(".agents").join("skills").join("demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(&existing_dir).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+        fs::write(
+            existing_dir.join("SKILL.md"),
+            "---\nname: existing-demo\n---\n",
+        )
+        .unwrap();
+
+        let error = import_skill_directory(source_dir.display().to_string()).unwrap_err();
+
+        assert_eq!(
+            error,
+            "a skill entry with this directory name already exists"
+        );
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_reuses_an_existing_symlink_to_the_same_skill_directory() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = std::env::var_os("HOME").unwrap();
+        let home = PathBuf::from(home);
+        let source_dir = home.join("demo");
+        let link_dir = home.join(".agents").join("skills").join("demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(link_dir.parent().unwrap()).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+        create_dir_symlink(&source_dir, &link_dir);
+
+        let result = import_skill_directory(source_dir.display().to_string()).unwrap();
+
+        assert!(!result.changed);
+        assert_eq!(result.state.skills.skills.len(), 1);
+        assert_eq!(result.state.skills.skills[0].name, "demo");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_does_not_modify_codex_config_toml() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = std::env::var_os("HOME").unwrap();
+        let home = PathBuf::from(home);
+        let source_dir = home.join("demo");
+        let config_path = home.join(".codex").join("config.toml");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let result = import_skill_directory(source_dir.display().to_string()).unwrap();
+
+        assert!(result.changed);
+        assert!(!config_path.exists());
     }
 
     #[test]
@@ -650,5 +969,15 @@ enabled = false
 
         assert!(result.changed);
         assert!(!saved.contains("enabled = false"));
+    }
+
+    #[cfg(unix)]
+    fn create_dir_symlink(source: &Path, link: &Path) {
+        std::os::unix::fs::symlink(source, link).unwrap();
+    }
+
+    #[cfg(windows)]
+    fn create_dir_symlink(source: &Path, link: &Path) {
+        std::os::windows::fs::symlink_dir(source, link).unwrap();
     }
 }

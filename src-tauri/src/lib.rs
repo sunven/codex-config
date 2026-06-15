@@ -136,6 +136,11 @@ fn save_skill_enabled(
     skill_store::save_skill_enabled(path, enabled, file_token).map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
+    skill_store::import_skill_directory(directory).map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -160,7 +165,8 @@ pub fn run() {
             delete_session,
             read_skill_content,
             preview_skill_enabled,
-            save_skill_enabled
+            save_skill_enabled,
+            import_skill_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

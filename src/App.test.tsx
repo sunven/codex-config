@@ -4,9 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const invokeMock = vi.hoisted(() => vi.fn());
+const openMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: openMock,
 }));
 
 vi.mock("@tauri-apps/api/window", () => ({
@@ -302,6 +307,8 @@ function appStateWithSkills(overrides = {}): any {
             "Test-driven development workflow with a deliberately long description that should wrap without overlapping the action buttons or preview panel.",
           path: "/Users/test/.codex/skills/tdd/SKILL.md",
           directory: "/Users/test/.codex/skills/tdd",
+          symlink: false,
+          targetDirectory: null,
           source: "Codex global skills",
           enabled: true,
           configured: true,
@@ -312,6 +319,8 @@ function appStateWithSkills(overrides = {}): any {
           description: "Issue triage workflow.",
           path: "/Users/test/.codex/skills/triage/SKILL.md",
           directory: "/Users/test/.codex/skills/triage",
+          symlink: false,
+          targetDirectory: null,
           source: "Codex global skills",
           enabled: false,
           configured: false,
@@ -326,9 +335,10 @@ function appStateWithSkills(overrides = {}): any {
 describe("App shell", () => {
   beforeEach(() => {
     invokeMock.mockReset();
+    openMock.mockReset();
   });
 
-  it("renders the control-center shell with status summary and primary tabs", async () => {
+  it("renders the control-center shell with primary tabs", async () => {
     invokeMock.mockResolvedValueOnce(appState());
 
     render(<App />);
@@ -336,7 +346,6 @@ describe("App shell", () => {
     expect(await screen.findByRole("heading", { name: "Codex 配置" })).toBeVisible();
     expect(screen.getByText(/管理本机 Codex 配置/)).toBeVisible();
     expect(screen.getByRole("button", { name: "刷新" })).toBeVisible();
-    expect(screen.getAllByText("codex 1.2.3").length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(document.title).toBe("codex-config /opt/homebrew/bin/codex codex 1.2.3");
     });
@@ -392,15 +401,9 @@ describe("App shell", () => {
 
     expect(screen.getByRole("button", { name: "刷新中" })).toBeDisabled();
 
-    resolveRefresh(appState({
-      health: {
-        ...appState().health,
-        schemaVersion: "2026-06-09",
-      },
-    }));
+    resolveRefresh(appState());
 
     expect(await screen.findByRole("button", { name: "刷新" })).toBeEnabled();
-    expect(screen.getByText("2026-06-09")).toBeVisible();
   });
 });
 
@@ -479,9 +482,7 @@ describe("Config workbench", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("只读")).toBeVisible();
-    expect(screen.getByText("config.toml is not writable")).toBeVisible();
-    expect(screen.getByRole("button", { name: "预览全局配置" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "预览全局配置" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "保存全局配置" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "预览 Fast 模式" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "保存 Fast 模式" })).toBeDisabled();
@@ -817,6 +818,9 @@ describe("Skills workspace", () => {
     expect(skills).toHaveTextContent("未找到");
     expect(skills).toHaveTextContent("2 skills");
     expect(skills).toHaveTextContent("configured");
+    expect(skills).not.toHaveTextContent(
+      "Test-driven development workflow with a deliberately long description",
+    );
     expect(within(skills).getByRole("switch", { name: "停用 skill tdd" })).toBeChecked();
     expect(within(skills).getByRole("switch", { name: "启用 skill triage" })).not.toBeChecked();
 
@@ -867,6 +871,142 @@ describe("Skills workspace", () => {
       fileToken: null,
     });
     expect(await screen.findByText("已停用 skill。重启 Codex 后生效。")).toBeVisible();
+  });
+
+  it("imports a skill directory into Agent global skills", async () => {
+    const user = userEvent.setup();
+    const initialState = appStateWithSkills();
+    const nextState = appStateWithSkills({
+      skills: {
+        roots: [
+          {
+            path: "/Users/test/.codex/skills",
+            label: "Codex global skills",
+            exists: true,
+          },
+          {
+            path: "/Users/test/.agents/skills",
+            label: "Agent global skills",
+            exists: true,
+          },
+        ],
+        skills: [
+          {
+            name: "imported",
+            description: "Imported skill description.",
+            path: "/Users/test/.agents/skills/imported/SKILL.md",
+            directory: "/Users/test/.agents/skills/imported",
+            symlink: true,
+            targetDirectory: "/Users/test/skills/imported",
+            source: "Agent global skills",
+            enabled: true,
+            configured: false,
+            size: 4096,
+          },
+        ],
+      },
+    });
+
+    openMock.mockResolvedValueOnce("/Users/test/skills/imported");
+    invokeMock
+      .mockResolvedValueOnce(initialState)
+      .mockResolvedValueOnce({
+        changed: true,
+        backupPath: null,
+        state: nextState,
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+
+    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    expect(within(skills).getByRole("button", { name: "新增 skill" })).toBeVisible();
+
+    await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
+
+    expect(openMock).toHaveBeenCalledWith({
+      directory: true,
+      multiple: false,
+      title: "选择 skill 目录",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("import_skill_directory", {
+      directory: "/Users/test/skills/imported",
+    });
+    expect(await screen.findByText(/已导入 skill。/)).toBeVisible();
+    expect(skills).toHaveTextContent("1 skills");
+    expect(skills).toHaveTextContent("软链");
+    expect(skills).toHaveTextContent("原始位置：/Users/test/skills/imported");
+    expect(within(skills).getByText("软链")).toBeVisible();
+    expect(within(skills).getAllByText("原始位置：/Users/test/skills/imported").length).toBeGreaterThan(
+      0,
+    );
+    expect(within(skills).getByRole("button", { name: "选择 skill imported" })).toBeVisible();
+    expect(within(skills).getByRole("heading", { name: "imported" })).toBeVisible();
+    expect(within(skills).getByText("/Users/test/.agents/skills/imported")).toBeVisible();
+  });
+
+  it("does not import when the skill directory picker is canceled", async () => {
+    const user = userEvent.setup();
+    openMock.mockResolvedValueOnce(null);
+    invokeMock.mockResolvedValueOnce(appStateWithSkills());
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+
+    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
+
+    expect(openMock).toHaveBeenCalledWith({
+      directory: true,
+      multiple: false,
+      title: "选择 skill 目录",
+    });
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).not.toHaveBeenCalledWith("import_skill_directory", expect.anything());
+    expect(skills).toHaveTextContent("2 skills");
+  });
+
+  it("shows import failures without clearing the current skills list", async () => {
+    const user = userEvent.setup();
+    openMock.mockResolvedValueOnce("/Users/test/skills/broken");
+    invokeMock
+      .mockResolvedValueOnce(appStateWithSkills())
+      .mockRejectedValueOnce("Agent global skills root is not discoverable");
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+
+    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Agent global skills root is not discoverable",
+    );
+    expect(skills).toHaveTextContent("2 skills");
+    expect(within(skills).getByRole("button", { name: "选择 skill tdd" })).toBeVisible();
+  });
+
+  it("disables skill import when the app is not writable", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(
+      appStateWithSkills({
+        writable: false,
+        readonlyReason: "config.toml 语法有误。",
+      }),
+    );
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+
+    expect(
+      within(screen.getByRole("region", { name: "全局 Skills" })).getByRole("button", {
+        name: "新增 skill",
+      }),
+    ).toBeDisabled();
   });
 });
 

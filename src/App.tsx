@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -12,10 +12,10 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-  ShieldCheck,
   ShieldAlert,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Switch } from "./components/ui/switch";
 import "./App.css";
@@ -160,6 +160,8 @@ type SkillSummary = {
   description?: string;
   path: string;
   directory: string;
+  symlink?: boolean;
+  targetDirectory?: string;
   source: string;
   enabled: boolean;
   configured: boolean;
@@ -286,11 +288,13 @@ function App() {
   const [skillQuery, setSkillQuery] = useState("");
   const [selectedSkillPath, setSelectedSkillPath] = useState<string | null>(null);
   const [skillContent, setSkillContent] = useState<SkillContent | null>(null);
+  const [importingSkill, setImportingSkill] = useState(false);
   const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
   const [pendingDeleteServerId, setPendingDeleteServerId] = useState<string | null>(null);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const importingSkillRef = useRef(false);
 
   async function loadState() {
     setLoading(true);
@@ -869,6 +873,66 @@ function App() {
     }
   }
 
+  async function importSkillDirectory() {
+    if (importingSkillRef.current) {
+      return;
+    }
+
+    importingSkillRef.current = true;
+    setImportingSkill(true);
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "选择 skill 目录",
+      });
+
+      if (!selected || Array.isArray(selected)) {
+        return;
+      }
+
+      const result = await invoke<SaveResult>("import_skill_directory", {
+        directory: selected,
+      });
+      setState(result.state);
+      setDraftValues(draftValuesFromFields(result.state.fields));
+      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
+      setModelProviderDraft(emptyModelProviderDraft());
+      setMcpServerDraft(emptyMcpServerDraft());
+      setPendingDeleteProviderId(null);
+      setPendingDeleteServerId(null);
+      setRawTomlDraft(result.state.rawToml);
+      setPreview(null);
+      setPreviewKind(null);
+      setSkillContent(null);
+      const importedDirectoryName = pathBasename(selected);
+      const imported =
+        result.state.skills.skills.find(
+          (skill) =>
+            skill.source === "Agent global skills" &&
+            pathBasename(skill.directory) === importedDirectoryName,
+        ) ??
+        result.state.skills.skills.find(
+          (skill) =>
+            skill.directory === selected || pathBasename(skill.directory) === importedDirectoryName,
+        );
+      setSelectedSkillPath(imported?.path ?? result.state.skills.skills[0]?.path ?? null);
+      setStatusMessage(
+        result.changed
+          ? "已导入 skill。重启 Codex 或开启新会话后生效。"
+          : "Skill 已经导入。重启 Codex 或开启新会话后生效。",
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      importingSkillRef.current = false;
+      setImportingSkill(false);
+    }
+  }
+
   async function deleteSession(id: string) {
     if (pendingDeleteSessionId !== id) {
       setPendingDeleteSessionId(id);
@@ -947,10 +1011,6 @@ function App() {
       {state && (
         <>
           {statusMessage && <section className="notice ok">{statusMessage}</section>}
-          <section className="status-grid">
-            <ConfigTarget state={state} />
-            <HealthStrip state={state} />
-          </section>
           <TabBar activeTab={activeTab} onChange={switchTab} />
           <section
             className={`workspace ${
@@ -1089,6 +1149,8 @@ function App() {
                   onQueryChange={setSkillQuery}
                   onSelect={readSkill}
                   onSaveToggle={saveSkillEnabled}
+                  onImport={importSkillDirectory}
+                  importing={importingSkill}
                 />
               </div>
             )}
@@ -1311,20 +1373,6 @@ function settingsChanges(
   });
 }
 
-function ConfigTarget({ state }: { state: AppState }) {
-  const target = configTarget(state.configPath);
-
-  return (
-    <section className={`target-strip ${target.tone}`}>
-      {target.tone === "real" ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
-      <div>
-        <strong>{target.label}</strong>
-        <p>{displayPath(state.configPath, state.homeDir)}</p>
-      </div>
-    </section>
-  );
-}
-
 function backupPathLabel(path: string | undefined, homeDir: string | undefined) {
   return path ? displayPath(path, homeDir) : "新配置无需备份";
 }
@@ -1364,6 +1412,13 @@ function displayPath(path: string, homeDir: string | undefined) {
   return path;
 }
 
+function pathBasename(path: string) {
+  const normalized = path.replace(/[\\/]+$/, "");
+  const parts = normalized.split(/[\\/]+/);
+
+  return parts[parts.length - 1] ?? normalized;
+}
+
 function normalizedHomeDir(homeDir: string | undefined) {
   const trimmed = homeDir?.trim();
 
@@ -1374,31 +1429,6 @@ function normalizedHomeDir(homeDir: string | undefined) {
   const normalized = trimmed.replace(/[\\/]+$/, "");
 
   return normalized && !/^[A-Za-z]:$/.test(normalized) ? normalized : undefined;
-}
-
-function configTarget(path: string) {
-  const normalized = path.startsWith("/private/tmp/")
-    ? path.replace("/private/tmp/", "/tmp/")
-    : path;
-
-  if (normalized.startsWith("/tmp/")) {
-    return {
-      label: "正在编辑测试配置",
-      tone: "test",
-    };
-  }
-
-  if (normalized.endsWith("/.codex/config.toml")) {
-    return {
-      label: "正在编辑真实 Codex 配置",
-      tone: "real",
-    };
-  }
-
-  return {
-    label: "正在编辑自定义配置",
-    tone: "custom",
-  };
 }
 
 function formatIsoDateTime(value: string | undefined) {
@@ -1528,46 +1558,6 @@ function TabBar({
         Skills
       </button>
     </nav>
-  );
-}
-
-function HealthStrip({ state }: { state: AppState }) {
-  const health = state.health;
-  const tone =
-    health.status === "ready"
-      ? "ok"
-      : health.status === "readOnly"
-        ? "warn"
-        : "danger";
-  const label =
-    health.status === "ready"
-      ? "可保存"
-      : health.status === "readOnly"
-        ? "只读"
-        : "需要处理";
-
-  return (
-    <section className={`health-strip ${tone}`}>
-      <div className="health-status">
-        {tone === "ok" ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
-        <strong>{label}</strong>
-      </div>
-      <dl>
-        <div>
-          <dt>Config</dt>
-          <dd>{health.configExists ? "已存在" : "未创建"}</dd>
-        </div>
-        <div>
-          <dt>Codex</dt>
-          <dd>{health.codex.version ?? health.codex.message ?? "未找到"}</dd>
-        </div>
-        <div>
-          <dt>Schema</dt>
-          <dd>{health.schemaVersion}</dd>
-        </div>
-      </dl>
-      {state.readonlyReason && <p>{state.readonlyReason}</p>}
-    </section>
   );
 }
 
@@ -2321,6 +2311,8 @@ function SkillsPanel({
   onQueryChange,
   onSelect,
   onSaveToggle,
+  onImport,
+  importing,
 }: {
   state: AppState;
   query: string;
@@ -2329,6 +2321,8 @@ function SkillsPanel({
   onQueryChange: (value: string) => void;
   onSelect: (path: string) => void;
   onSaveToggle: (path: string, enabled: boolean) => void;
+  onImport: () => void;
+  importing: boolean;
 }) {
   const normalized = query.trim().toLowerCase();
   const skills = normalized
@@ -2356,6 +2350,16 @@ function SkillsPanel({
           <h2 id="global-skills-title">全局 Skills</h2>
         </div>
         <span className="catalog-count">{resultLabel}</span>
+        <button
+          aria-label="新增 skill"
+          className="small-button"
+          disabled={!state.writable || importing}
+          onClick={onImport}
+          type="button"
+        >
+          <Plus size={14} />
+          <span>{importing ? "导入中" : "新增 skill"}</span>
+        </button>
         <div className="skill-roots">
           {state.skills.roots.map((root) => (
             <span className={root.exists ? "skill-root ok" : "skill-root"} key={root.path}>
@@ -2388,30 +2392,33 @@ function SkillsPanel({
                 >
                   <button
                     aria-label={`选择 skill ${skill.name}`}
+                    className="skill-select-button"
                     onClick={() => onSelect(skill.path)}
                     type="button"
-                  >
-                    <strong>{skill.name}</strong>
-                    {skill.description && (
-                      <p title={skill.description}>{shortDescription(skill.description)}</p>
-                    )}
-                    <code>{displayPath(skill.path, state.homeDir)}</code>
-                    <small>
-                      {skill.source} · {formatBytes(skill.size)}
-                      {skill.configured ? " · configured" : ""}
-                    </small>
-                  </button>
-                  <div className="skill-actions">
-                    <div className="skill-switch-control">
-                      <span>{skill.enabled ? "启用" : "停用"}</span>
-                      <Switch
-                        aria-label={`${skill.enabled ? "停用" : "启用"} skill ${skill.name}`}
-                        checked={skill.enabled}
-                        disabled={!state.writable}
-                        onCheckedChange={(checked) => onSaveToggle(skill.path, checked)}
-                      />
-                    </div>
+                  />
+                  <div className="skill-title-line">
+                    <Switch
+                      aria-label={`${skill.enabled ? "停用" : "启用"} skill ${skill.name}`}
+                      checked={skill.enabled}
+                      className="small skill-switch-control"
+                      disabled={!state.writable}
+                      onCheckedChange={(checked) => onSaveToggle(skill.path, checked)}
+                    />
+                    <span className="skill-name-line">
+                      <strong>{skill.name}</strong>
+                      {skill.symlink && <span className="skill-link-badge">软链</span>}
+                    </span>
                   </div>
+                  <code>{displayPath(skill.path, state.homeDir)}</code>
+                  {skill.symlink && skill.targetDirectory && (
+                    <small className="skill-origin-line">
+                      原始位置：{displayPath(skill.targetDirectory, state.homeDir)}
+                    </small>
+                  )}
+                  <small>
+                    {skill.source} · {formatBytes(skill.size)}
+                    {skill.configured ? " · configured" : ""}
+                  </small>
                 </div>
               );
             })
@@ -2425,6 +2432,11 @@ function SkillsPanel({
                 <div>
                   <h3>{selectedSkill.name}</h3>
                   <p>{displayPath(selectedSkill.directory, state.homeDir)}</p>
+                  {selectedSkill.symlink && selectedSkill.targetDirectory && (
+                    <p className="skill-origin">
+                      原始位置：{displayPath(selectedSkill.targetDirectory, state.homeDir)}
+                    </p>
+                  )}
                 </div>
                 <span className={selectedSkill.enabled ? "skill-status enabled" : "skill-status"}>
                   {selectedSkill.enabled ? "enabled" : "disabled"}
@@ -3065,11 +3077,6 @@ function Backups({
       )}
     </section>
   );
-}
-
-function shortDescription(description: string) {
-  const compact = description.replace(/\s+/g, " ").trim();
-  return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
 }
 
 function formatBytes(bytes: number) {
