@@ -18,6 +18,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Switch } from "./components/ui/switch";
+import {
+  commitConfigEdit,
+  compactMcpServerDraft,
+  compactModelProviderDraft,
+  type ConfigEditPreviewKind,
+  type DraftChange,
+  type McpServerDraft,
+  type ModelProviderDraft,
+  type PreviewResult,
+  previewConfigEdit,
+} from "./configEditWorkflow";
 import "./App.css";
 
 type HealthStatus = "ready" | "readOnly" | "needsAttention";
@@ -204,71 +215,11 @@ type McpServerEntry = {
   hasAdvancedFields: boolean;
 };
 
-type ModelProviderDraft = {
-  id: string;
-  originalId?: string;
-  name?: string;
-  baseUrl?: string;
-  envKey?: string;
-  envKeyInstructions?: string;
-  wireApi?: string;
-  requestMaxRetries?: number;
-  streamMaxRetries?: number;
-  streamIdleTimeoutMs?: number;
-  requiresOpenaiAuth?: boolean;
-  supportsWebsockets?: boolean;
-  queryParams: Record<string, string>;
-  httpHeaders: Record<string, string>;
-  envHttpHeaders: Record<string, string>;
-};
-
-type McpServerDraft = {
-  id: string;
-  originalId?: string;
-  command?: string;
-  args: string[];
-  env: Record<string, string>;
-  startupTimeoutMs?: number;
-  enabled?: boolean;
-};
-
-type PreviewResult = {
-  changed: boolean;
-  fieldDiffs: FieldDiff[];
-  textDiff: string;
-  candidateRawToml: string;
-};
-
-type FieldDiff = {
-  scope: "root" | "profile";
-  path: string;
-  label: string;
-  before: string;
-  after: string;
-};
-
 type SaveResult = {
   backupPath?: string;
   changed: boolean;
   state: AppState;
 };
-
-type DraftChange = {
-  path: string;
-  scope?: "root" | "profile";
-  action: "set" | "unset";
-  value?: boolean | string;
-};
-
-type PreviewKind =
-  | "fast"
-  | "rootSettings"
-  | "profileSettings"
-  | "rawToml"
-  | "modelProviderSave"
-  | "modelProviderDelete"
-  | "mcpServerSave"
-  | "mcpServerDelete";
 
 type MainTab = "config" | "sessions" | "mcp" | "skills";
 
@@ -282,7 +233,7 @@ function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
-  const [previewKind, setPreviewKind] = useState<PreviewKind | null>(null);
+  const [previewKind, setPreviewKind] = useState<ConfigEditPreviewKind | null>(null);
   const [activeTab, setActiveTab] = useState<MainTab>("config");
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [profileDraftValues, setProfileDraftValues] = useState<Record<string, string>>({});
@@ -362,12 +313,10 @@ function App() {
     setStatusMessage(null);
 
     try {
-      setPreview(
-        await invoke<PreviewResult>("preview_changes", {
-          changes: fastModeChanges(),
-        }),
-      );
-      setPreviewKind("fast");
+      const outcome = await previewConfigEdit({ kind: "fastMode" });
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -377,16 +326,9 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("save_changes", {
-        changes: fastModeChanges(),
-        fileToken: state?.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
-          : "没有需要保存的变更。",
-      );
+      const outcome = await commitConfigEdit<AppState>({ kind: "fastMode" }, state?.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -409,12 +351,13 @@ function App() {
     }
 
     try {
-      setPreview(
-        await invoke<PreviewResult>("preview_changes", {
-          changes,
-        }),
-      );
-      setPreviewKind("rootSettings");
+      const outcome = await previewConfigEdit({
+        kind: "rootSettings",
+        changes,
+      });
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -429,16 +372,12 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("save_changes", {
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "rootSettings",
         changes,
-        fileToken: state.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
-          : "没有需要保存的变更。",
-      );
+      }, state.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -471,12 +410,13 @@ function App() {
     }
 
     try {
-      setPreview(
-        await invoke<PreviewResult>("preview_changes", {
-          changes,
-        }),
-      );
-      setPreviewKind("profileSettings");
+      const outcome = await previewConfigEdit({
+        kind: "profileSettings",
+        changes,
+      });
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -491,19 +431,12 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("save_changes", {
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "profileSettings",
         changes,
-        fileToken: state.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已保存 profile 配置。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要保存的变更。",
-      );
+      }, state.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -524,15 +457,13 @@ function App() {
     setStatusMessage(null);
 
     try {
-      const nextPreview = await invoke<PreviewResult>("preview_raw_toml", {
+      const outcome = await previewConfigEdit({
+        kind: "rawToml",
         rawToml: rawTomlDraft,
       });
-      setPreview(nextPreview);
-      setPreviewKind("rawToml");
-
-      if (!nextPreview.changed) {
-        setStatusMessage("原始 TOML 没有可预览的变更。");
-      }
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -542,19 +473,12 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("save_raw_toml", {
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "rawToml",
         rawToml: rawTomlDraft,
-        fileToken: state?.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已保存原始 TOML。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要保存的原始 TOML 变更。",
-      );
+      }, state?.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -588,16 +512,14 @@ function App() {
     setStatusMessage(null);
 
     try {
-      const nextPreview = await invoke<PreviewResult>("preview_save_model_provider", {
-        draft: compactModelProviderDraft(modelProviderDraft),
+      const outcome = await previewConfigEdit({
+        kind: "modelProviderSave",
+        draft: modelProviderDraft,
       });
-      setPreview(nextPreview);
-      setPreviewKind("modelProviderSave");
-      setPendingDeleteProviderId(null);
-
-      if (!nextPreview.changed) {
-        setStatusMessage("Model provider 没有可预览的变更。");
-      }
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setPendingDeleteProviderId(outcome.pendingDeleteProviderId ?? null);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -607,19 +529,12 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("save_model_provider", {
-        draft: compactModelProviderDraft(modelProviderDraft),
-        fileToken: state?.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已保存 model provider。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要保存的 model provider 变更。",
-      );
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "modelProviderSave",
+        draft: modelProviderDraft,
+      }, state?.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -630,16 +545,14 @@ function App() {
     setStatusMessage(null);
 
     try {
-      const nextPreview = await invoke<PreviewResult>("preview_delete_model_provider", {
+      const outcome = await previewConfigEdit({
+        kind: "modelProviderDelete",
         id,
       });
-      setPreview(nextPreview);
-      setPreviewKind("modelProviderDelete");
-      setPendingDeleteProviderId(nextPreview.changed ? id : null);
-
-      if (!nextPreview.changed) {
-        setStatusMessage("Model provider 没有可删除的变更。");
-      }
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setPendingDeleteProviderId(outcome.pendingDeleteProviderId ?? null);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -649,19 +562,12 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("delete_model_provider", {
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "modelProviderDelete",
         id,
-        fileToken: state?.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已删除 model provider。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要删除的 model provider。",
-      );
+      }, state?.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -672,16 +578,14 @@ function App() {
     setStatusMessage(null);
 
     try {
-      const nextPreview = await invoke<PreviewResult>("preview_save_mcp_server", {
-        draft: compactMcpServerDraft(mcpServerDraft),
+      const outcome = await previewConfigEdit({
+        kind: "mcpServerSave",
+        draft: mcpServerDraft,
       });
-      setPreview(nextPreview);
-      setPreviewKind("mcpServerSave");
-      setPendingDeleteServerId(null);
-
-      if (!nextPreview.changed) {
-        setStatusMessage("MCP server 没有可预览的变更。");
-      }
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setPendingDeleteServerId(outcome.pendingDeleteServerId ?? null);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -691,19 +595,12 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("save_mcp_server", {
-        draft: compactMcpServerDraft(mcpServerDraft),
-        fileToken: state?.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已保存 MCP server。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要保存的 MCP server 变更。",
-      );
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "mcpServerSave",
+        draft: mcpServerDraft,
+      }, state?.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -714,16 +611,14 @@ function App() {
     setStatusMessage(null);
 
     try {
-      const nextPreview = await invoke<PreviewResult>("preview_delete_mcp_server", {
+      const outcome = await previewConfigEdit({
+        kind: "mcpServerDelete",
         id,
       });
-      setPreview(nextPreview);
-      setPreviewKind("mcpServerDelete");
-      setPendingDeleteServerId(nextPreview.changed ? id : null);
-
-      if (!nextPreview.changed) {
-        setStatusMessage("MCP server 没有可删除的变更。");
-      }
+      setPreview(outcome.preview);
+      setPreviewKind(outcome.previewKind);
+      setPendingDeleteServerId(outcome.pendingDeleteServerId ?? null);
+      setStatusMessage(outcome.notice ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -733,19 +628,12 @@ function App() {
     setError(null);
 
     try {
-      const result = await invoke<SaveResult>("delete_mcp_server", {
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "mcpServerDelete",
         id,
-        fileToken: state?.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        result.changed
-          ? `已删除 MCP server。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要删除的 MCP server。",
-      );
+      }, state?.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -756,16 +644,12 @@ function App() {
     setStatusMessage(null);
 
     try {
-      const result = await invoke<SaveResult>("restore_backup", {
+      const outcome = await commitConfigEdit<AppState>({
+        kind: "restoreBackup",
         backupId,
-        fileToken: state?.fileToken ?? null,
-      });
-      applyAppState(result.state);
-      setStatusMessage(
-        `已恢复备份。恢复前备份：${
-          backupPathLabel(result.backupPath, result.state.homeDir)
-        }`,
-      );
+      }, state?.fileToken);
+      applyAppState(outcome.state);
+      setStatusMessage(outcome.notice);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -1078,17 +962,6 @@ function App() {
   );
 }
 
-function fastModeChanges(): DraftChange[] {
-  return [
-    {
-      path: "features.fast_mode",
-      scope: "root",
-      action: "set",
-      value: true,
-    },
-  ];
-}
-
 function emptyModelProviderDraft(): ModelProviderDraft {
   return {
     id: "",
@@ -1128,22 +1001,6 @@ function draftFromModelProvider(provider: ModelProviderEntry): ModelProviderDraf
   };
 }
 
-function compactModelProviderDraft(draft: ModelProviderDraft): ModelProviderDraft {
-  return {
-    ...draft,
-    id: draft.id.trim(),
-    originalId: draft.originalId?.trim() || undefined,
-    name: optionalText(draft.name),
-    baseUrl: optionalText(draft.baseUrl),
-    envKey: optionalText(draft.envKey),
-    envKeyInstructions: optionalText(draft.envKeyInstructions),
-    wireApi: optionalText(draft.wireApi),
-    queryParams: cleanStringMap(draft.queryParams),
-    httpHeaders: cleanStringMap(draft.httpHeaders),
-    envHttpHeaders: cleanStringMap(draft.envHttpHeaders),
-  };
-}
-
 function emptyMcpServerDraft(): McpServerDraft {
   return {
     id: "",
@@ -1165,30 +1022,6 @@ function draftFromMcpServer(server: McpServerEntry): McpServerDraft {
     startupTimeoutMs: server.startupTimeoutMs,
     enabled: server.enabled,
   };
-}
-
-function compactMcpServerDraft(draft: McpServerDraft): McpServerDraft {
-  return {
-    ...draft,
-    id: draft.id.trim(),
-    originalId: draft.originalId?.trim() || undefined,
-    command: optionalText(draft.command),
-    args: draft.args.map((arg) => arg.trim()).filter(Boolean),
-    env: cleanStringMap(draft.env),
-  };
-}
-
-function optionalText(value?: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function cleanStringMap(values: Record<string, string>) {
-  return Object.fromEntries(
-    Object.entries(values)
-      .map(([key, value]) => [key.trim(), value.trim()])
-      .filter(([key, value]) => key && value),
-  );
 }
 
 function modelProviderDirty(draft: ModelProviderDraft, providers: ModelProviderEntry[]) {
@@ -1288,10 +1121,6 @@ function settingsChanges(
         : { path: field.path, action: "unset", scope },
     ];
   });
-}
-
-function backupPathLabel(path: string | undefined, homeDir: string | undefined) {
-  return path ? displayPath(path, homeDir) : "新配置无需备份";
 }
 
 function appTitle(state: AppState | null) {
@@ -1489,7 +1318,7 @@ function FastModeTask({
   onPreview: () => void;
   onSave: () => void;
   preview: PreviewResult | null;
-  previewKind: PreviewKind | null;
+  previewKind: ConfigEditPreviewKind | null;
 }) {
   const fastMode = state.fields.find((field) => field.path === "features.fast_mode");
   const value = fastMode?.value ?? "inherited";

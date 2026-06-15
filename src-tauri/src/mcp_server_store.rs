@@ -1,8 +1,13 @@
 use crate::config_document_workflow;
+use crate::config_table_entry::{
+    clear_fields, entries, has_advanced_fields, normalize_entry_id, remove_table_entry, set_bool,
+    set_integer, set_string, set_string_array, set_string_map, table_bool, table_integer,
+    table_string, table_string_array, table_string_map, upsert_table_entry,
+};
 use crate::toml_store::{FileToken, PreviewResult, SaveResult};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use toml_edit::{value as toml_value, Array, DocumentMut, Item, Table};
+use toml_edit::{DocumentMut, Item, Table};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,16 +44,7 @@ pub struct McpServerDraft {
 pub type McpServerSaveResult = SaveResult;
 
 pub fn state_from_document(document: &DocumentMut) -> McpServerState {
-    let servers = document
-        .get("mcp_servers")
-        .and_then(Item::as_table)
-        .map(|servers| {
-            servers
-                .iter()
-                .filter_map(|(id, item)| server_from_item(id, item))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let servers = entries(document, "mcp_servers", server_from_item);
 
     McpServerState { servers }
 }
@@ -87,48 +83,19 @@ fn apply_server_draft(document: &mut DocumentMut, draft: &McpServerDraft) -> Res
     let id = server_id(&draft.id)?;
     let original_id = draft.original_id.as_deref().map(server_id).transpose()?;
 
-    ensure_mcp_servers_table(document)?;
-
-    if let Some(original_id) = original_id.as_deref() {
-        if original_id != id {
-            document["mcp_servers"]
-                .as_table_mut()
-                .ok_or_else(|| "mcp_servers must be a table".to_string())?
-                .remove(original_id);
-        }
-    }
-
-    let servers = document["mcp_servers"]
-        .as_table_mut()
-        .ok_or_else(|| "mcp_servers must be a table".to_string())?;
-    servers[&id] = Item::Table(server_table(servers.get(&id), draft));
-    Ok(())
+    upsert_table_entry(
+        document,
+        "mcp_servers",
+        &id,
+        original_id.as_deref(),
+        |existing| server_table(existing, draft),
+    )
 }
 
 fn remove_server(document: &mut DocumentMut, raw_id: &str) -> Result<(), String> {
     let id = server_id(raw_id)?;
 
-    let Some(servers) = document.get_mut("mcp_servers").and_then(Item::as_table_mut) else {
-        return Ok(());
-    };
-
-    servers.remove(&id);
-    Ok(())
-}
-
-fn ensure_mcp_servers_table(document: &mut DocumentMut) -> Result<(), String> {
-    if !document
-        .get("mcp_servers")
-        .map(Item::is_table)
-        .unwrap_or(false)
-    {
-        document["mcp_servers"] = Item::Table(Table::new());
-    }
-
-    document["mcp_servers"]
-        .as_table()
-        .ok_or_else(|| "mcp_servers must be a table".to_string())?;
-    Ok(())
+    remove_table_entry(document, "mcp_servers", &id)
 }
 
 fn server_table(existing: Option<&Item>, draft: &McpServerDraft) -> Table {
@@ -141,7 +108,7 @@ fn server_table(existing: Option<&Item>, draft: &McpServerDraft) -> Table {
 
     set_string(&mut table, "command", draft.command.as_deref());
     set_string_array(&mut table, "args", &draft.args);
-    set_map(&mut table, "env", &draft.env);
+    set_string_map(&mut table, "env", &draft.env);
     set_integer(&mut table, "startup_timeout_ms", draft.startup_timeout_ms);
     set_bool(&mut table, "enabled", draft.enabled);
 
@@ -149,9 +116,7 @@ fn server_table(existing: Option<&Item>, draft: &McpServerDraft) -> Table {
 }
 
 fn clear_editable_server_fields(table: &mut Table) {
-    for key in editable_server_keys() {
-        table.remove(key);
-    }
+    clear_fields(table, editable_server_keys());
 }
 
 fn server_from_item(id: &str, item: &Item) -> Option<McpServerEntry> {
@@ -161,133 +126,15 @@ fn server_from_item(id: &str, item: &Item) -> Option<McpServerEntry> {
         id: id.to_string(),
         command: table_string(table, "command"),
         args: table_string_array(table, "args"),
-        env: table_map(table, "env"),
+        env: table_string_map(table, "env"),
         startup_timeout_ms: table_integer(table, "startup_timeout_ms"),
         enabled: table_bool(table, "enabled"),
-        has_advanced_fields: table
-            .iter()
-            .any(|(key, _)| !editable_server_keys().contains(&key)),
+        has_advanced_fields: has_advanced_fields(table, editable_server_keys()),
     })
 }
 
-fn set_string(table: &mut Table, key: &str, value: Option<&str>) {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return;
-    };
-
-    table[key] = toml_value(value);
-}
-
-fn set_string_array(table: &mut Table, key: &str, values: &[String]) {
-    let mut array = Array::new();
-
-    for value in values {
-        let value = value.trim();
-        if !value.is_empty() {
-            array.push(value);
-        }
-    }
-
-    if !array.is_empty() {
-        table[key] = toml_value(array);
-    }
-}
-
-fn set_integer(table: &mut Table, key: &str, value: Option<i64>) {
-    if let Some(value) = value {
-        table[key] = toml_value(value);
-    }
-}
-
-fn set_bool(table: &mut Table, key: &str, value: Option<bool>) {
-    if let Some(value) = value {
-        table[key] = toml_value(value);
-    }
-}
-
-fn set_map(table: &mut Table, key: &str, values: &BTreeMap<String, String>) {
-    let mut nested = Table::new();
-
-    for (name, value) in values {
-        let name = name.trim();
-        let value = value.trim();
-        if name.is_empty() || value.is_empty() {
-            continue;
-        }
-        nested[name] = toml_value(value);
-    }
-
-    if !nested.is_empty() {
-        table[key] = Item::Table(nested);
-    }
-}
-
-fn table_string(table: &Table, key: &str) -> Option<String> {
-    table
-        .get(key)
-        .and_then(Item::as_value)
-        .and_then(|value| value.as_str())
-        .map(ToOwned::to_owned)
-}
-
-fn table_string_array(table: &Table, key: &str) -> Vec<String> {
-    table
-        .get(key)
-        .and_then(Item::as_value)
-        .and_then(|value| value.as_array())
-        .map(|array| {
-            array
-                .iter()
-                .filter_map(|value| value.as_str().map(ToOwned::to_owned))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn table_integer(table: &Table, key: &str) -> Option<i64> {
-    table
-        .get(key)
-        .and_then(Item::as_value)
-        .and_then(|value| value.as_integer())
-}
-
-fn table_bool(table: &Table, key: &str) -> Option<bool> {
-    table
-        .get(key)
-        .and_then(Item::as_value)
-        .and_then(|value| value.as_bool())
-}
-
-fn table_map(table: &Table, key: &str) -> BTreeMap<String, String> {
-    table
-        .get(key)
-        .and_then(Item::as_table)
-        .map(|nested| {
-            nested
-                .iter()
-                .filter_map(|(name, item)| {
-                    item.as_value()
-                        .and_then(|value| value.as_str())
-                        .map(|value| (name.to_string(), value.to_string()))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 fn server_id(raw_id: &str) -> Result<String, String> {
-    let id = raw_id.trim();
-    if id.is_empty() {
-        return Err("MCP server id cannot be empty".to_string());
-    }
-    if !id
-        .chars()
-        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
-    {
-        return Err("MCP server id can only contain letters, numbers, '_' and '-'".to_string());
-    }
-
-    Ok(id.to_string())
+    normalize_entry_id(raw_id, "MCP server id")
 }
 
 fn editable_server_keys() -> &'static [&'static str] {

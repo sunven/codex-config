@@ -1,8 +1,13 @@
 use crate::config_document_workflow;
+use crate::config_table_entry::{
+    clear_fields, entries, has_advanced_fields, normalize_entry_id, remove_table_entry, set_bool,
+    set_integer, set_string, set_string_map, table_bool, table_integer, table_string,
+    table_string_map, upsert_table_entry,
+};
 use crate::toml_store::{FileToken, PreviewResult, SaveResult};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use toml_edit::{value as toml_value, DocumentMut, Item, Table};
+use toml_edit::{DocumentMut, Item, Table};
 
 const RESERVED_PROVIDER_IDS: &[&str] = &["openai", "azure", "ollama", "lmstudio"];
 
@@ -59,16 +64,7 @@ pub struct ModelProviderDraft {
 pub type ModelProviderSaveResult = SaveResult;
 
 pub fn state_from_document(document: &DocumentMut) -> ModelProviderState {
-    let providers = document
-        .get("model_providers")
-        .and_then(Item::as_table)
-        .map(|providers| {
-            providers
-                .iter()
-                .filter_map(|(id, item)| provider_from_item(id, item))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let providers = entries(document, "model_providers", provider_from_item);
 
     ModelProviderState {
         providers,
@@ -121,52 +117,20 @@ fn apply_provider_draft(
         ensure_custom_id(original_id)?;
     }
 
-    ensure_model_providers_table(document)?;
-
-    if let Some(original_id) = original_id.as_deref() {
-        if original_id != id {
-            document["model_providers"]
-                .as_table_mut()
-                .ok_or_else(|| "model_providers must be a table".to_string())?
-                .remove(original_id);
-        }
-    }
-
-    let providers = document["model_providers"]
-        .as_table_mut()
-        .ok_or_else(|| "model_providers must be a table".to_string())?;
-    providers[&id] = Item::Table(provider_table(providers.get(&id), draft));
-    Ok(())
+    upsert_table_entry(
+        document,
+        "model_providers",
+        &id,
+        original_id.as_deref(),
+        |existing| provider_table(existing, draft),
+    )
 }
 
 fn remove_provider(document: &mut DocumentMut, raw_id: &str) -> Result<(), String> {
     let id = provider_id(raw_id)?;
     ensure_custom_id(&id)?;
 
-    let Some(providers) = document
-        .get_mut("model_providers")
-        .and_then(Item::as_table_mut)
-    else {
-        return Ok(());
-    };
-
-    providers.remove(&id);
-    Ok(())
-}
-
-fn ensure_model_providers_table(document: &mut DocumentMut) -> Result<(), String> {
-    if !document
-        .get("model_providers")
-        .map(Item::is_table)
-        .unwrap_or(false)
-    {
-        document["model_providers"] = Item::Table(Table::new());
-    }
-
-    document["model_providers"]
-        .as_table()
-        .ok_or_else(|| "model_providers must be a table".to_string())?;
-    Ok(())
+    remove_table_entry(document, "model_providers", &id)
 }
 
 fn provider_table(existing: Option<&Item>, draft: &ModelProviderDraft) -> Table {
@@ -199,17 +163,15 @@ fn provider_table(existing: Option<&Item>, draft: &ModelProviderDraft) -> Table 
         draft.requires_openai_auth,
     );
     set_bool(&mut table, "supports_websockets", draft.supports_websockets);
-    set_map(&mut table, "query_params", &draft.query_params);
-    set_map(&mut table, "http_headers", &draft.http_headers);
-    set_map(&mut table, "env_http_headers", &draft.env_http_headers);
+    set_string_map(&mut table, "query_params", &draft.query_params);
+    set_string_map(&mut table, "http_headers", &draft.http_headers);
+    set_string_map(&mut table, "env_http_headers", &draft.env_http_headers);
 
     table
 }
 
 fn clear_editable_provider_fields(table: &mut Table) {
-    for key in editable_provider_keys() {
-        table.remove(key);
-    }
+    clear_fields(table, editable_provider_keys());
 }
 
 fn provider_from_item(id: &str, item: &Item) -> Option<ModelProviderEntry> {
@@ -227,104 +189,15 @@ fn provider_from_item(id: &str, item: &Item) -> Option<ModelProviderEntry> {
         stream_idle_timeout_ms: table_integer(table, "stream_idle_timeout_ms"),
         requires_openai_auth: table_bool(table, "requires_openai_auth"),
         supports_websockets: table_bool(table, "supports_websockets"),
-        query_params: table_map(table, "query_params"),
-        http_headers: table_map(table, "http_headers"),
-        env_http_headers: table_map(table, "env_http_headers"),
-        has_advanced_fields: table
-            .iter()
-            .any(|(key, _)| !editable_provider_keys().contains(&key)),
+        query_params: table_string_map(table, "query_params"),
+        http_headers: table_string_map(table, "http_headers"),
+        env_http_headers: table_string_map(table, "env_http_headers"),
+        has_advanced_fields: has_advanced_fields(table, editable_provider_keys()),
     })
 }
 
-fn set_string(table: &mut Table, key: &str, value: Option<&str>) {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return;
-    };
-
-    table[key] = toml_value(value);
-}
-
-fn set_integer(table: &mut Table, key: &str, value: Option<i64>) {
-    if let Some(value) = value {
-        table[key] = toml_value(value);
-    }
-}
-
-fn set_bool(table: &mut Table, key: &str, value: Option<bool>) {
-    if let Some(value) = value {
-        table[key] = toml_value(value);
-    }
-}
-
-fn set_map(table: &mut Table, key: &str, values: &BTreeMap<String, String>) {
-    let mut nested = Table::new();
-
-    for (name, value) in values {
-        let name = name.trim();
-        let value = value.trim();
-        if name.is_empty() || value.is_empty() {
-            continue;
-        }
-        nested[name] = toml_value(value);
-    }
-
-    if !nested.is_empty() {
-        table[key] = Item::Table(nested);
-    }
-}
-
-fn table_string(table: &Table, key: &str) -> Option<String> {
-    table
-        .get(key)
-        .and_then(Item::as_value)
-        .and_then(|value| value.as_str())
-        .map(ToOwned::to_owned)
-}
-
-fn table_integer(table: &Table, key: &str) -> Option<i64> {
-    table
-        .get(key)
-        .and_then(Item::as_value)
-        .and_then(|value| value.as_integer())
-}
-
-fn table_bool(table: &Table, key: &str) -> Option<bool> {
-    table
-        .get(key)
-        .and_then(Item::as_value)
-        .and_then(|value| value.as_bool())
-}
-
-fn table_map(table: &Table, key: &str) -> BTreeMap<String, String> {
-    table
-        .get(key)
-        .and_then(Item::as_table)
-        .map(|nested| {
-            nested
-                .iter()
-                .filter_map(|(name, item)| {
-                    item.as_value()
-                        .and_then(|value| value.as_str())
-                        .map(|value| (name.to_string(), value.to_string()))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 fn provider_id(raw_id: &str) -> Result<String, String> {
-    let id = raw_id.trim();
-    if id.is_empty() {
-        return Err("provider id cannot be empty".to_string());
-    }
-    if !id
-        .chars()
-        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
-    {
-        return Err("provider id can only contain letters, numbers, '_' and '-'".to_string());
-    }
-
-    Ok(id.to_string())
+    normalize_entry_id(raw_id, "provider id")
 }
 
 fn ensure_custom_id(id: &str) -> Result<(), String> {
