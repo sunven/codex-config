@@ -3,6 +3,7 @@ mod app_state;
 mod backup_store;
 mod codex_probe;
 mod codex_session_store;
+mod config_document_workflow;
 mod config_locator;
 mod config_schema;
 mod effective_config;

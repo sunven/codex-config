@@ -1,3 +1,5 @@
+use crate::config_document_workflow;
+#[cfg(test)]
 use crate::config_locator;
 use crate::schema_write;
 use serde::{Deserialize, Serialize};
@@ -88,119 +90,38 @@ pub struct LoadedToml {
 }
 
 pub fn preview_changes(changes: Vec<DraftChange>) -> Result<PreviewResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = load(&location.config_path)?;
-    let original_document = loaded.document.clone();
-    let original = loaded.raw.clone();
-    let candidate_document = candidate_document(loaded, &changes)?;
-    let candidate = candidate_document.to_string();
-    let field_diffs = original_document
-        .as_ref()
-        .map(|document| field_diffs(document, &candidate_document, &changes))
-        .transpose()?
-        .unwrap_or_default();
-
-    Ok(PreviewResult {
-        changed: original != candidate,
-        field_diffs,
-        text_diff: simple_diff(&original, &candidate),
-        candidate_raw_toml: candidate,
-    })
+    config_document_workflow::preview_edit(
+        |document| apply_changes(document, &changes),
+        |original, candidate| match original {
+            Some(document) => field_diffs(document, candidate, &changes),
+            None => Ok(Vec::new()),
+        },
+    )
 }
 
 pub fn preview_raw_toml(raw_toml: String) -> Result<PreviewResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = load(&location.config_path)?;
-    let candidate = validated_raw_toml(raw_toml)?;
-
-    Ok(PreviewResult {
-        changed: loaded.raw != candidate,
-        field_diffs: Vec::new(),
-        text_diff: simple_diff(&loaded.raw, &candidate),
-        candidate_raw_toml: candidate,
-    })
+    config_document_workflow::preview_raw_toml(raw_toml)
 }
 
 pub fn save_changes(
     changes: Vec<DraftChange>,
     file_token: Option<FileToken>,
 ) -> Result<SaveResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = load(&location.config_path)?;
-    ensure_current_token(&loaded, file_token.as_ref())?;
-    let original = loaded.raw.clone();
-    let candidate = candidate_document(loaded, &changes)?.to_string();
-
-    if original == candidate {
-        return Ok(SaveResult {
-            backup_path: None,
-            changed: false,
-            state: crate::app_state::load_state()?,
-        });
-    }
-
-    let backup_path = backup_existing_file(&location.config_path, &location.backup_dir)?;
-    atomic_write(&location.config_path, candidate.as_bytes())?;
-
-    Ok(SaveResult {
-        backup_path: backup_path.map(|path| path.display().to_string()),
-        changed: true,
-        state: crate::app_state::load_state()?,
-    })
+    config_document_workflow::commit_edit(file_token, |document| apply_changes(document, &changes))
 }
 
 pub fn save_raw_toml(
     raw_toml: String,
     file_token: Option<FileToken>,
 ) -> Result<SaveResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = load(&location.config_path)?;
-    ensure_current_token(&loaded, file_token.as_ref())?;
-    let original = loaded.raw.clone();
-    let candidate = validated_raw_toml(raw_toml)?;
-
-    if original == candidate {
-        return Ok(SaveResult {
-            backup_path: None,
-            changed: false,
-            state: crate::app_state::load_state()?,
-        });
-    }
-
-    let backup_path = backup_existing_file(&location.config_path, &location.backup_dir)?;
-    atomic_write(&location.config_path, candidate.as_bytes())?;
-
-    Ok(SaveResult {
-        backup_path: backup_path.map(|path| path.display().to_string()),
-        changed: true,
-        state: crate::app_state::load_state()?,
-    })
+    config_document_workflow::commit_raw_toml(raw_toml, file_token)
 }
 
 pub fn restore_backup(
     backup_id: String,
     file_token: Option<FileToken>,
 ) -> Result<SaveResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = load(&location.config_path)?;
-    ensure_current_token(&loaded, file_token.as_ref())?;
-
-    let backup_path = safe_backup_path(&location.backup_dir, &backup_id)?;
-    let backup_bytes =
-        fs::read(&backup_path).map_err(|error| format!("failed to read backup: {error}"))?;
-    let backup_raw = String::from_utf8_lossy(&backup_bytes);
-    backup_raw
-        .parse::<DocumentMut>()
-        .map_err(|error| format!("backup TOML is malformed: {error}"))?;
-
-    let pre_restore_backup = backup_existing_file(&location.config_path, &location.backup_dir)?;
-    atomic_write(&location.config_path, &backup_bytes)?;
-
-    Ok(SaveResult {
-        backup_path: pre_restore_backup.map(|path| path.display().to_string()),
-        changed: true,
-        state: crate::app_state::load_state()?,
-    })
+    config_document_workflow::restore_backup(backup_id, file_token)
 }
 
 pub fn load(path: &Path) -> Result<LoadedToml, String> {
@@ -271,38 +192,24 @@ pub fn root_item_exists(document: &DocumentMut, key: &str) -> Option<bool> {
     document.get(key).map(|_| true)
 }
 
+#[cfg(test)]
 fn candidate_document(loaded: LoadedToml, changes: &[DraftChange]) -> Result<DocumentMut, String> {
     if let Some(issue) = loaded.parse_issue {
         return Err(format!("cannot edit malformed TOML: {}", issue.message));
     }
 
     let mut document = loaded.document.unwrap_or_else(DocumentMut::new);
-    for change in changes {
-        apply_change(&mut document, change)?;
-    }
-
-    let serialized = document.to_string();
-    serialized
-        .parse::<DocumentMut>()
-        .map_err(|error| format!("candidate TOML failed to reparse: {error}"))?;
+    apply_changes(&mut document, changes)?;
+    config_document_workflow::serialize_validated_document(&document)?;
 
     Ok(document)
 }
 
-fn validated_raw_toml(raw_toml: String) -> Result<String, String> {
-    let document = raw_toml
-        .parse::<DocumentMut>()
-        .map_err(|error| format!("candidate TOML is malformed: {error}"))?;
-    let serialized = document.to_string();
-    serialized
-        .parse::<DocumentMut>()
-        .map_err(|error| format!("candidate TOML failed to reparse: {error}"))?;
-
-    Ok(serialized)
-}
-
-fn apply_change(document: &mut DocumentMut, change: &DraftChange) -> Result<(), String> {
-    schema_write::apply_change(document, change)
+fn apply_changes(document: &mut DocumentMut, changes: &[DraftChange]) -> Result<(), String> {
+    for change in changes {
+        schema_write::apply_change(document, change)?;
+    }
+    Ok(())
 }
 
 fn field_diffs(
@@ -425,27 +332,6 @@ fn unique_temp_path(path: &Path) -> PathBuf {
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
     path.with_extension(format!("toml.{timestamp}.tmp"))
-}
-
-fn safe_backup_path(backup_dir: &Path, backup_id: &str) -> Result<PathBuf, String> {
-    if backup_id.contains('/') || backup_id.contains('\\') || backup_id == "." || backup_id == ".."
-    {
-        return Err("invalid backup id".to_string());
-    }
-
-    let path = backup_dir.join(backup_id);
-    let backup_dir = backup_dir
-        .canonicalize()
-        .map_err(|error| format!("failed to resolve backup directory: {error}"))?;
-    let resolved = path
-        .canonicalize()
-        .map_err(|error| format!("failed to resolve backup file: {error}"))?;
-
-    if !resolved.starts_with(&backup_dir) {
-        return Err("backup path escaped backup directory".to_string());
-    }
-
-    Ok(resolved)
 }
 
 pub(crate) fn simple_diff(original: &str, candidate: &str) -> String {

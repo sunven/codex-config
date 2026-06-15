@@ -1,5 +1,5 @@
-use crate::config_locator;
-use crate::toml_store::{self, FileToken, PreviewResult};
+use crate::config_document_workflow;
+use crate::toml_store::{FileToken, PreviewResult, SaveResult};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use toml_edit::{value as toml_value, Array, DocumentMut, Item, Table};
@@ -36,13 +36,7 @@ pub struct McpServerDraft {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpServerSaveResult {
-    pub backup_path: Option<String>,
-    pub changed: bool,
-    pub state: crate::app_state::AppState,
-}
+pub type McpServerSaveResult = SaveResult;
 
 pub fn state_from_document(document: &DocumentMut) -> McpServerState {
     let servers = document
@@ -60,105 +54,33 @@ pub fn state_from_document(document: &DocumentMut) -> McpServerState {
 }
 
 pub fn preview_save_server(draft: McpServerDraft) -> Result<PreviewResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = toml_store::load(&location.config_path)?;
-    let original = loaded.raw.clone();
-    let mut document = editable_document(loaded)?;
-    apply_server_draft(&mut document, &draft)?;
-    let candidate = validated_candidate(&document)?;
-
-    Ok(PreviewResult {
-        changed: original != candidate,
-        field_diffs: Vec::new(),
-        text_diff: toml_store::simple_diff(&original, &candidate),
-        candidate_raw_toml: candidate,
-    })
+    config_document_workflow::preview_edit(
+        |document| apply_server_draft(document, &draft),
+        |_, _| Ok(Vec::new()),
+    )
 }
 
 pub fn save_server(
     draft: McpServerDraft,
     file_token: Option<FileToken>,
 ) -> Result<McpServerSaveResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = toml_store::load(&location.config_path)?;
-    toml_store::ensure_current_token(&loaded, file_token.as_ref())?;
-    let original = loaded.raw.clone();
-    let mut document = editable_document(loaded)?;
-    apply_server_draft(&mut document, &draft)?;
-    let candidate = validated_candidate(&document)?;
-
-    if original == candidate {
-        return Ok(McpServerSaveResult {
-            backup_path: None,
-            changed: false,
-            state: crate::app_state::load_state()?,
-        });
-    }
-
-    let backup_path =
-        toml_store::backup_existing_file(&location.config_path, &location.backup_dir)?;
-    toml_store::atomic_write(&location.config_path, candidate.as_bytes())?;
-
-    Ok(McpServerSaveResult {
-        backup_path: backup_path.map(|path| path.display().to_string()),
-        changed: true,
-        state: crate::app_state::load_state()?,
+    config_document_workflow::commit_edit(file_token, |document| {
+        apply_server_draft(document, &draft)
     })
 }
 
 pub fn preview_delete_server(id: String) -> Result<PreviewResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = toml_store::load(&location.config_path)?;
-    let original = loaded.raw.clone();
-    let mut document = editable_document(loaded)?;
-    remove_server(&mut document, &id)?;
-    let candidate = validated_candidate(&document)?;
-
-    Ok(PreviewResult {
-        changed: original != candidate,
-        field_diffs: Vec::new(),
-        text_diff: toml_store::simple_diff(&original, &candidate),
-        candidate_raw_toml: candidate,
-    })
+    config_document_workflow::preview_edit(
+        |document| remove_server(document, &id),
+        |_, _| Ok(Vec::new()),
+    )
 }
 
 pub fn delete_server(
     id: String,
     file_token: Option<FileToken>,
 ) -> Result<McpServerSaveResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = toml_store::load(&location.config_path)?;
-    toml_store::ensure_current_token(&loaded, file_token.as_ref())?;
-    let original = loaded.raw.clone();
-    let mut document = editable_document(loaded)?;
-    remove_server(&mut document, &id)?;
-    let candidate = validated_candidate(&document)?;
-
-    if original == candidate {
-        return Ok(McpServerSaveResult {
-            backup_path: None,
-            changed: false,
-            state: crate::app_state::load_state()?,
-        });
-    }
-
-    let backup_path =
-        toml_store::backup_existing_file(&location.config_path, &location.backup_dir)?;
-    toml_store::atomic_write(&location.config_path, candidate.as_bytes())?;
-
-    Ok(McpServerSaveResult {
-        backup_path: backup_path.map(|path| path.display().to_string()),
-        changed: true,
-        state: crate::app_state::load_state()?,
-    })
-}
-
-fn editable_document(loaded: toml_store::LoadedToml) -> Result<DocumentMut, String> {
-    if let Some(issue) = loaded.parse_issue {
-        return Err(format!("cannot edit malformed TOML: {}", issue.message));
-    }
-
-    Ok(loaded.document.unwrap_or_else(DocumentMut::new))
+    config_document_workflow::commit_edit(file_token, |document| remove_server(document, &id))
 }
 
 fn apply_server_draft(document: &mut DocumentMut, draft: &McpServerDraft) -> Result<(), String> {
@@ -372,19 +294,12 @@ fn editable_server_keys() -> &'static [&'static str] {
     &["command", "args", "env", "startup_timeout_ms", "enabled"]
 }
 
-fn validated_candidate(document: &DocumentMut) -> Result<String, String> {
-    let serialized = document.to_string();
-    serialized
-        .parse::<DocumentMut>()
-        .map_err(|error| format!("candidate TOML failed to reparse: {error}"))?;
-
-    Ok(serialized)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config_locator;
     use crate::test_support::TestCodexHome;
+    use crate::toml_store;
     use std::fs;
 
     #[test]

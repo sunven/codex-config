@@ -1,5 +1,6 @@
+use crate::config_document_workflow;
 use crate::config_locator;
-use crate::toml_store::{self, FileToken, PreviewResult, SaveResult};
+use crate::toml_store::{FileToken, PreviewResult, SaveResult};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -126,20 +127,11 @@ pub fn read_skill_content(path: String) -> Result<SkillContent, String> {
 }
 
 pub fn preview_skill_enabled(path: String, enabled: bool) -> Result<PreviewResult, String> {
-    let location = config_locator::locate()?;
     let skill_path = verified_skill_path(&path)?;
-    let loaded = toml_store::load(&location.config_path)?;
-    let original = loaded.raw.clone();
-    let mut document = editable_document(loaded)?;
-    set_skill_enabled_in_document(&mut document, &skill_path, enabled)?;
-    let candidate = validated_candidate(&document)?;
-
-    Ok(PreviewResult {
-        changed: original != candidate,
-        field_diffs: Vec::new(),
-        text_diff: toml_store::simple_diff(&original, &candidate),
-        candidate_raw_toml: candidate,
-    })
+    config_document_workflow::preview_edit(
+        |document| set_skill_enabled_in_document(document, &skill_path, enabled),
+        |_, _| Ok(Vec::new()),
+    )
 }
 
 pub fn save_skill_enabled(
@@ -147,31 +139,9 @@ pub fn save_skill_enabled(
     enabled: bool,
     file_token: Option<FileToken>,
 ) -> Result<SaveResult, String> {
-    let location = config_locator::locate()?;
     let skill_path = verified_skill_path(&path)?;
-    let loaded = toml_store::load(&location.config_path)?;
-    toml_store::ensure_current_token(&loaded, file_token.as_ref())?;
-    let original = loaded.raw.clone();
-    let mut document = editable_document(loaded)?;
-    set_skill_enabled_in_document(&mut document, &skill_path, enabled)?;
-    let candidate = validated_candidate(&document)?;
-
-    if original == candidate {
-        return Ok(SaveResult {
-            backup_path: None,
-            changed: false,
-            state: crate::app_state::load_state()?,
-        });
-    }
-
-    let backup_path =
-        toml_store::backup_existing_file(&location.config_path, &location.backup_dir)?;
-    toml_store::atomic_write(&location.config_path, candidate.as_bytes())?;
-
-    Ok(SaveResult {
-        backup_path: backup_path.map(|path| path.display().to_string()),
-        changed: true,
-        state: crate::app_state::load_state()?,
+    config_document_workflow::commit_edit(file_token, |document| {
+        set_skill_enabled_in_document(document, &skill_path, enabled)
     })
 }
 
@@ -421,14 +391,6 @@ fn config_entry_for_path<'a>(
         })
 }
 
-fn editable_document(loaded: toml_store::LoadedToml) -> Result<DocumentMut, String> {
-    if let Some(issue) = loaded.parse_issue {
-        return Err(format!("cannot edit malformed TOML: {}", issue.message));
-    }
-
-    Ok(loaded.document.unwrap_or_else(DocumentMut::new))
-}
-
 fn set_skill_enabled_in_document(
     document: &mut DocumentMut,
     path: &Path,
@@ -518,15 +480,6 @@ fn verified_skill_path(raw_path: &str) -> Result<PathBuf, String> {
 
 fn canonical_or_self(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
-}
-
-fn validated_candidate(document: &DocumentMut) -> Result<String, String> {
-    let serialized = document.to_string();
-    serialized
-        .parse::<DocumentMut>()
-        .map_err(|error| format!("candidate TOML failed to reparse: {error}"))?;
-
-    Ok(serialized)
 }
 
 fn table_string(table: &Table, key: &str) -> Option<String> {
@@ -628,6 +581,7 @@ fn fallback_skill_name(path: &Path) -> String {
 mod tests {
     use super::*;
     use crate::test_support::TestCodexHome;
+    use crate::toml_store;
 
     #[test]
     fn discovers_global_skills_and_reads_metadata() {
