@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -272,6 +272,12 @@ type PreviewKind =
 
 type MainTab = "config" | "sessions" | "mcp" | "skills";
 
+type ApplyAppStateOptions = {
+  nextSelectedSkillPath?: string | null;
+  clearSkillContent?: boolean;
+  clearPendingSessionDelete?: boolean;
+};
+
 function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -296,6 +302,31 @@ function App() {
   const [loading, setLoading] = useState(true);
   const importingSkillRef = useRef(false);
 
+  function applyAppState(nextState: AppState, options: ApplyAppStateOptions = {}) {
+    setState(nextState);
+    setDraftValues(draftValuesFromFields(nextState.fields));
+    setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
+    setModelProviderDraft(emptyModelProviderDraft());
+    setMcpServerDraft(emptyMcpServerDraft());
+    setPendingDeleteProviderId(null);
+    setPendingDeleteServerId(null);
+    setRawTomlDraft(nextState.rawToml);
+    setPreview(null);
+    setPreviewKind(null);
+
+    if (options.clearPendingSessionDelete) {
+      setPendingDeleteSessionId(null);
+    }
+
+    if ("nextSelectedSkillPath" in options) {
+      setSelectedSkillPath(options.nextSelectedSkillPath ?? null);
+    }
+
+    if (options.clearSkillContent) {
+      setSkillContent(null);
+    }
+  }
+
   async function loadState() {
     setLoading(true);
     setError(null);
@@ -304,17 +335,11 @@ function App() {
 
     try {
       const nextState = await invoke<AppState>("load_state");
-      setState(nextState);
-      setDraftValues(draftValuesFromFields(nextState.fields));
-      setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setPendingDeleteSessionId(null);
-      setSelectedSkillPath(nextState.skills.skills[0]?.path ?? null);
-      setSkillContent(null);
-      setRawTomlDraft(nextState.rawToml);
+      applyAppState(nextState, {
+        nextSelectedSkillPath: nextState.skills.skills[0]?.path ?? null,
+        clearSkillContent: true,
+        clearPendingSessionDelete: true,
+      });
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -356,16 +381,7 @@ function App() {
         changes: fastModeChanges(),
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
@@ -417,16 +433,7 @@ function App() {
         changes,
         fileToken: state.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
@@ -488,16 +495,7 @@ function App() {
         changes,
         fileToken: state.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已保存 profile 配置。备份：${backupPathLabel(
@@ -548,16 +546,7 @@ function App() {
         rawToml: rawTomlDraft,
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已保存原始 TOML。备份：${backupPathLabel(
@@ -622,16 +611,7 @@ function App() {
         draft: compactModelProviderDraft(modelProviderDraft),
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已保存 model provider。备份：${backupPathLabel(
@@ -673,16 +653,7 @@ function App() {
         id,
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已删除 model provider。备份：${backupPathLabel(
@@ -724,16 +695,7 @@ function App() {
         draft: compactMcpServerDraft(mcpServerDraft),
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已保存 MCP server。备份：${backupPathLabel(
@@ -775,16 +737,7 @@ function App() {
         id,
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已删除 MCP server。备份：${backupPathLabel(
@@ -807,16 +760,7 @@ function App() {
         backupId,
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         `已恢复备份。恢复前备份：${
           backupPathLabel(result.backupPath, result.state.homeDir)
@@ -853,16 +797,7 @@ function App() {
         enabled,
         fileToken: state?.fileToken ?? null,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(result.state);
       setStatusMessage(
         result.changed
           ? `已${enabled ? "启用" : "停用"} skill。重启 Codex 后生效。`
@@ -897,17 +832,6 @@ function App() {
       const result = await invoke<SaveResult>("import_skill_directory", {
         directory: selected,
       });
-      setState(result.state);
-      setDraftValues(draftValuesFromFields(result.state.fields));
-      setProfileDraftValues(draftValuesFromFields(result.state.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setRawTomlDraft(result.state.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
-      setSkillContent(null);
       const importedDirectoryName = pathBasename(selected);
       const imported =
         result.state.skills.skills.find(
@@ -919,7 +843,10 @@ function App() {
           (skill) =>
             skill.directory === selected || pathBasename(skill.directory) === importedDirectoryName,
         );
-      setSelectedSkillPath(imported?.path ?? result.state.skills.skills[0]?.path ?? null);
+      applyAppState(result.state, {
+        nextSelectedSkillPath: imported?.path ?? result.state.skills.skills[0]?.path ?? null,
+        clearSkillContent: true,
+      });
       setStatusMessage(
         result.changed
           ? "已导入 skill。重启 Codex 或开启新会话后生效。"
@@ -945,17 +872,7 @@ function App() {
 
     try {
       const nextState = await invoke<AppState>("delete_session", { id });
-      setState(nextState);
-      setDraftValues(draftValuesFromFields(nextState.fields));
-      setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
-      setModelProviderDraft(emptyModelProviderDraft());
-      setMcpServerDraft(emptyMcpServerDraft());
-      setPendingDeleteProviderId(null);
-      setPendingDeleteServerId(null);
-      setPendingDeleteSessionId(null);
-      setRawTomlDraft(nextState.rawToml);
-      setPreview(null);
-      setPreviewKind(null);
+      applyAppState(nextState, { clearPendingSessionDelete: true });
       setStatusMessage("已删除 Codex session 文件。");
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
@@ -1712,6 +1629,96 @@ function SettingsForm({
   );
 }
 
+function TableEntryEditor({
+  titleId,
+  title,
+  description,
+  countLabel,
+  previewLabel,
+  saveLabel,
+  saveButtonText,
+  writable,
+  dirty,
+  savePreviewReady,
+  onPreview,
+  onSave,
+  newEntryAriaLabel,
+  newEntryText,
+  onNewEntry,
+  emptyMessage,
+  entries,
+  form,
+}: {
+  titleId: string;
+  title: string;
+  description: ReactNode;
+  countLabel: string;
+  previewLabel: string;
+  saveLabel: string;
+  saveButtonText: string;
+  writable: boolean;
+  dirty: boolean;
+  savePreviewReady: boolean;
+  onPreview: () => void;
+  onSave: () => void;
+  newEntryAriaLabel: string;
+  newEntryText: string;
+  onNewEntry: () => void;
+  emptyMessage: string;
+  entries: ReactNode;
+  form: ReactNode;
+}) {
+  return (
+    <section className="panel provider-panel" aria-labelledby={titleId}>
+      <div className="panel-heading">
+        <FileCode2 size={18} />
+        <div>
+          <h2 id={titleId}>{title}</h2>
+          <p className="muted">{description}</p>
+        </div>
+        <span className="catalog-count">{countLabel}</span>
+        <div className="panel-actions">
+          <button
+            aria-label={previewLabel}
+            className="small-button"
+            disabled={!writable || !dirty}
+            onClick={onPreview}
+            type="button"
+          >
+            预览
+          </button>
+          <button
+            aria-label={saveLabel}
+            className="primary-button compact"
+            disabled={!writable || !dirty || !savePreviewReady}
+            onClick={onSave}
+            type="button"
+          >
+            {saveButtonText}
+          </button>
+        </div>
+      </div>
+
+      <div className="provider-layout">
+        <div className="provider-list">
+          <button
+            aria-label={newEntryAriaLabel}
+            className="provider-row new-provider"
+            onClick={onNewEntry}
+            type="button"
+          >
+            <Plus size={16} />
+            {newEntryText}
+          </button>
+          {entries ? entries : <div className="empty-state">{emptyMessage}</div>}
+        </div>
+
+        <div className="provider-form">{form}</div>
+      </div>
+    </section>
+  );
+}
+
 function ModelProvidersPanel({
   state,
   draft,
@@ -1743,111 +1750,87 @@ function ModelProvidersPanel({
     onDraftChange({ ...draft, ...patch });
   }
 
-  return (
-    <section className="panel provider-panel" aria-labelledby="model-providers-title">
-      <div className="panel-heading">
-        <FileCode2 size={18} />
-        <div>
-          <h2 id="model-providers-title">Model providers</h2>
-          <p className="muted">管理写入 <code>model_providers</code> 的自定义 provider。</p>
-        </div>
-        <span className="catalog-count">{providers.length} providers</span>
-        <div className="panel-actions">
-          <button
-            aria-label={previewLabel}
-            className="small-button"
-            disabled={!state.writable || !dirty}
-            onClick={onPreview}
-            type="button"
-          >
-            预览
-          </button>
-          <button
-            aria-label={saveLabel}
-            className="primary-button compact"
-            disabled={!state.writable || !dirty || !savePreviewReady}
-            onClick={onSave}
-            type="button"
-          >
-            保存 provider
-          </button>
-        </div>
-      </div>
+  const entries =
+    providers.length > 0
+      ? providers.map((provider) => {
+          const providerName = provider.name || provider.id;
+          const reserved = state.modelProviders.reservedIds.includes(provider.id);
 
-      <div className="provider-layout">
-        <div className="provider-list">
-          <button
-            aria-label="新建 model provider"
-            className="provider-row new-provider"
-            onClick={() => onDraftChange(emptyModelProviderDraft())}
-            type="button"
-          >
-            <Plus size={16} />
-            新建 provider
-          </button>
-          {providers.length === 0 ? (
-            <div className="empty-state">还没有自定义 model provider。</div>
-          ) : (
-            providers.map((provider) => {
-              const providerName = provider.name || provider.id;
-              const reserved = state.modelProviders.reservedIds.includes(provider.id);
-
-              return (
-                <div
-                  className={`provider-row ${draft.originalId === provider.id ? "active" : ""}`}
-                  key={provider.id}
-                >
-                  <button
-                    aria-label={`选择 provider ${providerName}`}
-                    onClick={() => onDraftChange(draftFromModelProvider(provider))}
-                    type="button"
-                  >
-                    <div className="provider-title-row">
-                      <strong>{providerName}</strong>
-                      <span className={reserved ? "edit-badge" : "edit-badge editable"}>
-                        {reserved ? "built-in" : "custom"}
-                      </span>
-                      {provider.hasAdvancedFields && (
-                        <span className="kind-badge">advanced fields</span>
-                      )}
-                    </div>
-                    <code>{provider.id}</code>
-                    <div className="provider-meta">
-                      {provider.baseUrl && <span>{provider.baseUrl}</span>}
-                      {provider.envKey && <span>{provider.envKey}</span>}
-                      {provider.wireApi && <span>{provider.wireApi}</span>}
-                    </div>
-                  </button>
-                  <div className="provider-row-actions">
-                    <button
-                      aria-label={`预览删除 provider ${provider.id}`}
-                      className="small-button"
-                      disabled={!state.writable || reserved}
-                      onClick={() => onPreviewDelete(provider.id)}
-                      title={reserved ? "内置 provider 不能删除" : `预览删除 provider ${provider.id}`}
-                      type="button"
-                    >
-                      预览删除
-                    </button>
-                    <button
-                      aria-label={`确认删除 provider ${provider.id}`}
-                      className="small-button"
-                      disabled={!state.writable || reserved || pendingDeleteId !== provider.id}
-                      onClick={() => onDelete(provider.id)}
-                      title={reserved ? "内置 provider 不能删除" : `确认删除 provider ${provider.id}`}
-                      type="button"
-                    >
-                      <Trash2 size={14} />
-                      删除
-                    </button>
-                  </div>
+          return (
+            <div
+              className={`provider-row ${draft.originalId === provider.id ? "active" : ""}`}
+              key={provider.id}
+            >
+              <button
+                aria-label={`选择 provider ${providerName}`}
+                onClick={() => onDraftChange(draftFromModelProvider(provider))}
+                type="button"
+              >
+                <div className="provider-title-row">
+                  <strong>{providerName}</strong>
+                  <span className={reserved ? "edit-badge" : "edit-badge editable"}>
+                    {reserved ? "built-in" : "custom"}
+                  </span>
+                  {provider.hasAdvancedFields && (
+                    <span className="kind-badge">advanced fields</span>
+                  )}
                 </div>
-              );
-            })
-          )}
-        </div>
+                <code>{provider.id}</code>
+                <div className="provider-meta">
+                  {provider.baseUrl && <span>{provider.baseUrl}</span>}
+                  {provider.envKey && <span>{provider.envKey}</span>}
+                  {provider.wireApi && <span>{provider.wireApi}</span>}
+                </div>
+              </button>
+              <div className="provider-row-actions">
+                <button
+                  aria-label={`预览删除 provider ${provider.id}`}
+                  className="small-button"
+                  disabled={!state.writable || reserved}
+                  onClick={() => onPreviewDelete(provider.id)}
+                  title={reserved ? "内置 provider 不能删除" : `预览删除 provider ${provider.id}`}
+                  type="button"
+                >
+                  预览删除
+                </button>
+                <button
+                  aria-label={`确认删除 provider ${provider.id}`}
+                  className="small-button"
+                  disabled={!state.writable || reserved || pendingDeleteId !== provider.id}
+                  onClick={() => onDelete(provider.id)}
+                  title={reserved ? "内置 provider 不能删除" : `确认删除 provider ${provider.id}`}
+                  type="button"
+                >
+                  <Trash2 size={14} />
+                  删除
+                </button>
+              </div>
+            </div>
+          );
+        })
+      : null;
 
-        <div className="provider-form">
+  return (
+    <TableEntryEditor
+      titleId="model-providers-title"
+      title="Model providers"
+      description={<>管理写入 <code>model_providers</code> 的自定义 provider。</>}
+      countLabel={`${providers.length} providers`}
+      previewLabel={previewLabel}
+      saveLabel={saveLabel}
+      saveButtonText="保存 provider"
+      writable={state.writable}
+      dirty={dirty}
+      savePreviewReady={savePreviewReady}
+      onPreview={onPreview}
+      onSave={onSave}
+      newEntryAriaLabel="新建 model provider"
+      newEntryText="新建 provider"
+      onNewEntry={() => onDraftChange(emptyModelProviderDraft())}
+      emptyMessage="还没有自定义 model provider。"
+      entries={entries}
+      form={
+        <>
           <div className="form-grid two-col">
             <LabeledInput
               label="Provider ID"
@@ -1948,9 +1931,9 @@ function ModelProvidersPanel({
           <p className="muted">
             内置 provider ID 保留不可覆盖：{state.modelProviders.reservedIds.join(", ")}。
           </p>
-        </div>
-      </div>
-    </section>
+        </>
+      }
+    />
   );
 }
 
@@ -2137,111 +2120,87 @@ function McpServersPanel({
     onDraftChange({ ...draft, ...patch });
   }
 
-  return (
-    <section className="panel provider-panel" aria-labelledby="mcp-servers-title">
-      <div className="panel-heading">
-        <FileCode2 size={18} />
-        <div>
-          <h2 id="mcp-servers-title">MCP servers</h2>
-          <p className="muted">管理写入 <code>mcp_servers</code> 的 server 启动配置。</p>
-        </div>
-        <span className="catalog-count">{servers.length} servers</span>
-        <div className="panel-actions">
-          <button
-            aria-label={previewLabel}
-            className="small-button"
-            disabled={!state.writable || !dirty}
-            onClick={onPreview}
-            type="button"
-          >
-            预览
-          </button>
-          <button
-            aria-label={saveLabel}
-            className="primary-button compact"
-            disabled={!state.writable || !dirty || !savePreviewReady}
-            onClick={onSave}
-            type="button"
-          >
-            保存 server
-          </button>
-        </div>
-      </div>
+  const entries =
+    servers.length > 0
+      ? servers.map((server) => {
+          const enabled = server.enabled !== false;
 
-      <div className="provider-layout">
-        <div className="provider-list">
-          <button
-            aria-label="新建 MCP server"
-            className="provider-row new-provider"
-            onClick={() => onDraftChange(emptyMcpServerDraft())}
-            type="button"
-          >
-            <Plus size={16} />
-            新建 MCP server
-          </button>
-          {servers.length === 0 ? (
-            <div className="empty-state">还没有配置 MCP server。</div>
-          ) : (
-            servers.map((server) => {
-              const enabled = server.enabled !== false;
-
-              return (
-                <div
-                  className={`provider-row ${draft.originalId === server.id ? "active" : ""}`}
-                  key={server.id}
-                >
-                  <button
-                    aria-label={`选择 MCP server ${server.id}`}
-                    onClick={() => onDraftChange(draftFromMcpServer(server))}
-                    type="button"
-                  >
-                    <div className="provider-title-row">
-                      <strong>{server.id}</strong>
-                      <span className={enabled ? "skill-status enabled" : "skill-status"}>
-                        {enabled ? "enabled" : "disabled"}
-                      </span>
-                      {server.hasAdvancedFields && (
-                        <span className="kind-badge">advanced fields</span>
-                      )}
-                    </div>
-                    <code>{server.command || "command unset"}</code>
-                    <div className="provider-meta">
-                      <span>{server.args.length ? server.args.join(" ") : "args unset"}</span>
-                      {Object.entries(server.env).map(([key, value]) => (
-                        <span key={key}>{key}={value}</span>
-                      ))}
-                    </div>
-                  </button>
-                  <div className="provider-row-actions">
-                    <button
-                      aria-label={`预览删除 MCP server ${server.id}`}
-                      className="small-button"
-                      disabled={!state.writable}
-                      onClick={() => onPreviewDelete(server.id)}
-                      title={`预览删除 MCP server ${server.id}`}
-                      type="button"
-                    >
-                      预览删除
-                    </button>
-                    <button
-                      aria-label={`确认删除 MCP server ${server.id}`}
-                      className="small-button"
-                      disabled={!state.writable || pendingDeleteId !== server.id}
-                      onClick={() => onDelete(server.id)}
-                      title={`确认删除 MCP server ${server.id}`}
-                      type="button"
-                    >
-                      <Trash2 size={14} />
-                      删除
-                    </button>
-                  </div>
+          return (
+            <div
+              className={`provider-row ${draft.originalId === server.id ? "active" : ""}`}
+              key={server.id}
+            >
+              <button
+                aria-label={`选择 MCP server ${server.id}`}
+                onClick={() => onDraftChange(draftFromMcpServer(server))}
+                type="button"
+              >
+                <div className="provider-title-row">
+                  <strong>{server.id}</strong>
+                  <span className={enabled ? "skill-status enabled" : "skill-status"}>
+                    {enabled ? "enabled" : "disabled"}
+                  </span>
+                  {server.hasAdvancedFields && (
+                    <span className="kind-badge">advanced fields</span>
+                  )}
                 </div>
-              );
-            })
-          )}
-        </div>
+                <code>{server.command || "command unset"}</code>
+                <div className="provider-meta">
+                  <span>{server.args.length ? server.args.join(" ") : "args unset"}</span>
+                  {Object.entries(server.env).map(([key, value]) => (
+                    <span key={key}>{key}={value}</span>
+                  ))}
+                </div>
+              </button>
+              <div className="provider-row-actions">
+                <button
+                  aria-label={`预览删除 MCP server ${server.id}`}
+                  className="small-button"
+                  disabled={!state.writable}
+                  onClick={() => onPreviewDelete(server.id)}
+                  title={`预览删除 MCP server ${server.id}`}
+                  type="button"
+                >
+                  预览删除
+                </button>
+                <button
+                  aria-label={`确认删除 MCP server ${server.id}`}
+                  className="small-button"
+                  disabled={!state.writable || pendingDeleteId !== server.id}
+                  onClick={() => onDelete(server.id)}
+                  title={`确认删除 MCP server ${server.id}`}
+                  type="button"
+                >
+                  <Trash2 size={14} />
+                  删除
+                </button>
+              </div>
+            </div>
+          );
+        })
+      : null;
 
-        <div className="provider-form">
+  return (
+    <TableEntryEditor
+      titleId="mcp-servers-title"
+      title="MCP servers"
+      description={<>管理写入 <code>mcp_servers</code> 的 server 启动配置。</>}
+      countLabel={`${servers.length} servers`}
+      previewLabel={previewLabel}
+      saveLabel={saveLabel}
+      saveButtonText="保存 server"
+      writable={state.writable}
+      dirty={dirty}
+      savePreviewReady={savePreviewReady}
+      onPreview={onPreview}
+      onSave={onSave}
+      newEntryAriaLabel="新建 MCP server"
+      newEntryText="新建 MCP server"
+      onNewEntry={() => onDraftChange(emptyMcpServerDraft())}
+      emptyMessage="还没有配置 MCP server。"
+      entries={entries}
+      form={
+        <>
           <div className="form-grid two-col">
             <LabeledInput
               label="Server ID"
@@ -2297,9 +2256,9 @@ function McpServersPanel({
             编辑器会保留当前 server 下未识别的高级字段；删除 server 会移除整个
             <code>mcp_servers.&lt;id&gt;</code> 表。
           </p>
-        </div>
-      </div>
-    </section>
+        </>
+      }
+    />
   );
 }
 
