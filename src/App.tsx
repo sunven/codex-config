@@ -792,9 +792,6 @@ function App() {
       <header className="topbar">
         <div className="top-title">
           <h1>Codex 配置</h1>
-          <p className="top-description">
-            管理本机 Codex 配置、sessions、MCP servers 和全局 skills。所有写入操作都会先预览变更。
-          </p>
         </div>
         <button className="icon-button" onClick={loadState} disabled={loading}>
           <RefreshCw size={18} />
@@ -2150,7 +2147,10 @@ function SkillsPanel({
         </button>
         <div className="skill-roots">
           {state.skills.roots.map((root) => (
-            <span className={root.exists ? "skill-root ok" : "skill-root"} key={root.path}>
+            <span
+              className={`skill-root ${skillSourceClass(root.label)}${root.exists ? " ok" : ""}`}
+              key={root.path}
+            >
               {root.label}: {root.exists ? displayPath(root.path, state.homeDir) : "未找到"}
             </span>
           ))}
@@ -2175,7 +2175,9 @@ function SkillsPanel({
             skills.map((skill) => {
               return (
                 <div
-                  className={`skill-row ${skill.path === selectedSkill?.path ? "active" : ""}`}
+                  className={`skill-row ${skillSourceClass(skill.source)}${
+                    skill.path === selectedSkill?.path ? " active" : ""
+                  }`}
                   key={skill.path}
                 >
                   <button
@@ -2184,6 +2186,7 @@ function SkillsPanel({
                     onClick={() => onSelect(skill.path)}
                     type="button"
                   />
+                  <span className="skill-size-badge">{formatBytes(skill.size)}</span>
                   <div className="skill-title-line">
                     <Switch
                       aria-label={`${skill.enabled ? "停用" : "启用"} skill ${skill.name}`}
@@ -2203,10 +2206,6 @@ function SkillsPanel({
                       原始位置：{displayPath(skill.targetDirectory, state.homeDir)}
                     </small>
                   )}
-                  <small>
-                    {skill.source} · {formatBytes(skill.size)}
-                    {skill.configured ? " · configured" : ""}
-                  </small>
                 </div>
               );
             })
@@ -2242,6 +2241,10 @@ function SkillsPanel({
       </div>
     </section>
   );
+}
+
+function skillSourceClass(source: string) {
+  return source.toLowerCase().includes("agent") ? "agent-source" : "codex-source";
 }
 
 function LabeledInput({

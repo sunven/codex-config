@@ -817,7 +817,8 @@ describe("Skills workspace", () => {
     expect(skills).toHaveTextContent("Agent global skills");
     expect(skills).toHaveTextContent("未找到");
     expect(skills).toHaveTextContent("2 skills");
-    expect(skills).toHaveTextContent("configured");
+    expect(skills).toHaveTextContent("2.0 KB");
+    expect(skills).not.toHaveTextContent("Codex global skills · configured");
     expect(skills).not.toHaveTextContent(
       "Test-driven development workflow with a deliberately long description",
     );
