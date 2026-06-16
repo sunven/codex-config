@@ -31,6 +31,10 @@ import {
 } from "./configEditWorkflow";
 import "./App.css";
 
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 type HealthStatus = "ready" | "readOnly" | "needsAttention";
 
 type AppState = {
@@ -788,19 +792,22 @@ function App() {
   }, [state]);
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="top-title">
+    <main className="min-h-screen p-3">
+      <header className="mx-auto mb-5 flex max-w-[1440px] items-start justify-between gap-5 max-[940px]:flex-col max-[940px]:gap-3">
+        <div className="min-w-0">
           <h1>Codex 配置</h1>
+          <p className="mt-2 max-w-[780px] text-[0.9rem] leading-[1.6] text-[var(--muted-foreground)]">
+            管理本机 Codex 配置、MCP servers、profiles 和全局 skills。
+          </p>
         </div>
-        <button className="icon-button" onClick={loadState} disabled={loading}>
+        <button className="inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[11px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={loadState} disabled={loading}>
           <RefreshCw size={18} />
           <span>{loading ? "刷新中" : "刷新"}</span>
         </button>
       </header>
 
       {error && (
-        <section className="notice danger" role="alert">
+        <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words border-[#fecaca] bg-[var(--destructive-soft)] text-[#991b1b]" role="alert">
           <ShieldAlert size={18} />
           <span>{error}</span>
         </section>
@@ -808,16 +815,14 @@ function App() {
 
       {state && (
         <>
-          {statusMessage && <section className="notice ok">{statusMessage}</section>}
+          {statusMessage && <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words mb-2 border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]">{statusMessage}</section>}
           <TabBar activeTab={activeTab} onChange={switchTab} />
           <section
-            className={`workspace ${
-              activeTab === "skills" || activeTab === "sessions" ? "skills-workspace" : ""
-            }`}
+            className={cx("mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 max-[940px]:grid-cols-1", (activeTab === "skills" || activeTab === "sessions") && "grid-cols-[minmax(0,1fr)]")}
           >
             {activeTab === "config" ? (
               <>
-                <div className="left-pane">
+                <div className="flex min-w-0 flex-col gap-3">
                   <FastModeTask
                     state={state}
                     onPreview={previewFastMode}
@@ -868,7 +873,7 @@ function App() {
                   />
                   <ProfileWarnings warnings={state.profileWarnings} />
                 </div>
-                <div className="right-pane">
+                <div className="flex min-w-0 flex-col gap-3 self-start sticky top-3 max-[940px]:static">
                   <DiffPanel preview={preview} />
                   <RawToml
                     state={state}
@@ -890,7 +895,7 @@ function App() {
                 </div>
               </>
             ) : activeTab === "sessions" ? (
-              <div className="single-pane">
+              <div className="min-w-0">
                 <SessionsPanel
                   state={state}
                   pendingDeleteId={pendingDeleteSessionId}
@@ -899,7 +904,7 @@ function App() {
               </div>
             ) : activeTab === "mcp" ? (
               <>
-                <div className="left-pane">
+                <div className="flex min-w-0 flex-col gap-3">
                   <McpServersPanel
                     state={state}
                     draft={mcpServerDraft}
@@ -916,7 +921,7 @@ function App() {
                     onDelete={deleteMcpServer}
                   />
                 </div>
-                <div className="right-pane">
+                <div className="flex min-w-0 flex-col gap-3 self-start sticky top-3 max-[940px]:static">
                   <DiffPanel preview={preview} />
                   <RawToml
                     state={state}
@@ -938,7 +943,7 @@ function App() {
                 </div>
               </>
             ) : (
-              <div className="single-pane">
+              <div className="min-w-0">
                 <SkillsPanel
                   state={state}
                   query={skillQuery}
@@ -1263,10 +1268,10 @@ function TabBar({
   onChange: (tab: MainTab) => void;
 }) {
   return (
-    <nav className="tabbar" aria-label="配置区域" role="tablist">
+    <nav className="mx-auto mb-4 flex max-w-[1440px] gap-2 overflow-x-auto pb-0.5" aria-label="配置区域" role="tablist">
       <button
         aria-selected={activeTab === "config"}
-        className={activeTab === "config" ? "tab-button active" : "tab-button"}
+        className={cx("min-h-[42px] min-w-[132px] flex-none rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-left text-[0.86rem] font-medium text-[var(--muted-foreground)] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-[background-color,border-color,box-shadow,color,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px", activeTab === "config" && "border-[var(--primary)] text-[var(--foreground)] shadow-[0_0_0_1px_var(--primary),0_4px_12px_rgba(37,99,235,0.12)]")}
         onClick={() => onChange("config")}
         role="tab"
         type="button"
@@ -1275,7 +1280,7 @@ function TabBar({
       </button>
       <button
         aria-selected={activeTab === "sessions"}
-        className={activeTab === "sessions" ? "tab-button active" : "tab-button"}
+        className={cx("min-h-[42px] min-w-[132px] flex-none rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-left text-[0.86rem] font-medium text-[var(--muted-foreground)] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-[background-color,border-color,box-shadow,color,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px", activeTab === "sessions" && "border-[var(--primary)] text-[var(--foreground)] shadow-[0_0_0_1px_var(--primary),0_4px_12px_rgba(37,99,235,0.12)]")}
         onClick={() => onChange("sessions")}
         role="tab"
         type="button"
@@ -1284,7 +1289,7 @@ function TabBar({
       </button>
       <button
         aria-selected={activeTab === "mcp"}
-        className={activeTab === "mcp" ? "tab-button active" : "tab-button"}
+        className={cx("min-h-[42px] min-w-[132px] flex-none rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-left text-[0.86rem] font-medium text-[var(--muted-foreground)] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-[background-color,border-color,box-shadow,color,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px", activeTab === "mcp" && "border-[var(--primary)] text-[var(--foreground)] shadow-[0_0_0_1px_var(--primary),0_4px_12px_rgba(37,99,235,0.12)]")}
         onClick={() => onChange("mcp")}
         role="tab"
         type="button"
@@ -1293,7 +1298,7 @@ function TabBar({
       </button>
       <button
         aria-selected={activeTab === "skills"}
-        className={activeTab === "skills" ? "tab-button active" : "tab-button"}
+        className={cx("min-h-[42px] min-w-[132px] flex-none rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-left text-[0.86rem] font-medium text-[var(--muted-foreground)] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-[background-color,border-color,box-shadow,color,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px", activeTab === "skills" && "border-[var(--primary)] text-[var(--foreground)] shadow-[0_0_0_1px_var(--primary),0_4px_12px_rgba(37,99,235,0.12)]")}
         onClick={() => onChange("skills")}
         role="tab"
         type="button"
@@ -1322,21 +1327,23 @@ function FastModeTask({
   const canSave = state.writable && value !== "true";
 
   return (
-    <section className="task-panel">
-      <div className="task-icon">
+    <section className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3 max-[940px]:grid-cols-1">
+      <div className="flex size-9 items-center justify-center rounded-[var(--radius)] bg-[var(--secondary)] text-[var(--primary)]">
         <Gauge size={22} />
       </div>
       <div>
-        <p className="eyebrow">推荐操作</p>
+        <p className="mb-1 text-[0.75rem] font-medium uppercase text-[var(--muted-foreground)]">
+          推荐操作
+        </p>
         <h2>开启 Fast 模式</h2>
-        <p>
+        <p className="mt-[3px] text-[var(--muted-foreground)]">
           当前全局值是 <strong>{value}</strong>。先预览 TOML 变更，再保存；
           保存前会自动备份。
         </p>
       </div>
-      <div className="task-actions">
+      <div className="flex justify-end gap-1.5 max-[940px]:w-full [&>button]:max-[940px]:flex-1">
         <button
-          className="icon-button"
+          className="inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[11px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
           aria-label="预览 Fast 模式"
           disabled={!canSave}
           onClick={onPreview}
@@ -1344,7 +1351,7 @@ function FastModeTask({
           预览
         </button>
         <button
-          className="primary-button"
+          className="ml-auto inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--primary)] bg-[var(--primary)] px-[11px] text-[var(--primary-foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:border-[#1d4ed8] hover:bg-[#1d4ed8] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center"
           aria-label="保存 Fast 模式"
           disabled={!canSave || previewKind !== "fast" || !preview?.changed}
           onClick={onSave}
@@ -1385,16 +1392,16 @@ function SettingsForm({
     title === "全局配置" ? "保存全局配置" : `保存${title}`;
 
   return (
-    <section className="panel settings-panel" aria-labelledby={sectionTitleId(title)}>
-      <div className="panel-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby={sectionTitleId(title)}>
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <FileCode2 size={18} />
         <div>
           <h2 id={sectionTitleId(title)}>{title}</h2>
-          <p className="muted">先预览 TOML diff，再写入 config.toml。</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">先预览 TOML diff，再写入 config.toml。</p>
         </div>
-        <div className="panel-actions">
+        <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <button
-            className="small-button"
+            className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
             aria-label={previewLabel}
             disabled={!writable || !dirty}
             onClick={onPreview}
@@ -1402,7 +1409,7 @@ function SettingsForm({
             预览
           </button>
           <button
-            className="primary-button compact"
+            className="ml-auto inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--primary)] bg-[var(--primary)] px-[11px] text-[var(--primary-foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:border-[#1d4ed8] hover:bg-[#1d4ed8] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
             aria-label={saveLabel}
             disabled={!writable || !dirty || !previewReady}
             onClick={onSave}
@@ -1411,28 +1418,28 @@ function SettingsForm({
           </button>
         </div>
       </div>
-      <div className="field-list">
+      <div className="flex flex-col gap-3">
         {fields.length === 0 ? (
-          <div className="empty-state">
+          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">
             {emptyMessage}
           </div>
         ) : (
           groupedFields.map((group) => (
-            <section className="field-group" key={group.name}>
-              <h3>{group.name}</h3>
+            <section className="flex flex-col gap-0" key={group.name}>
+              <h3 className="border-b border-[var(--border)] pb-[5px] text-[0.72rem] font-semibold uppercase text-[var(--muted-foreground)]">{group.name}</h3>
               {group.fields.map((field) => (
-                <div className="field-row" key={field.path}>
-                  <div className="field-main">
-                    <div className="field-title-row">
+                <div className="grid min-h-[68px] grid-cols-[minmax(0,1fr)_minmax(150px,220px)] items-start gap-3.5 border-t border-[var(--border)] py-2.5 first:border-t-0 max-[940px]:grid-cols-1" key={field.path}>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 [&_label]:mb-0.5 [&_label]:block [&_label]:font-semibold [&_label]:leading-tight [&_label]:text-[var(--foreground)]">
                       <label htmlFor={fieldControlId(title, field.path)}>{field.label}</label>
-                      <span className={`risk-badge ${field.risk}`}>{field.risk}</span>
-                      <span className={field.editable ? "edit-badge editable" : "edit-badge"}>
+                      <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.risk === "normal" ? "bg-[var(--success-soft)] text-[var(--success)]" : field.risk === "caution" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : field.risk === "experimental" ? "bg-[#eff6ff] text-[var(--primary)]" : "bg-[var(--destructive-soft)] text-[var(--destructive)]")}>{field.risk}</span>
+                      <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.editable ? "bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--secondary)] text-[var(--secondary-foreground)]")}>
                         {field.editable ? "editable" : "read-only"}
                       </span>
                     </div>
-                    <div className="field-path-row">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 [&_code]:max-w-full">
                       <code>{field.path}</code>
-                      <span className="field-current">
+                      <span className="inline-flex min-h-6 max-w-full min-w-0 items-center gap-[5px] rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-[7px] py-0.5 text-[var(--muted-foreground)] [&>span]:whitespace-nowrap [&>span]:text-[0.68rem] [&>span]:font-semibold [&>span]:uppercase [&>strong]:max-w-[220px] [&>strong]:truncate [&>strong]:text-[0.72rem] [&>strong]:font-medium [&>strong]:text-[var(--foreground)]">
                         <span>当前值</span>
                         <strong>{fieldDisplayValue(field)}</strong>
                       </span>
@@ -1495,18 +1502,18 @@ function TableEntryEditor({
   form: ReactNode;
 }) {
   return (
-    <section className="panel provider-panel" aria-labelledby={titleId}>
-      <div className="panel-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby={titleId}>
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <FileCode2 size={18} />
         <div>
           <h2 id={titleId}>{title}</h2>
-          <p className="muted">{description}</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">{description}</p>
         </div>
-        <span className="catalog-count">{countLabel}</span>
-        <div className="panel-actions">
+        <span className="inline-flex min-h-6 flex-none items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-0.5 text-[0.72rem] font-bold text-[var(--secondary-foreground)]">{countLabel}</span>
+        <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <button
             aria-label={previewLabel}
-            className="small-button"
+            className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
             disabled={!writable || !dirty}
             onClick={onPreview}
             type="button"
@@ -1515,7 +1522,7 @@ function TableEntryEditor({
           </button>
           <button
             aria-label={saveLabel}
-            className="primary-button compact"
+            className="ml-auto inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--primary)] bg-[var(--primary)] px-[11px] text-[var(--primary-foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:border-[#1d4ed8] hover:bg-[#1d4ed8] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
             disabled={!writable || !dirty || !savePreviewReady}
             onClick={onSave}
             type="button"
@@ -1525,21 +1532,21 @@ function TableEntryEditor({
         </div>
       </div>
 
-      <div className="provider-layout">
-        <div className="provider-list">
+      <div className="grid grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] gap-3 max-[940px]:grid-cols-1">
+        <div className="flex min-w-0 flex-col gap-1.5">
           <button
             aria-label={newEntryAriaLabel}
-            className="provider-row new-provider"
+            className="flex w-full min-w-0 flex-row items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left font-bold text-[var(--foreground)]"
             onClick={onNewEntry}
             type="button"
           >
             <Plus size={16} />
             {newEntryText}
           </button>
-          {entries ? entries : <div className="empty-state">{emptyMessage}</div>}
+          {entries ? entries : <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">{emptyMessage}</div>}
         </div>
 
-        <div className="provider-form">{form}</div>
+        <div className="flex min-w-0 flex-col gap-2.5">{form}</div>
       </div>
     </section>
   );
@@ -1583,35 +1590,33 @@ function ModelProvidersPanel({
           const reserved = state.modelProviders.reservedIds.includes(provider.id);
 
           return (
-            <div
-              className={`provider-row ${draft.originalId === provider.id ? "active" : ""}`}
-              key={provider.id}
-            >
+            <div className={cx("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === provider.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={provider.id}>
               <button
                 aria-label={`选择 provider ${providerName}`}
+                className="flex w-full min-w-0 cursor-pointer flex-col gap-[5px] border-0 bg-transparent p-0 text-left text-inherit"
                 onClick={() => onDraftChange(draftFromModelProvider(provider))}
                 type="button"
               >
-                <div className="provider-title-row">
+                <div className="flex min-w-0 flex-wrap items-center gap-[5px] [&>strong]:min-w-0 [&>strong]:break-words">
                   <strong>{providerName}</strong>
-                  <span className={reserved ? "edit-badge" : "edit-badge editable"}>
+                  <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", !reserved ? "bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--secondary)] text-[var(--secondary-foreground)]")}>
                     {reserved ? "built-in" : "custom"}
                   </span>
                   {provider.hasAdvancedFields && (
-                    <span className="kind-badge">advanced fields</span>
+                    <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">advanced fields</span>
                   )}
                 </div>
                 <code>{provider.id}</code>
-                <div className="provider-meta">
+                <div className="flex min-w-0 flex-col gap-0.5 text-[var(--muted-foreground)] [&>span]:break-words [&>span]:text-[0.78rem] [&>span]:text-[var(--muted-foreground)]">
                   {provider.baseUrl && <span>{provider.baseUrl}</span>}
                   {provider.envKey && <span>{provider.envKey}</span>}
                   {provider.wireApi && <span>{provider.wireApi}</span>}
                 </div>
               </button>
-              <div className="provider-row-actions">
+              <div className="flex flex-wrap gap-[5px]">
                 <button
                   aria-label={`预览删除 provider ${provider.id}`}
-                  className="small-button"
+                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                   disabled={!state.writable || reserved}
                   onClick={() => onPreviewDelete(provider.id)}
                   title={reserved ? "内置 provider 不能删除" : `预览删除 provider ${provider.id}`}
@@ -1621,7 +1626,7 @@ function ModelProvidersPanel({
                 </button>
                 <button
                   aria-label={`确认删除 provider ${provider.id}`}
-                  className="small-button"
+                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                   disabled={!state.writable || reserved || pendingDeleteId !== provider.id}
                   onClick={() => onDelete(provider.id)}
                   title={reserved ? "内置 provider 不能删除" : `确认删除 provider ${provider.id}`}
@@ -1657,7 +1662,7 @@ function ModelProvidersPanel({
       entries={entries}
       form={
         <>
-          <div className="form-grid two-col">
+          <div className="grid gap-2 grid-cols-2 max-[940px]:grid-cols-1">
             <LabeledInput
               label="Provider ID"
               value={draft.id}
@@ -1682,10 +1687,10 @@ function ModelProvidersPanel({
               placeholder="LOCAL_API_KEY"
               onChange={(value) => patch({ envKey: value })}
             />
-            <label className="input-block">
+            <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
               <span>Wire API</span>
               <select
-                className="field-control"
+                className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
                 value={draft.wireApi ?? "responses"}
                 onChange={(event) => patch({ wireApi: event.currentTarget.value })}
               >
@@ -1701,7 +1706,7 @@ function ModelProvidersPanel({
             />
           </div>
 
-          <div className="form-grid three-col">
+          <div className="grid gap-2 grid-cols-3 max-[940px]:grid-cols-1">
             <LabeledNumber
               label="Request retries"
               value={draft.requestMaxRetries}
@@ -1719,8 +1724,8 @@ function ModelProvidersPanel({
             />
           </div>
 
-          <div className="toggle-row">
-            <label>
+          <div className="flex flex-wrap gap-2.5">
+            <label className="inline-flex items-center gap-1.5 text-[0.88rem] text-[var(--foreground)]">
               <input
                 checked={draft.requiresOpenaiAuth ?? false}
                 type="checkbox"
@@ -1728,7 +1733,7 @@ function ModelProvidersPanel({
               />
               requires_openai_auth
             </label>
-            <label>
+            <label className="inline-flex items-center gap-1.5 text-[0.88rem] text-[var(--foreground)]">
               <input
                 checked={draft.supportsWebsockets ?? false}
                 type="checkbox"
@@ -1754,7 +1759,7 @@ function ModelProvidersPanel({
             onChange={(envHttpHeaders) => patch({ envHttpHeaders })}
           />
 
-          <p className="muted">
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
             内置 provider ID 保留不可覆盖：{state.modelProviders.reservedIds.join(", ")}。
           </p>
         </>
@@ -1791,28 +1796,28 @@ function SessionsPanel({
   }
 
   return (
-    <section className="panel sessions-panel" aria-labelledby="codex-sessions-title">
-      <div className="panel-heading sessions-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="codex-sessions-title">
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-3 border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <BookOpen size={18} />
         <div>
           <h2 id="codex-sessions-title">Codex sessions</h2>
-          <p className="muted">
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
             {displayPath(state.codexSessions.sessionsDir, state.homeDir)}
           </p>
         </div>
         {sessionYears.length > 0 && (
-          <div className="session-year-tabs" role="tablist" aria-label="Session years">
+          <div className="flex min-h-[42px] min-w-0 flex-auto items-center justify-center gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Session years">
             {sessionYears.map((year) => (
               <button
                 aria-selected={year.key === selectedYearKey}
-                className={`session-year-tab${year.key === selectedYearKey ? " active" : ""}`}
+                className={cx("flex min-h-[54px] min-w-[146px] flex-none cursor-pointer flex-col items-start gap-0.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-[7px] text-left text-[var(--foreground)] [&_strong]:text-[0.88rem] [&_strong]:text-[var(--foreground)] [&_span]:whitespace-nowrap [&_span]:text-[0.74rem] [&_span]:text-[var(--muted-foreground)]", year.key === selectedYearKey && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.14)]")}
                 key={year.key}
                 onClick={() => setActiveYear(year.key)}
                 role="tab"
                 type="button"
               >
                 <strong>{year.label}</strong>
-                <span className="session-year-meta">
+                <span className="flex gap-2.5">
                   <span>{year.sessionCount} sessions</span>
                   <span>{formatBytes(year.totalSize)}</span>
                 </span>
@@ -1820,7 +1825,7 @@ function SessionsPanel({
             ))}
           </div>
         )}
-        <div className="session-current">
+        <div className="ml-auto grid flex-none grid-cols-2 gap-3.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] px-2.5 py-1.5 max-[940px]:ml-0 max-[940px]:w-full max-[940px]:grid-cols-1 [&>div]:flex [&>div]:min-w-0 [&>div]:flex-col [&>div]:gap-px [&_span]:text-[0.68rem] [&_span]:font-bold [&_span]:uppercase [&_span]:text-[var(--muted-foreground)] [&_strong]:whitespace-nowrap [&_strong]:text-[0.88rem]">
           <div>
             <span>会话数量</span>
             <strong>{sessions.length}</strong>
@@ -1833,50 +1838,50 @@ function SessionsPanel({
       </div>
 
       {sessions.length > 0 && (
-        <p className="muted session-footnote">
+        <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)] mb-2.5 mt-0">
           删除会移除对应的 <code>.jsonl</code> 会话文件，不会修改 <code>config.toml</code>。
         </p>
       )}
 
-      <div className="session-list">
+      <div className="flex min-w-0 flex-col gap-3.5">
         {sessions.length === 0 ? (
-          <div className="empty-state">当前 Codex Home 下没有 session 记录。</div>
+          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">当前 Codex Home 下没有 session 记录。</div>
         ) : selectedYear ? (
           selectedYear.months.map((group) => {
             const isCollapsed = collapsedMonths[group.key] ?? false;
 
             return (
-              <section className="session-month-group" key={group.key}>
+              <section className="flex min-w-0 flex-col gap-[7px]" key={group.key}>
                 <button
                   aria-expanded={!isCollapsed}
-                  className="session-month-heading"
+                  className="flex w-full cursor-pointer items-center justify-between gap-2.5 border-x-0 border-t-0 border-b border-[var(--border)] bg-transparent px-0.5 pb-[7px] pt-0 text-left text-inherit focus-visible:rounded-[var(--radius)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(37,99,235,0.32)] [&>strong]:whitespace-nowrap [&>strong]:text-[0.78rem] [&>strong]:text-[var(--muted-foreground)] [&_span]:text-[0.76rem] [&_span]:text-[var(--muted-foreground)]"
                   onClick={() => toggleMonth(group.key)}
                   type="button"
                 >
-                  <span className="session-month-icon" aria-hidden="true">
+                  <span className="inline-flex flex-none text-[var(--muted-foreground)]" aria-hidden="true">
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </span>
-                  <div className="session-month-title">
+                  <div className="min-w-0 flex-1">
                     <h3>{group.label}</h3>
                     <span>{group.sessions.length} sessions</span>
                   </div>
                   <strong>{formatBytes(group.totalSize)}</strong>
                 </button>
                 {!isCollapsed && (
-                  <div className="session-month-list">
+                  <div className="flex min-w-0 flex-col gap-2">
                     {group.sessions.map((session) => {
                       const deleting = pendingDeleteId === session.id;
                       const deleteLabel = `${deleting ? "确认删除" : "预览删除"} ${session.title}`;
 
                       return (
-                        <div className="session-row" key={session.id}>
-                          <div className="session-main">
-                            <div className="session-title-row">
+                        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2.5 text-left text-[var(--foreground)] max-[940px]:grid-cols-1" key={session.id}>
+                          <div className="flex min-w-0 flex-col gap-1.5">
+                            <div className="flex min-w-0 items-center justify-between gap-2 [&>strong]:break-words [&>strong]:text-[var(--foreground)]">
                               <strong>{session.title}</strong>
-                              <span className="session-size-badge">{formatBytes(session.size)}</span>
+                              <span className="inline-flex min-w-16 flex-none items-center justify-center self-start whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-[9px] py-1 text-[0.72rem] font-extrabold leading-[1.1] text-[var(--secondary-foreground)]">{formatBytes(session.size)}</span>
                             </div>
                             <code>{displayPath(session.path, state.homeDir)}</code>
-                            <div className="session-meta">
+                            <div className="flex flex-wrap gap-1.5 text-[0.78rem] text-[var(--muted-foreground)] [&>span]:break-words">
                               <span>{formatIsoDateTime(session.lastTimestamp ?? session.createdAt)}</span>
                               <span>{session.userMessageCount} user / {session.messageCount} messages</span>
                               {session.cwd && <span>{displayPath(session.cwd, state.homeDir)}</span>}
@@ -1884,13 +1889,13 @@ function SessionsPanel({
                               {session.modelProvider && <span>{session.modelProvider}</span>}
                             </div>
                             {session.parseError && (
-                              <p className="session-parse-error">{session.parseError}</p>
+                              <p className="text-[0.8rem] text-[var(--destructive)]">{session.parseError}</p>
                             )}
                           </div>
-                          <div className="session-actions">
+                          <div className="flex flex-wrap justify-end gap-[5px]">
                             <button
                               aria-label={deleteLabel}
-                              className="small-button"
+                              className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                               onClick={() => onDelete(session.id)}
                               title={deleteLabel}
                               type="button"
@@ -1908,7 +1913,7 @@ function SessionsPanel({
             );
           })
         ) : (
-          <div className="empty-state">当前 Codex Home 下没有 session 记录。</div>
+          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">当前 Codex Home 下没有 session 记录。</div>
         )}
       </div>
     </section>
@@ -1952,36 +1957,34 @@ function McpServersPanel({
           const enabled = server.enabled !== false;
 
           return (
-            <div
-              className={`provider-row ${draft.originalId === server.id ? "active" : ""}`}
-              key={server.id}
-            >
+            <div className={cx("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === server.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={server.id}>
               <button
                 aria-label={`选择 MCP server ${server.id}`}
+                className="flex w-full min-w-0 cursor-pointer flex-col gap-[5px] border-0 bg-transparent p-0 text-left text-inherit"
                 onClick={() => onDraftChange(draftFromMcpServer(server))}
                 type="button"
               >
-                <div className="provider-title-row">
+                <div className="flex min-w-0 flex-wrap items-center gap-[5px] [&>strong]:min-w-0 [&>strong]:break-words">
                   <strong>{server.id}</strong>
-                  <span className={enabled ? "skill-status enabled" : "skill-status"}>
+                  <span className={cx("self-start rounded-full border border-[var(--border)] bg-[var(--secondary)] px-[7px] py-0.5 text-[0.68rem] font-extrabold uppercase text-[var(--secondary-foreground)]", enabled && "border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]")}>
                     {enabled ? "enabled" : "disabled"}
                   </span>
                   {server.hasAdvancedFields && (
-                    <span className="kind-badge">advanced fields</span>
+                    <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">advanced fields</span>
                   )}
                 </div>
                 <code>{server.command || "command unset"}</code>
-                <div className="provider-meta">
+                <div className="flex min-w-0 flex-col gap-0.5 text-[var(--muted-foreground)] [&>span]:break-words [&>span]:text-[0.78rem] [&>span]:text-[var(--muted-foreground)]">
                   <span>{server.args.length ? server.args.join(" ") : "args unset"}</span>
                   {Object.entries(server.env).map(([key, value]) => (
                     <span key={key}>{key}={value}</span>
                   ))}
                 </div>
               </button>
-              <div className="provider-row-actions">
+              <div className="flex flex-wrap gap-[5px]">
                 <button
                   aria-label={`预览删除 MCP server ${server.id}`}
-                  className="small-button"
+                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                   disabled={!state.writable}
                   onClick={() => onPreviewDelete(server.id)}
                   title={`预览删除 MCP server ${server.id}`}
@@ -1991,7 +1994,7 @@ function McpServersPanel({
                 </button>
                 <button
                   aria-label={`确认删除 MCP server ${server.id}`}
-                  className="small-button"
+                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                   disabled={!state.writable || pendingDeleteId !== server.id}
                   onClick={() => onDelete(server.id)}
                   title={`确认删除 MCP server ${server.id}`}
@@ -2027,7 +2030,7 @@ function McpServersPanel({
       entries={entries}
       form={
         <>
-          <div className="form-grid two-col">
+          <div className="grid gap-2 grid-cols-2 max-[940px]:grid-cols-1">
             <LabeledInput
               label="Server ID"
               value={draft.id}
@@ -2045,10 +2048,10 @@ function McpServersPanel({
               value={draft.startupTimeoutMs}
               onChange={(value) => patch({ startupTimeoutMs: value })}
             />
-            <label className="input-block">
+            <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
               <span>Enabled</span>
               <select
-                className="field-control"
+                className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
                 value={draft.enabled === undefined ? "unset" : String(draft.enabled)}
                 onChange={(event) => {
                   const value = event.currentTarget.value;
@@ -2078,7 +2081,7 @@ function McpServersPanel({
             values={draft.env}
             onChange={(env) => patch({ env })}
           />
-          <p className="muted">
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
             编辑器会保留当前 server 下未识别的高级字段；删除 server 会移除整个
             <code>mcp_servers.&lt;id&gt;</code> 表。
           </p>
@@ -2128,16 +2131,16 @@ function SkillsPanel({
     : `${state.skills.skills.length} skills`;
 
   return (
-    <section className="panel skills-panel" aria-labelledby="global-skills-title">
-      <div className="panel-heading skills-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="global-skills-title">
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0 flex-wrap items-center [&>div]:min-w-0">
         <BookOpen size={18} />
         <div>
           <h2 id="global-skills-title">全局 Skills</h2>
         </div>
-        <span className="catalog-count">{resultLabel}</span>
+        <span className="inline-flex min-h-6 flex-none items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-0.5 text-[0.72rem] font-bold text-[var(--secondary-foreground)]">{resultLabel}</span>
         <button
           aria-label="新增 skill"
-          className="small-button"
+          className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
           disabled={!state.writable || importing}
           onClick={onImport}
           type="button"
@@ -2145,10 +2148,10 @@ function SkillsPanel({
           <Plus size={14} />
           <span>{importing ? "导入中" : "新增 skill"}</span>
         </button>
-        <div className="skill-roots">
+        <div className="ml-2 flex min-w-0 flex-[1_1_360px] flex-wrap gap-[5px]">
           {state.skills.roots.map((root) => (
             <span
-              className={`skill-root ${skillSourceClass(root.label)}${root.exists ? " ok" : ""}`}
+              className={cx("max-w-full break-words rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-[3px] text-[0.72rem] font-bold text-[var(--secondary-foreground)]", root.label.toLowerCase().includes("agent") ? "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]" : "border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]", !root.exists && "border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]")}
               key={root.path}
             >
               {root.label}: {root.exists ? displayPath(root.path, state.homeDir) : "未找到"}
@@ -2157,12 +2160,12 @@ function SkillsPanel({
         </div>
       </div>
 
-      <div className="skills-layout">
-        <div className="skills-list">
-          <label className="catalog-search-block">
+      <div className="grid grid-cols-[minmax(240px,0.42fr)_minmax(0,0.58fr)] gap-3 max-[940px]:grid-cols-1">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <label className="mb-2 flex min-w-0 flex-col gap-[5px] [&>span]:text-[0.74rem] [&>span]:font-semibold [&>span]:text-[var(--muted-foreground)]">
             <span>搜索全局 skills</span>
             <input
-              className="field-control skill-search"
+              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
               type="search"
               value={query}
               placeholder="搜索 skill 名称、描述或路径"
@@ -2170,39 +2173,38 @@ function SkillsPanel({
             />
           </label>
           {skills.length === 0 ? (
-            <div className="empty-state">没有发现匹配的全局 skill。</div>
+            <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">没有发现匹配的全局 skill。</div>
           ) : (
             skills.map((skill) => {
               return (
                 <div
-                  className={`skill-row ${skillSourceClass(skill.source)}${
-                    skill.path === selectedSkill?.path ? " active" : ""
-                  }`}
+                  className={cx("relative flex min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--secondary)] py-2.5 pl-3 pr-[84px]", skill.source.toLowerCase().includes("agent") ? "border-[#bbf7d0] bg-[#f0fdf4]" : "border-[#bfdbfe] bg-[#eff6ff]", skill.path === selectedSkill?.path && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.24)]")}
                   key={skill.path}
                 >
                   <button
                     aria-label={`选择 skill ${skill.name}`}
-                    className="skill-select-button"
+                    className="absolute inset-0 z-0 cursor-pointer border-0 bg-transparent p-0"
                     onClick={() => onSelect(skill.path)}
                     type="button"
                   />
-                  <span className="skill-size-badge">{formatBytes(skill.size)}</span>
-                  <div className="skill-title-line">
+                  <span className="absolute right-3 top-2.5 z-[1] inline-flex min-w-16 items-center justify-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--card)] px-[9px] py-1 text-[0.72rem] font-extrabold leading-[1.1] text-[var(--secondary-foreground)]">{formatBytes(skill.size)}</span>
+                  <div className="relative z-[1] flex min-w-0 items-start gap-[7px]">
                     <Switch
                       aria-label={`${skill.enabled ? "停用" : "启用"} skill ${skill.name}`}
                       checked={skill.enabled}
-                      className="small skill-switch-control"
+                      className="z-[2] flex-none"
                       disabled={!state.writable}
                       onCheckedChange={(checked) => onSaveToggle(skill.path, checked)}
+                      size="sm"
                     />
-                    <span className="skill-name-line">
+                    <span className="flex min-w-0 flex-wrap items-center gap-1.5 [&>strong]:text-[var(--foreground)]">
                       <strong>{skill.name}</strong>
-                      {skill.symlink && <span className="skill-link-badge">软链</span>}
+                      {skill.symlink && <span className="rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-[7px] py-[3px] text-[0.68rem] font-extrabold leading-none text-[var(--primary)]">软链</span>}
                     </span>
                   </div>
                   <code>{displayPath(skill.path, state.homeDir)}</code>
                   {skill.symlink && skill.targetDirectory && (
-                    <small className="skill-origin-line">
+                    <small className="relative z-[1] break-words text-[0.74rem] font-bold text-[var(--foreground)]">
                       原始位置：{displayPath(skill.targetDirectory, state.homeDir)}
                     </small>
                   )}
@@ -2212,42 +2214,36 @@ function SkillsPanel({
           )}
         </div>
 
-        <div className="skill-preview">
+        <div className="flex min-w-0 flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2">
           {selectedSkill ? (
             <>
-              <div className="skill-preview-heading">
+              <div className="flex min-w-0 items-start justify-between gap-2 [&_p]:mt-[3px] [&_p]:break-words [&_p]:text-[0.72rem] [&_p]:text-[var(--muted-foreground)]">
                 <div>
                   <h3>{selectedSkill.name}</h3>
                   <p>{displayPath(selectedSkill.directory, state.homeDir)}</p>
                   {selectedSkill.symlink && selectedSkill.targetDirectory && (
-                    <p className="skill-origin">
+                    <p className="font-semibold text-[var(--foreground)]">
                       原始位置：{displayPath(selectedSkill.targetDirectory, state.homeDir)}
                     </p>
                   )}
                 </div>
-                <span className={selectedSkill.enabled ? "skill-status enabled" : "skill-status"}>
+                <span className={cx("self-start rounded-full border border-[var(--border)] bg-[var(--secondary)] px-[7px] py-0.5 text-[0.68rem] font-extrabold uppercase text-[var(--secondary-foreground)]", selectedSkill.enabled && "border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]")}>
                   {selectedSkill.enabled ? "enabled" : "disabled"}
                 </span>
               </div>
-              <pre>{selectedContent || "选择左侧 skill 后会显示 SKILL.md 内容。"}</pre>
-              <p className="muted">
+              <pre className="m-0 max-h-[520px] overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius)] bg-[var(--code-background)] p-2.5 text-[0.76rem] leading-[1.42] text-[var(--code-foreground)]">{selectedContent || "选择左侧 skill 后会显示 SKILL.md 内容。"}</pre>
+              <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
                 保存启停配置后需要重启 Codex，新状态才会进入下一次 skills 列表。
               </p>
             </>
           ) : (
-            <div className="empty-state">没有可预览的 skill。</div>
+            <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">没有可预览的 skill。</div>
           )}
         </div>
       </div>
     </section>
   );
-}
-
-function skillSourceClass(source: string) {
-  return source.toLowerCase().includes("agent") ? "agent-source" : "codex-source";
-}
-
-function LabeledInput({
+}function LabeledInput({
   label,
   value,
   placeholder,
@@ -2259,10 +2255,10 @@ function LabeledInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="input-block">
+    <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
       <span>{label}</span>
       <input
-        className="field-control"
+        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -2281,10 +2277,10 @@ function LabeledNumber({
   onChange: (value: number | undefined) => void;
 }) {
   return (
-    <label className="input-block">
+    <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
       <span>{label}</span>
       <input
-        className="field-control"
+        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
         min={0}
         type="number"
         value={value ?? ""}
@@ -2321,26 +2317,26 @@ function StringListEditor({
   }
 
   return (
-    <div className="map-editor">
-      <div className="map-editor-heading">
+    <div className="flex flex-col gap-1.5 border-t border-[var(--border)] pt-2">
+      <div className="flex items-center justify-between gap-1.5 [&>strong]:text-[0.76rem] [&>strong]:font-bold [&>strong]:text-[var(--muted-foreground)]">
         <strong>{label}</strong>
-        <button className="small-button" onClick={() => onChange([...values, ""])}>
+        <button className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={() => onChange([...values, ""])}>
           <Plus size={14} />
           添加
         </button>
       </div>
       {values.length === 0 ? (
-        <p className="muted">未设置。</p>
+        <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">未设置。</p>
       ) : (
         values.map((value, index) => (
-          <div className="list-row" key={`${label}-${index}`}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5 max-[940px]:grid-cols-1" key={`${label}-${index}`}>
             <input
-              className="field-control"
+              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
               value={value}
               placeholder={placeholder ?? "value"}
               onChange={(event) => updateValue(index, event.currentTarget.value)}
             />
-            <button className="small-button" onClick={() => remove(index)}>
+            <button className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={() => remove(index)}>
               删除
             </button>
           </div>
@@ -2380,11 +2376,11 @@ function StringMapEditor({
   }
 
   return (
-    <div className="map-editor">
-      <div className="map-editor-heading">
+    <div className="flex flex-col gap-1.5 border-t border-[var(--border)] pt-2">
+      <div className="flex items-center justify-between gap-1.5 [&>strong]:text-[0.76rem] [&>strong]:font-bold [&>strong]:text-[var(--muted-foreground)]">
         <strong>{label}</strong>
         <button
-          className="small-button"
+          className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
           onClick={() => onChange({ ...values, "": "" })}
         >
           <Plus size={14} />
@@ -2392,23 +2388,23 @@ function StringMapEditor({
         </button>
       </div>
       {rows.length === 0 ? (
-        <p className="muted">未设置。</p>
+        <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">未设置。</p>
       ) : (
         rows.map(([key, value], index) => (
-          <div className="map-row" key={`${label}-${index}`}>
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-1.5 max-[940px]:grid-cols-1" key={`${label}-${index}`}>
             <input
-              className="field-control"
+              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
               value={key}
               placeholder="key"
               onChange={(event) => updateKey(index, event.currentTarget.value)}
             />
             <input
-              className="field-control"
+              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
               value={value}
               placeholder="value"
               onChange={(event) => updateValue(index, event.currentTarget.value)}
             />
-            <button className="small-button" onClick={() => remove(index)}>
+            <button className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={() => remove(index)}>
               删除
             </button>
           </div>
@@ -2441,45 +2437,45 @@ function FieldCatalog({
     : `${fields.length} 个字段`;
 
   return (
-    <section className="panel catalog-panel" aria-labelledby="field-catalog-title">
-      <div className="panel-heading catalog-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3 max-h-[460px] overflow-hidden" aria-labelledby="field-catalog-title">
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0 items-start gap-2.5 [&>div]:min-w-0">
         <FileCode2 size={18} />
         <div>
           <h2 id="field-catalog-title">字段目录</h2>
-          <p className="muted">所有 bundled schema 字段都可搜索；复杂字段第一期只读。</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">所有 bundled schema 字段都可搜索；复杂字段第一期只读。</p>
         </div>
-        <span className="catalog-count">{resultLabel}</span>
+        <span className="inline-flex min-h-6 flex-none items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-0.5 text-[0.72rem] font-bold text-[var(--secondary-foreground)]">{resultLabel}</span>
       </div>
-      <label className="catalog-search-block">
+      <label className="mb-2 flex min-w-0 flex-col gap-[5px] [&>span]:text-[0.74rem] [&>span]:font-semibold [&>span]:text-[var(--muted-foreground)]">
         <span>搜索字段目录</span>
         <input
-          className="field-control catalog-search"
+          className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
           type="search"
           value={query}
           placeholder="搜索 label / TOML path / group / risk"
           onChange={(event) => onQueryChange(event.currentTarget.value)}
         />
       </label>
-      <div className="catalog-list">
+      <div className="flex max-h-[336px] flex-col gap-1.5 overflow-auto pr-1">
         {visibleFields.length === 0 ? (
-          <div className="empty-state">没有匹配的 schema 字段。</div>
+          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">没有匹配的 schema 字段。</div>
         ) : (
           visibleFields.map((field) => (
-            <div className="catalog-row" key={field.path}>
-              <div className="catalog-main">
-                <div className="catalog-title-row">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2.5 max-[940px]:grid-cols-1" key={field.path}>
+              <div className="flex min-w-0 flex-col gap-[5px]">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 [&>strong]:min-w-0 [&>strong]:break-words [&>strong]:text-[var(--foreground)]">
                   <strong>{field.label}</strong>
-                  <span className="kind-badge">{field.kind}</span>
+                  <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">{field.kind}</span>
                 </div>
                 <code>{field.path}</code>
-                {field.note && <p>{field.note}</p>}
+                {field.note && <p className="mt-0 break-words text-[0.8rem] leading-[1.45] text-[var(--muted-foreground)]">{field.note}</p>}
               </div>
-              <div className="catalog-badges" aria-label={`${field.label} metadata`}>
-                <span className={`risk-badge ${field.risk}`}>{field.risk}</span>
-                <span className={field.editable ? "edit-badge editable" : "edit-badge"}>
+              <div className="flex max-w-[180px] flex-col flex-wrap items-end justify-start gap-1 max-[940px]:max-w-none max-[940px]:items-start" aria-label={`${field.label} metadata`}>
+                <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.risk === "normal" ? "bg-[var(--success-soft)] text-[var(--success)]" : field.risk === "caution" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : field.risk === "experimental" ? "bg-[#eff6ff] text-[var(--primary)]" : "bg-[var(--destructive-soft)] text-[var(--destructive)]")}>{field.risk}</span>
+                <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.editable ? "bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--secondary)] text-[var(--secondary-foreground)]")}>
                   {field.editable ? "editable" : "read-only"}
                 </span>
-                <span className="kind-badge group-badge">{field.group || "其他"}</span>
+                <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">{field.group || "其他"}</span>
               </div>
             </div>
           ))
@@ -2510,12 +2506,12 @@ function ProfileSettingsForm({
 
   if (!status?.activeProfile) {
     return (
-      <section className="panel">
-        <div className="panel-heading">
+      <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3">
+        <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
           <FileCode2 size={18} />
           <h2>当前 profile 配置</h2>
         </div>
-        <div className="empty-state">
+        <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">
           当前没有 active profile。设置 root 的 <code>profile</code> 后，这里会显示该 profile
           的覆盖配置。
         </div>
@@ -2524,7 +2520,7 @@ function ProfileSettingsForm({
   }
 
   return (
-    <section className="profile-editor">
+    <section className="flex flex-col gap-2">
       <ProfileStatusNotice status={status} />
       <SettingsForm
         fields={state.profileFields}
@@ -2549,7 +2545,7 @@ function ProfileStatusNotice({
 }) {
   if (status.exists) {
     return (
-      <section className="notice profile-ok">
+      <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words mb-2 border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]">
         <CheckCircle2 size={18} />
         <span>正在编辑 active profile：{status.activeProfile}</span>
       </section>
@@ -2557,7 +2553,7 @@ function ProfileStatusNotice({
   }
 
   return (
-    <section className="notice warn">
+    <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words border-[#fde68a] bg-[var(--warning-soft)] text-[#713f12]">
       <AlertTriangle size={18} />
       <span>
         active profile "{status.activeProfile}" 还没有配置表。保存 profile 配置时会创建它。
@@ -2593,13 +2589,13 @@ function FieldValue({
   onChange: (value: string) => void;
 }) {
   if (!field.editable) {
-    return <span className="value-text">{field.value || "unset"}</span>;
+    return <span className="inline-flex min-w-[72px] justify-center rounded-full bg-[var(--muted)] px-2 py-1 font-bold text-[var(--muted-foreground)] justify-self-end max-[940px]:justify-self-stretch">{field.value || "unset"}</span>;
   }
 
   if (field.kind === "boolean") {
     return (
       <select
-        className="field-control compact-control"
+        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-[132px]"
         id={id}
         value={value ?? "inherited"}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -2614,7 +2610,7 @@ function FieldValue({
   if (field.kind === "select") {
     return (
       <select
-        className="field-control"
+        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none"
         id={id}
         value={value ?? ""}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -2632,7 +2628,7 @@ function FieldValue({
   if (field.kind === "number") {
     return (
       <input
-        className="field-control"
+        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none"
         id={id}
         value={value ?? ""}
         placeholder="unset"
@@ -2644,7 +2640,7 @@ function FieldValue({
 
   return (
     <input
-      className="field-control"
+      className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none"
       id={id}
       value={value ?? ""}
       placeholder="unset"
@@ -2685,7 +2681,7 @@ function ProfileWarnings({ warnings }: { warnings: ProfileWarning[] }) {
   }
 
   return (
-    <section className="notice warn">
+    <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words border-[#fde68a] bg-[var(--warning-soft)] text-[#713f12]">
       <AlertTriangle size={18} />
       <div>
         <strong>当前 profile 覆盖了全局配置</strong>
@@ -2749,17 +2745,17 @@ function RawToml({
   onSave: () => void;
 }) {
   return (
-    <section className="panel raw-panel raw-editor-panel" aria-labelledby="raw-toml-title">
-      <div className="panel-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="raw-toml-title">
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <Edit3 size={18} />
         <div>
           <h2 id="raw-toml-title">高级 TOML 编辑</h2>
-          <p className="muted">用于配置字段目录中尚未提供专用控件的复杂配置。</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">用于配置字段目录中尚未提供专用控件的复杂配置。</p>
         </div>
-        <div className="panel-actions">
+        <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <button
             aria-label="预览原始 TOML"
-            className="small-button"
+            className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
             disabled={!writable || !dirty}
             onClick={onPreview}
             type="button"
@@ -2768,7 +2764,7 @@ function RawToml({
           </button>
           <button
             aria-label="保存原始 TOML"
-            className="primary-button compact"
+            className="ml-auto inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--primary)] bg-[var(--primary)] px-[11px] text-[var(--primary-foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:border-[#1d4ed8] hover:bg-[#1d4ed8] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
             disabled={!writable || !dirty || !previewReady}
             onClick={onSave}
             type="button"
@@ -2778,11 +2774,11 @@ function RawToml({
         </div>
       </div>
       {state.parseIssue && (
-        <div className="inline-error" role="alert">{state.parseIssue.message}</div>
+        <div className="mb-2 rounded-[var(--radius)] border border-[#fecaca] bg-[var(--destructive-soft)] p-2 text-[#991b1b]" role="alert">{state.parseIssue.message}</div>
       )}
       <label className="sr-only" htmlFor="raw-toml-editor">原始 TOML</label>
       <textarea
-        className="toml-editor"
+        className="min-h-80 w-full resize-y rounded-[var(--radius)] border border-[#3f3f46] bg-[var(--code-background)] p-2.5 text-[0.78rem] leading-[1.4] text-[var(--code-foreground)] outline-none [tab-size:2] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)]"
         id="raw-toml-editor"
         value={draft}
         placeholder="# config.toml 还不存在"
@@ -2795,29 +2791,29 @@ function RawToml({
 
 function DiffPanel({ preview }: { preview: PreviewResult | null }) {
   return (
-    <section className="panel raw-panel" aria-labelledby="diff-preview-title">
-      <div className="panel-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="diff-preview-title">
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <FileCode2 size={18} />
         <h2 id="diff-preview-title">变更预览</h2>
       </div>
       {preview?.fieldDiffs.length ? (
-        <div className="field-diff-list">
+        <div className="mb-2 flex flex-col gap-1.5">
           {preview.fieldDiffs.map((diff) => (
-            <div className="field-diff-row" key={`${diff.scope}-${diff.path}`}>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 max-[940px]:grid-cols-1 [&>div:first-child]:flex [&>div:first-child]:min-w-0 [&>div:first-child]:flex-col [&>div:first-child]:gap-[3px]" key={`${diff.scope}-${diff.path}`}>
               <div>
                 <strong>{diff.label}</strong>
                 <code>{diff.path}</code>
               </div>
-              <div className="field-diff-values">
+              <div className="flex flex-wrap items-center justify-end gap-1.5 max-[940px]:justify-start [&>span]:rounded-[var(--radius)] [&>span]:border [&>span]:border-[var(--border)] [&>span]:bg-[var(--card)] [&>span]:px-1.5 [&>span]:py-[3px] [&>span]:text-[0.78rem] [&>span]:text-[var(--foreground)] [&>strong]:rounded-[var(--radius)] [&>strong]:border [&>strong]:border-[#bbf7d0] [&>strong]:bg-[var(--success-soft)] [&>strong]:px-1.5 [&>strong]:py-[3px] [&>strong]:text-[0.78rem] [&>strong]:text-[var(--success)]">
                 <span>{diff.before}</span>
-                <span>改为</span>
+                <span className="!border-0 !bg-transparent !p-0 !text-[var(--muted-foreground)]">改为</span>
                 <strong>{diff.after}</strong>
               </div>
             </div>
           ))}
         </div>
       ) : null}
-      <pre>{preview?.textDiff ?? "预览后会在这里显示 TOML diff。"}</pre>
+      <pre className="m-0 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius)] bg-[var(--code-background)] p-2.5 text-[0.78rem] leading-[1.4] text-[var(--code-foreground)]">{preview?.textDiff ?? "预览后会在这里显示 TOML diff。"}</pre>
     </section>
   );
 }
@@ -2836,25 +2832,25 @@ function Backups({
   onRestore: (backupId: string) => void;
 }) {
   return (
-    <section className="panel backup-panel" aria-labelledby="backups-title">
-      <div className="panel-heading">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="backups-title">
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <DatabaseBackup size={18} />
         <h2 id="backups-title">备份</h2>
       </div>
-      <p className="muted">{displayPath(backupDir, homeDir)}</p>
+      <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">{displayPath(backupDir, homeDir)}</p>
       {backups.length === 0 ? (
-        <div className="empty-state">暂无备份。</div>
+        <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">暂无备份。</div>
       ) : (
-        <ul className="backup-list">
+        <ul className="mt-2 flex list-none flex-col gap-1.5 p-0">
           {backups.slice(0, 5).map((backup) => (
-            <li key={backup.id}>
-              <div>
+            <li className="flex items-center justify-between gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2" key={backup.id}>
+              <div className="flex min-w-0 flex-col gap-px [&>span]:break-words [&>span]:text-[0.8rem] [&>small]:text-[var(--muted-foreground)]">
                 <span>{backup.id}</span>
                 <small>{formatBytes(backup.size)}</small>
               </div>
               <button
                 aria-label={`恢复备份 ${backup.id}`}
-                className="small-button"
+                className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                 disabled={!writable}
                 onClick={() => onRestore(backup.id)}
                 title={`恢复备份 ${backup.id}`}
