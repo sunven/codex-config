@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   commitConfigEdit,
-  compactMcpServerDraft,
-  compactModelProviderDraft,
   previewConfigEdit,
   runConfigEditCommit,
   runConfigEditPreview,
@@ -175,46 +173,4 @@ describe("config edit workflow", () => {
     });
   });
 
-  it("compacts provider and MCP drafts before invoking table saves", async () => {
-    expect(
-      compactModelProviderDraft({
-        id: " local ",
-        originalId: " local ",
-        name: " Local ",
-        baseUrl: " ",
-        envKey: "LOCAL_KEY",
-        envKeyInstructions: "",
-        wireApi: " responses ",
-        queryParams: { " organization ": " alpha ", empty: " " },
-        httpHeaders: { " X-Test ": " yes " },
-        envHttpHeaders: {},
-      }),
-    ).toMatchObject({
-      id: "local",
-      originalId: "local",
-      name: "Local",
-      baseUrl: undefined,
-      envKey: "LOCAL_KEY",
-      envKeyInstructions: undefined,
-      wireApi: "responses",
-      queryParams: { organization: "alpha" },
-      httpHeaders: { "X-Test": "yes" },
-    });
-
-    expect(
-      compactMcpServerDraft({
-        id: " filesystem ",
-        originalId: " filesystem ",
-        command: " npx ",
-        args: [" -y ", " ", "server"],
-        env: { " NODE_ENV ": " production ", empty: " " },
-      }),
-    ).toMatchObject({
-      id: "filesystem",
-      originalId: "filesystem",
-      command: "npx",
-      args: ["-y", "server"],
-      env: { NODE_ENV: "production" },
-    });
-  });
 });

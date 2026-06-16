@@ -19,8 +19,6 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Switch } from "./components/ui/switch";
 import {
-  compactMcpServerDraft,
-  compactModelProviderDraft,
   runConfigEditCommit,
   runConfigEditPreview,
   type ConfigEditIntent,
@@ -31,6 +29,16 @@ import {
   type PreviewResult,
   type WorkflowRunOutcome,
 } from "./configEditWorkflow";
+import {
+  draftFromMcpServer,
+  draftFromModelProvider,
+  emptyMcpServerDraft,
+  emptyModelProviderDraft,
+  isMcpServerDraftDirty,
+  isModelProviderDraftDirty,
+  mcpServerDraftId,
+  modelProviderDraftId,
+} from "./configTableEntries";
 import "./App.css";
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -837,124 +845,6 @@ function App() {
   );
 }
 
-function emptyModelProviderDraft(): ModelProviderDraft {
-  return {
-    id: "",
-    name: "",
-    baseUrl: "",
-    envKey: "",
-    envKeyInstructions: "",
-    wireApi: "responses",
-    requestMaxRetries: undefined,
-    streamMaxRetries: undefined,
-    streamIdleTimeoutMs: undefined,
-    requiresOpenaiAuth: undefined,
-    supportsWebsockets: undefined,
-    queryParams: {},
-    httpHeaders: {},
-    envHttpHeaders: {},
-  };
-}
-
-function draftFromModelProvider(provider: ModelProviderEntry): ModelProviderDraft {
-  return {
-    id: provider.id,
-    originalId: provider.id,
-    name: provider.name ?? "",
-    baseUrl: provider.baseUrl ?? "",
-    envKey: provider.envKey ?? "",
-    envKeyInstructions: provider.envKeyInstructions ?? "",
-    wireApi: provider.wireApi ?? "responses",
-    requestMaxRetries: provider.requestMaxRetries,
-    streamMaxRetries: provider.streamMaxRetries,
-    streamIdleTimeoutMs: provider.streamIdleTimeoutMs,
-    requiresOpenaiAuth: provider.requiresOpenaiAuth,
-    supportsWebsockets: provider.supportsWebsockets,
-    queryParams: { ...provider.queryParams },
-    httpHeaders: { ...provider.httpHeaders },
-    envHttpHeaders: { ...provider.envHttpHeaders },
-  };
-}
-
-function emptyMcpServerDraft(): McpServerDraft {
-  return {
-    id: "",
-    command: "",
-    args: [],
-    env: {},
-    startupTimeoutMs: undefined,
-    enabled: undefined,
-  };
-}
-
-function draftFromMcpServer(server: McpServerEntry): McpServerDraft {
-  return {
-    id: server.id,
-    originalId: server.id,
-    command: server.command ?? "",
-    args: [...server.args],
-    env: { ...server.env },
-    startupTimeoutMs: server.startupTimeoutMs,
-    enabled: server.enabled,
-  };
-}
-
-function modelProviderDirty(draft: ModelProviderDraft, providers: ModelProviderEntry[]) {
-  const compact = compactModelProviderDraft(draft);
-  const original = compact.originalId
-    ? providers.find((provider) => provider.id === compact.originalId)
-    : undefined;
-
-  if (original) {
-    return (
-      JSON.stringify(compact) !==
-      JSON.stringify(compactModelProviderDraft(draftFromModelProvider(original)))
-    );
-  }
-
-  return Boolean(
-    compact.id ||
-      compact.originalId ||
-      compact.name ||
-      compact.baseUrl ||
-      compact.envKey ||
-      compact.envKeyInstructions ||
-      compact.wireApi !== "responses" ||
-      compact.requestMaxRetries !== undefined ||
-      compact.streamMaxRetries !== undefined ||
-      compact.streamIdleTimeoutMs !== undefined ||
-      compact.requiresOpenaiAuth !== undefined ||
-      compact.supportsWebsockets !== undefined ||
-      Object.keys(compact.queryParams).length ||
-      Object.keys(compact.httpHeaders).length ||
-      Object.keys(compact.envHttpHeaders).length,
-  );
-}
-
-function mcpServerDirty(draft: McpServerDraft, servers: McpServerEntry[]) {
-  const compact = compactMcpServerDraft(draft);
-  const original = compact.originalId
-    ? servers.find((server) => server.id === compact.originalId)
-    : undefined;
-
-  if (original) {
-    return (
-      JSON.stringify(compact) !==
-      JSON.stringify(compactMcpServerDraft(draftFromMcpServer(original)))
-    );
-  }
-
-  return Boolean(
-    compact.id ||
-      compact.originalId ||
-      compact.command ||
-      compact.args.length ||
-      Object.keys(compact.env).length ||
-      compact.startupTimeoutMs !== undefined ||
-      compact.enabled !== undefined,
-  );
-}
-
 function draftValuesFromFields(fields: FieldState[]) {
   return fields.reduce<Record<string, string>>((draft, field) => {
     draft[field.path] =
@@ -1447,8 +1337,8 @@ function ModelProvidersPanel({
   onDelete: (id: string) => void;
 }) {
   const providers = state.modelProviders.providers;
-  const dirty = modelProviderDirty(draft, providers);
-  const draftProviderId = draft.id || draft.originalId || "new";
+  const dirty = isModelProviderDraftDirty(draft, providers);
+  const draftProviderId = modelProviderDraftId(draft);
   const previewLabel = `预览保存 provider ${draftProviderId}`;
   const saveLabel = `保存 provider ${draftProviderId}`;
 
@@ -1815,8 +1705,8 @@ function McpServersPanel({
   onDelete: (id: string) => void;
 }) {
   const servers = state.mcpServers.servers;
-  const dirty = mcpServerDirty(draft, servers);
-  const draftServerId = draft.id || draft.originalId || "new";
+  const dirty = isMcpServerDraftDirty(draft, servers);
+  const draftServerId = mcpServerDraftId(draft);
   const previewLabel = `预览保存 MCP server ${draftServerId}`;
   const saveLabel = `保存 MCP server ${draftServerId}`;
 

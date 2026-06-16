@@ -1,37 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+  compactMcpServerDraft,
+  compactModelProviderDraft,
+  type McpServerDraft,
+  type ModelProviderDraft,
+} from "./configTableEntries";
+export {
+  compactMcpServerDraft,
+  compactModelProviderDraft,
+  type McpServerDraft,
+  type ModelProviderDraft,
+} from "./configTableEntries";
 
 export type FileToken = {
   hash: string;
   modifiedMs?: number;
   size: number;
-};
-
-export type ModelProviderDraft = {
-  id: string;
-  originalId?: string;
-  name?: string;
-  baseUrl?: string;
-  envKey?: string;
-  envKeyInstructions?: string;
-  wireApi?: string;
-  requestMaxRetries?: number;
-  streamMaxRetries?: number;
-  streamIdleTimeoutMs?: number;
-  requiresOpenaiAuth?: boolean;
-  supportsWebsockets?: boolean;
-  queryParams: Record<string, string>;
-  httpHeaders: Record<string, string>;
-  envHttpHeaders: Record<string, string>;
-};
-
-export type McpServerDraft = {
-  id: string;
-  originalId?: string;
-  command?: string;
-  args: string[];
-  env: Record<string, string>;
-  startupTimeoutMs?: number;
-  enabled?: boolean;
 };
 
 export type PreviewResult = {
@@ -412,46 +396,6 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
       };
     }
   }
-}
-
-export function compactModelProviderDraft(draft: ModelProviderDraft): ModelProviderDraft {
-  return {
-    ...draft,
-    id: draft.id.trim(),
-    originalId: draft.originalId?.trim() || undefined,
-    name: optionalText(draft.name),
-    baseUrl: optionalText(draft.baseUrl),
-    envKey: optionalText(draft.envKey),
-    envKeyInstructions: optionalText(draft.envKeyInstructions),
-    wireApi: optionalText(draft.wireApi),
-    queryParams: cleanStringMap(draft.queryParams),
-    httpHeaders: cleanStringMap(draft.httpHeaders),
-    envHttpHeaders: cleanStringMap(draft.envHttpHeaders),
-  };
-}
-
-export function compactMcpServerDraft(draft: McpServerDraft): McpServerDraft {
-  return {
-    ...draft,
-    id: draft.id.trim(),
-    originalId: draft.originalId?.trim() || undefined,
-    command: optionalText(draft.command),
-    args: draft.args.map((arg) => arg.trim()).filter(Boolean),
-    env: cleanStringMap(draft.env),
-  };
-}
-
-function optionalText(value?: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function cleanStringMap(values: Record<string, string>) {
-  return Object.fromEntries(
-    Object.entries(values)
-      .map(([key, value]) => [key.trim(), value.trim()])
-      .filter(([key, value]) => key && value),
-  );
 }
 
 function fastModeChanges(): DraftChange[] {
