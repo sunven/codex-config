@@ -45,6 +45,12 @@ import {
   toggleCollapsedMonth,
   type CodexSessionSummary,
 } from "./codexSessions";
+import {
+  globalSkillsWorkspace,
+  importedSkillPath,
+  type SkillContent,
+  type SkillState,
+} from "./globalSkills";
 import "./App.css";
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -140,38 +146,6 @@ type ModelProviderState = {
 
 type McpServerState = {
   servers: McpServerEntry[];
-};
-
-type SkillState = {
-  roots: SkillRoot[];
-  skills: SkillSummary[];
-};
-
-type SkillRoot = {
-  path: string;
-  label: string;
-  exists: boolean;
-};
-
-type SkillSummary = {
-  name: string;
-  description?: string;
-  path: string;
-  directory: string;
-  symlink?: boolean;
-  targetDirectory?: string;
-  source: string;
-  enabled: boolean;
-  configured: boolean;
-  size: number;
-  modifiedMs?: number;
-};
-
-type SkillContent = {
-  name: string;
-  description?: string;
-  path: string;
-  rawMarkdown: string;
 };
 
 type ModelProviderEntry = {
@@ -574,19 +548,8 @@ function App() {
       const result = await invoke<SaveResult>("import_skill_directory", {
         directory: selected,
       });
-      const importedDirectoryName = pathBasename(selected);
-      const imported =
-        result.state.skills.skills.find(
-          (skill) =>
-            skill.source === "Agent global skills" &&
-            pathBasename(skill.directory) === importedDirectoryName,
-        ) ??
-        result.state.skills.skills.find(
-          (skill) =>
-            skill.directory === selected || pathBasename(skill.directory) === importedDirectoryName,
-        );
       applyAppState(result.state, {
-        nextSelectedSkillPath: imported?.path ?? result.state.skills.skills[0]?.path ?? null,
+        nextSelectedSkillPath: importedSkillPath(result.state.skills.skills, selected),
         clearSkillContent: true,
       });
       setStatusMessage(
@@ -894,13 +857,6 @@ function displayPath(path: string, homeDir: string | undefined) {
   }
 
   return path;
-}
-
-function pathBasename(path: string) {
-  const normalized = path.replace(/[\\/]+$/, "");
-  const parts = normalized.split(/[\\/]+/);
-
-  return parts[parts.length - 1] ?? normalized;
 }
 
 function normalizedHomeDir(homeDir: string | undefined) {
@@ -1772,23 +1728,12 @@ function SkillsPanel({
   onImport: () => void;
   importing: boolean;
 }) {
-  const normalized = query.trim().toLowerCase();
-  const skills = normalized
-    ? state.skills.skills.filter((skill) =>
-        [skill.name, skill.description, skill.path, skill.source]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(normalized),
-      )
-    : state.skills.skills;
-  const selectedSkill =
-    state.skills.skills.find((skill) => skill.path === selectedPath) ?? skills[0];
-  const selectedContent =
-    content && content.path === selectedSkill?.path ? content.rawMarkdown : "";
-  const resultLabel = normalized
-    ? `${skills.length} / ${state.skills.skills.length} skills`
-    : `${state.skills.skills.length} skills`;
+  const {
+    visibleSkills: skills,
+    selectedSkill,
+    selectedMarkdown,
+    resultLabel,
+  } = globalSkillsWorkspace(state.skills, query, selectedPath, content);
 
   return (
     <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="global-skills-title">
@@ -1891,7 +1836,7 @@ function SkillsPanel({
                   {selectedSkill.enabled ? "enabled" : "disabled"}
                 </span>
               </div>
-              <pre className="m-0 max-h-[520px] overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius)] bg-[var(--code-background)] p-2.5 text-[0.76rem] leading-[1.42] text-[var(--code-foreground)]">{selectedContent || "选择左侧 skill 后会显示 SKILL.md 内容。"}</pre>
+              <pre className="m-0 max-h-[520px] overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius)] bg-[var(--code-background)] p-2.5 text-[0.76rem] leading-[1.42] text-[var(--code-foreground)]">{selectedMarkdown || "选择左侧 skill 后会显示 SKILL.md 内容。"}</pre>
               <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
                 保存启停配置后需要重启 Codex，新状态才会进入下一次 skills 列表。
               </p>
