@@ -39,6 +39,12 @@ import {
   mcpServerDraftId,
   modelProviderDraftId,
 } from "./configTableEntries";
+import {
+  codexSessionBrowserState,
+  sessionDeleteLabel,
+  toggleCollapsedMonth,
+  type CodexSessionSummary,
+} from "./codexSessions";
 import "./App.css";
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -92,39 +98,6 @@ type AppPreferences = {
 type CodexSessionState = {
   sessionsDir: string;
   sessions: CodexSessionSummary[];
-};
-
-type CodexSessionSummary = {
-  id: string;
-  sessionId?: string;
-  title: string;
-  cwd?: string;
-  path: string;
-  relativePath: string;
-  createdAt?: string;
-  lastTimestamp?: string;
-  cliVersion?: string;
-  modelProvider?: string;
-  size: number;
-  modifiedMs?: number;
-  messageCount: number;
-  userMessageCount: number;
-  parseError?: string;
-};
-
-type CodexSessionMonthGroup = {
-  key: string;
-  label: string;
-  sessions: CodexSessionSummary[];
-  totalSize: number;
-};
-
-type CodexSessionYearGroup = {
-  key: string;
-  label: string;
-  months: CodexSessionMonthGroup[];
-  sessionCount: number;
-  totalSize: number;
 };
 
 type FileToken = {
@@ -951,78 +924,6 @@ function formatIsoDateTime(value: string | undefined) {
   return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : value;
 }
 
-function groupCodexSessionsByYear(sessions: CodexSessionSummary[]) {
-  const yearsByKey = new Map<string, CodexSessionYearGroup>();
-
-  for (const session of sessions) {
-    const groupInfo = sessionYearMonthGroupInfo(session);
-    const year =
-      yearsByKey.get(groupInfo.yearKey) ??
-      {
-        key: groupInfo.yearKey,
-        label: groupInfo.yearLabel,
-        months: [],
-        sessionCount: 0,
-        totalSize: 0,
-      };
-    let month = year.months.find((candidate) => candidate.key === groupInfo.monthKey);
-
-    if (!month) {
-      month = {
-        key: groupInfo.monthKey,
-        label: groupInfo.monthLabel,
-        sessions: [],
-        totalSize: 0,
-      };
-      year.months.push(month);
-    }
-
-    month.sessions.push(session);
-    month.totalSize += session.size;
-    year.sessionCount += 1;
-    year.totalSize += session.size;
-    yearsByKey.set(year.key, year);
-  }
-
-  return Array.from(yearsByKey.values())
-    .map((year) => ({
-      ...year,
-      months: year.months.sort((left, right) => compareSessionGroupKeys(left.key, right.key)),
-    }))
-    .sort((left, right) => compareSessionGroupKeys(left.key, right.key));
-}
-
-function compareSessionGroupKeys(left: string, right: string) {
-  if (left === "unfiled") {
-    return 1;
-  }
-  if (right === "unfiled") {
-    return -1;
-  }
-
-  return right.localeCompare(left);
-}
-
-function sessionYearMonthGroupInfo(session: CodexSessionSummary) {
-  const [year, month] = session.relativePath.split(/[\\/]/);
-
-  if (/^\d{4}$/.test(year ?? "") && /^(0[1-9]|1[0-2])$/.test(month ?? "")) {
-    return {
-      yearKey: year,
-      yearLabel: `${year}`,
-      monthKey: `${year}/${month}`,
-      monthLabel: `${month} 月`,
-    };
-  }
-
-  return {
-    yearKey: "unfiled",
-    yearLabel: "未分组",
-    monthKey: "unfiled",
-    monthLabel: "未分组",
-  };
-}
-
 function TabBar({
   activeTab,
   onChange,
@@ -1541,21 +1442,17 @@ function SessionsPanel({
   onDelete: (id: string) => void;
 }) {
   const sessions = state.codexSessions.sessions;
-  const totalSessionSize = sessions.reduce((total, session) => total + session.size, 0);
-  const sessionYears = groupCodexSessionsByYear(sessions);
   const [activeYear, setActiveYear] = useState<string | null>(null);
   const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
-  const selectedYearKey =
-    activeYear && sessionYears.some((year) => year.key === activeYear)
-      ? activeYear
-      : sessionYears[0]?.key ?? null;
-  const selectedYear = sessionYears.find((year) => year.key === selectedYearKey);
+  const {
+    years: sessionYears,
+    selectedYearKey,
+    selectedYear,
+    totalSessionSize,
+  } = codexSessionBrowserState(sessions, activeYear);
 
   function toggleMonth(monthKey: string) {
-    setCollapsedMonths((current) => ({
-      ...current,
-      [monthKey]: !current[monthKey],
-    }));
+    setCollapsedMonths((current) => toggleCollapsedMonth(current, monthKey));
   }
 
   return (
@@ -1634,7 +1531,7 @@ function SessionsPanel({
                   <div className="flex min-w-0 flex-col gap-2">
                     {group.sessions.map((session) => {
                       const deleting = pendingDeleteId === session.id;
-                      const deleteLabel = `${deleting ? "确认删除" : "预览删除"} ${session.title}`;
+                      const deleteLabel = sessionDeleteLabel(session, pendingDeleteId);
 
                       return (
                         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2.5 text-left text-[var(--foreground)] max-[940px]:grid-cols-1" key={session.id}>
