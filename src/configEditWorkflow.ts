@@ -91,6 +91,74 @@ export type WorkflowCommitOutcome<TState> = {
   notice: string;
 };
 
+export type WorkflowPreviewRunOutcome =
+  | {
+      status: "preview";
+      preview: PreviewResult;
+      previewKind: ConfigEditPreviewKind;
+      notice: string | null;
+      pendingDeleteProviderId: string | null;
+      pendingDeleteServerId: string | null;
+    }
+  | { status: "notice"; notice: string }
+  | { status: "error"; message: string };
+
+export type WorkflowCommitRunOutcome<TState> =
+  | {
+      status: "commit";
+      state: TState;
+      changed: boolean;
+      notice: string;
+    }
+  | { status: "error"; message: string };
+
+export type WorkflowRunOutcome<TState> =
+  | WorkflowPreviewRunOutcome
+  | WorkflowCommitRunOutcome<TState>;
+
+export async function runConfigEditPreview(
+  intent: ConfigEditIntent,
+): Promise<WorkflowPreviewRunOutcome> {
+  const noChangesNotice = noChangesPreviewNotice(intent);
+
+  if (noChangesNotice) {
+    return { status: "notice", notice: noChangesNotice };
+  }
+
+  try {
+    const outcome = await previewConfigEdit(intent);
+
+    return {
+      status: "preview",
+      preview: outcome.preview,
+      previewKind: outcome.previewKind,
+      notice: outcome.notice ?? null,
+      pendingDeleteProviderId: outcome.pendingDeleteProviderId ?? null,
+      pendingDeleteServerId: outcome.pendingDeleteServerId ?? null,
+    };
+  } catch (error) {
+    return { status: "error", message: errorMessage(error) };
+  }
+}
+
+export async function runConfigEditCommit<TState extends { homeDir?: string }>(
+  intent: ConfigEditIntent,
+  fileToken: FileToken | null | undefined,
+): Promise<WorkflowCommitRunOutcome<TState>> {
+  try {
+    const outcome = await commitConfigEdit<TState>(intent, fileToken);
+
+    return {
+      status: "commit",
+      state: outcome.state,
+      changed: outcome.changed,
+      notice: outcome.notice,
+    };
+  } catch (error) {
+    return { status: "error", message: errorMessage(error) };
+  }
+}
+
 export async function previewConfigEdit(
   intent: ConfigEditIntent,
 ): Promise<WorkflowPreviewOutcome> {
@@ -395,6 +463,28 @@ function fastModeChanges(): DraftChange[] {
       value: true,
     },
   ];
+}
+
+function noChangesPreviewNotice(intent: ConfigEditIntent) {
+  if (
+    intent.kind === "rootSettings" &&
+    intent.changes.length === 0
+  ) {
+    return "没有可预览的配置变更。";
+  }
+
+  if (
+    intent.kind === "profileSettings" &&
+    intent.changes.length === 0
+  ) {
+    return "没有可预览的 profile 配置变更。";
+  }
+
+  return undefined;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function backupPathLabel(path: string | undefined, homeDir: string | undefined) {

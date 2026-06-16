@@ -19,15 +19,17 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Switch } from "./components/ui/switch";
 import {
-  commitConfigEdit,
   compactMcpServerDraft,
   compactModelProviderDraft,
+  runConfigEditCommit,
+  runConfigEditPreview,
+  type ConfigEditIntent,
   type ConfigEditPreviewKind,
   type DraftChange,
   type McpServerDraft,
   type ModelProviderDraft,
   type PreviewResult,
-  previewConfigEdit,
+  type WorkflowRunOutcome,
 } from "./configEditWorkflow";
 import "./App.css";
 
@@ -312,30 +314,57 @@ function App() {
     setStatusMessage(null);
   }
 
-  async function previewFastMode() {
+  function clearConfigEditStatus() {
     setError(null);
     setStatusMessage(null);
+  }
 
-    try {
-      const outcome = await previewConfigEdit({ kind: "fastMode" });
+  function clearConfigEditPreview() {
+    setPreview(null);
+    setPreviewKind(null);
+  }
+
+  function applyConfigEditOutcome(outcome: WorkflowRunOutcome<AppState>) {
+    if (outcome.status === "error") {
+      setError(outcome.message);
+      return;
+    }
+
+    if (outcome.status === "notice") {
+      clearConfigEditPreview();
+      setStatusMessage(outcome.notice);
+      return;
+    }
+
+    if (outcome.status === "preview") {
       setPreview(outcome.preview);
       setPreviewKind(outcome.previewKind);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setPendingDeleteProviderId(outcome.pendingDeleteProviderId);
+      setPendingDeleteServerId(outcome.pendingDeleteServerId);
+      setStatusMessage(outcome.notice);
+      return;
     }
+
+    applyAppState(outcome.state);
+    setStatusMessage(outcome.notice);
+  }
+
+  async function runPreview(intent: ConfigEditIntent) {
+    clearConfigEditStatus();
+    applyConfigEditOutcome(await runConfigEditPreview(intent));
+  }
+
+  async function runCommit(intent: ConfigEditIntent) {
+    setError(null);
+    applyConfigEditOutcome(await runConfigEditCommit<AppState>(intent, state?.fileToken));
+  }
+
+  async function previewFastMode() {
+    await runPreview({ kind: "fastMode" });
   }
 
   async function saveFastMode() {
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({ kind: "fastMode" }, state?.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({ kind: "fastMode" });
   }
 
   async function previewSettings() {
@@ -343,28 +372,10 @@ function App() {
       return;
     }
 
-    const changes = settingsChanges(state.fields, draftValues, "root");
-    setError(null);
-    setStatusMessage(null);
-
-    if (changes.length === 0) {
-      setPreview(null);
-      setPreviewKind(null);
-      setStatusMessage("没有可预览的配置变更。");
-      return;
-    }
-
-    try {
-      const outcome = await previewConfigEdit({
-        kind: "rootSettings",
-        changes,
-      });
-      setPreview(outcome.preview);
-      setPreviewKind(outcome.previewKind);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runPreview({
+      kind: "rootSettings",
+      changes: settingsChanges(state.fields, draftValues, "root"),
+    });
   }
 
   async function saveSettings() {
@@ -372,19 +383,10 @@ function App() {
       return;
     }
 
-    const changes = settingsChanges(state.fields, draftValues, "root");
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "rootSettings",
-        changes,
-      }, state.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({
+      kind: "rootSettings",
+      changes: settingsChanges(state.fields, draftValues, "root"),
+    });
   }
 
   function updateDraftValue(path: string, value: string) {
@@ -402,28 +404,10 @@ function App() {
       return;
     }
 
-    const changes = settingsChanges(state.profileFields, profileDraftValues, "profile");
-    setError(null);
-    setStatusMessage(null);
-
-    if (changes.length === 0) {
-      setPreview(null);
-      setPreviewKind(null);
-      setStatusMessage("没有可预览的 profile 配置变更。");
-      return;
-    }
-
-    try {
-      const outcome = await previewConfigEdit({
-        kind: "profileSettings",
-        changes,
-      });
-      setPreview(outcome.preview);
-      setPreviewKind(outcome.previewKind);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runPreview({
+      kind: "profileSettings",
+      changes: settingsChanges(state.profileFields, profileDraftValues, "profile"),
+    });
   }
 
   async function saveProfileSettings() {
@@ -431,19 +415,10 @@ function App() {
       return;
     }
 
-    const changes = settingsChanges(state.profileFields, profileDraftValues, "profile");
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "profileSettings",
-        changes,
-      }, state.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({
+      kind: "profileSettings",
+      changes: settingsChanges(state.profileFields, profileDraftValues, "profile"),
+    });
   }
 
   function updateProfileDraftValue(path: string, value: string) {
@@ -457,35 +432,17 @@ function App() {
   }
 
   async function previewRawToml() {
-    setError(null);
-    setStatusMessage(null);
-
-    try {
-      const outcome = await previewConfigEdit({
-        kind: "rawToml",
-        rawToml: rawTomlDraft,
-      });
-      setPreview(outcome.preview);
-      setPreviewKind(outcome.previewKind);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runPreview({
+      kind: "rawToml",
+      rawToml: rawTomlDraft,
+    });
   }
 
   async function saveRawToml() {
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "rawToml",
-        rawToml: rawTomlDraft,
-      }, state?.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({
+      kind: "rawToml",
+      rawToml: rawTomlDraft,
+    });
   }
 
   function updateRawTomlDraft(value: string) {
@@ -512,151 +469,67 @@ function App() {
   }
 
   async function previewModelProvider() {
-    setError(null);
-    setStatusMessage(null);
-
-    try {
-      const outcome = await previewConfigEdit({
-        kind: "modelProviderSave",
-        draft: modelProviderDraft,
-      });
-      setPreview(outcome.preview);
-      setPreviewKind(outcome.previewKind);
-      setPendingDeleteProviderId(outcome.pendingDeleteProviderId ?? null);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runPreview({
+      kind: "modelProviderSave",
+      draft: modelProviderDraft,
+    });
   }
 
   async function saveModelProvider() {
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "modelProviderSave",
-        draft: modelProviderDraft,
-      }, state?.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({
+      kind: "modelProviderSave",
+      draft: modelProviderDraft,
+    });
   }
 
   async function previewDeleteModelProvider(id: string) {
-    setError(null);
-    setStatusMessage(null);
-
-    try {
-      const outcome = await previewConfigEdit({
-        kind: "modelProviderDelete",
-        id,
-      });
-      setPreview(outcome.preview);
-      setPreviewKind(outcome.previewKind);
-      setPendingDeleteProviderId(outcome.pendingDeleteProviderId ?? null);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runPreview({
+      kind: "modelProviderDelete",
+      id,
+    });
   }
 
   async function deleteModelProvider(id: string) {
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "modelProviderDelete",
-        id,
-      }, state?.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({
+      kind: "modelProviderDelete",
+      id,
+    });
   }
 
   async function previewMcpServer() {
-    setError(null);
-    setStatusMessage(null);
-
-    try {
-      const outcome = await previewConfigEdit({
-        kind: "mcpServerSave",
-        draft: mcpServerDraft,
-      });
-      setPreview(outcome.preview);
-      setPreviewKind(outcome.previewKind);
-      setPendingDeleteServerId(outcome.pendingDeleteServerId ?? null);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runPreview({
+      kind: "mcpServerSave",
+      draft: mcpServerDraft,
+    });
   }
 
   async function saveMcpServer() {
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "mcpServerSave",
-        draft: mcpServerDraft,
-      }, state?.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({
+      kind: "mcpServerSave",
+      draft: mcpServerDraft,
+    });
   }
 
   async function previewDeleteMcpServer(id: string) {
-    setError(null);
-    setStatusMessage(null);
-
-    try {
-      const outcome = await previewConfigEdit({
-        kind: "mcpServerDelete",
-        id,
-      });
-      setPreview(outcome.preview);
-      setPreviewKind(outcome.previewKind);
-      setPendingDeleteServerId(outcome.pendingDeleteServerId ?? null);
-      setStatusMessage(outcome.notice ?? null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runPreview({
+      kind: "mcpServerDelete",
+      id,
+    });
   }
 
   async function deleteMcpServer(id: string) {
-    setError(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "mcpServerDelete",
-        id,
-      }, state?.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    await runCommit({
+      kind: "mcpServerDelete",
+      id,
+    });
   }
 
   async function restoreBackup(backupId: string) {
-    setError(null);
-    setStatusMessage(null);
-
-    try {
-      const outcome = await commitConfigEdit<AppState>({
-        kind: "restoreBackup",
-        backupId,
-      }, state?.fileToken);
-      applyAppState(outcome.state);
-      setStatusMessage(outcome.notice);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
+    clearConfigEditStatus();
+    await runCommit({
+      kind: "restoreBackup",
+      backupId,
+    });
   }
 
   async function readSkill(path: string) {

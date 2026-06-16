@@ -4,6 +4,8 @@ import {
   compactMcpServerDraft,
   compactModelProviderDraft,
   previewConfigEdit,
+  runConfigEditCommit,
+  runConfigEditPreview,
 } from "./configEditWorkflow";
 
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -104,6 +106,73 @@ describe("config edit workflow", () => {
     });
     expect(outcome.previewKind).toBe("mcpServerDelete");
     expect(outcome.pendingDeleteServerId).toBe("filesystem");
+  });
+
+  it("returns a notice without invoking Tauri for empty settings previews", async () => {
+    const outcome = await runConfigEditPreview({
+      kind: "rootSettings",
+      changes: [],
+    });
+
+    expect(invokeMock).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      status: "notice",
+      notice: "没有可预览的配置变更。",
+    });
+  });
+
+  it("normalizes preview outcomes for App state application", async () => {
+    invokeMock.mockResolvedValueOnce({
+      changed: true,
+      fieldDiffs: [],
+      textDiff: "-[model_providers.local]",
+      candidateRawToml: "model = \"gpt-5\"",
+    });
+
+    const outcome = await runConfigEditPreview({
+      kind: "modelProviderDelete",
+      id: "local",
+    });
+
+    expect(outcome).toMatchObject({
+      status: "preview",
+      previewKind: "modelProviderDelete",
+      notice: null,
+      pendingDeleteProviderId: "local",
+      pendingDeleteServerId: null,
+    });
+  });
+
+  it("normalizes commit outcomes and caught errors", async () => {
+    invokeMock
+      .mockResolvedValueOnce({
+        changed: false,
+        state: {
+          homeDir: "/Users/test/.codex",
+        },
+      })
+      .mockRejectedValueOnce("config.toml changed on disk");
+
+    await expect(
+      runConfigEditCommit(
+        { kind: "fastMode" },
+        { hash: "abc", size: 10 },
+      ),
+    ).resolves.toEqual({
+      status: "commit",
+      state: {
+        homeDir: "/Users/test/.codex",
+      },
+      changed: false,
+      notice: "没有需要保存的变更。",
+    });
+
+    await expect(
+      runConfigEditCommit({ kind: "fastMode" }, undefined),
+    ).resolves.toEqual({
+      status: "error",
+      message: "config.toml changed on disk",
+    });
   });
 
   it("compacts provider and MCP drafts before invoking table saves", async () => {
