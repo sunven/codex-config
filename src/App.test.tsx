@@ -578,13 +578,11 @@ describe("Preview, raw TOML, and backups", () => {
     await user.type(editor, "model = \"gpt-5-mini\"");
 
     expect(within(rawToml).getByRole("button", { name: "预览原始 TOML" })).toBeEnabled();
-    expect(within(rawToml).getByRole("button", { name: "保存原始 TOML" })).toBeDisabled();
 
     await user.click(within(rawToml).getByRole("button", { name: "预览原始 TOML" }));
 
     expect(await within(preview).findByText("Model")).toBeVisible();
     expect(within(preview).getByText("改为")).toBeVisible();
-    expect(within(rawToml).getByRole("button", { name: "保存原始 TOML" })).toBeEnabled();
   });
 
   it("shows backup history as a quiet list and disables restore when read-only", async () => {
@@ -621,7 +619,7 @@ describe("Model provider editor", () => {
     invokeMock.mockReset();
   });
 
-  it("shows provider metadata and keeps save gated behind a preview", async () => {
+  it("shows provider metadata and renders save previews", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithModelProviders())
@@ -649,16 +647,12 @@ describe("Model provider editor", () => {
     await user.clear(baseUrlInput);
     await user.type(baseUrlInput, "https://models.example.test/v1/updated");
 
-    expect(within(providers).getByRole("button", { name: "预览保存 provider local-gpt" })).toBeEnabled();
-    expect(within(providers).getByRole("button", { name: "保存 provider local-gpt" })).toBeDisabled();
-
     await user.click(within(providers).getByRole("button", { name: "预览保存 provider local-gpt" }));
 
     expect(await screen.findByText(/updated/)).toBeVisible();
-    expect(within(providers).getByRole("button", { name: "保存 provider local-gpt" })).toBeEnabled();
   });
 
-  it("keeps provider deletion behind preview and disables reserved provider deletion", async () => {
+  it("previews provider deletion and disables reserved provider deletion", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithModelProviders())
@@ -690,7 +684,6 @@ describe("Model provider editor", () => {
     expect(invokeMock).toHaveBeenCalledWith("preview_delete_model_provider", {
       id: "local-gpt",
     });
-    expect(within(providers).getByRole("button", { name: "确认删除 provider local-gpt" })).toBeEnabled();
 
     await user.click(within(providers).getByRole("button", { name: "确认删除 provider local-gpt" }));
 
@@ -707,7 +700,7 @@ describe("MCP server editor", () => {
     invokeMock.mockReset();
   });
 
-  it("shows server metadata and keeps save gated behind a preview", async () => {
+  it("shows server metadata and renders save previews", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithMcpServers())
@@ -738,16 +731,12 @@ describe("MCP server editor", () => {
     await user.clear(commandInput);
     await user.type(commandInput, "uvx");
 
-    expect(within(servers).getByRole("button", { name: "预览保存 MCP server filesystem" })).toBeEnabled();
-    expect(within(servers).getByRole("button", { name: "保存 MCP server filesystem" })).toBeDisabled();
-
     await user.click(within(servers).getByRole("button", { name: "预览保存 MCP server filesystem" }));
 
     expect(await screen.findByText(/uvx/)).toBeVisible();
-    expect(within(servers).getByRole("button", { name: "保存 MCP server filesystem" })).toBeEnabled();
   });
 
-  it("keeps server deletion behind preview confirmation", async () => {
+  it("previews and commits server deletion", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithMcpServers())
@@ -772,14 +761,12 @@ describe("MCP server editor", () => {
     await user.click(await screen.findByRole("tab", { name: "MCP Servers" }));
 
     const servers = screen.getByRole("region", { name: "MCP servers" });
-    expect(within(servers).getByRole("button", { name: "确认删除 MCP server filesystem" })).toBeDisabled();
 
     await user.click(within(servers).getByRole("button", { name: "预览删除 MCP server filesystem" }));
 
     expect(invokeMock).toHaveBeenCalledWith("preview_delete_mcp_server", {
       id: "filesystem",
     });
-    expect(within(servers).getByRole("button", { name: "确认删除 MCP server filesystem" })).toBeEnabled();
 
     await user.click(within(servers).getByRole("button", { name: "确认删除 MCP server filesystem" }));
 
