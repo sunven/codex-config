@@ -344,7 +344,7 @@ describe("App shell", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Codex 配置" })).toBeVisible();
-    expect(screen.getByText(/管理本机 Codex 配置/)).toBeVisible();
+    expect(screen.queryByText(/管理本机 Codex 配置/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刷新" })).toBeVisible();
     await waitFor(() => {
       expect(document.title).toBe("codex-config /opt/homebrew/bin/codex codex 1.2.3");
