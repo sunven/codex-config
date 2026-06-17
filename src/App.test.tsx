@@ -26,7 +26,6 @@ function appState(overrides: Partial<AppState> = {}): AppState {
     homeDir: "/Users/test/.codex",
     configPath: "/Users/test/.codex/config.toml",
     resolvedPath: "/Users/test/.codex/config.toml",
-    backupDir: "/Users/test/.codex/backups",
     writable: true,
     health: {
       status: "ready",
@@ -201,7 +200,6 @@ function appState(overrides: Partial<AppState> = {}): AppState {
         message: "profile overrides model",
       },
     ],
-    backups: [],
     preferences: {},
     ...overrides,
   };
@@ -441,7 +439,6 @@ describe("Config workbench", () => {
       .mockResolvedValueOnce(appState())
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: appState({
           fields: appState().fields.map((field) =>
             field.path === "model" ? { ...field, value: "gpt-5-mini" } : field,
@@ -465,7 +462,7 @@ describe("Config workbench", () => {
       changes: [{ path: "model", scope: "root", action: "set", value: "gpt-5-mini" }],
       fileToken: null,
     });
-    expect(await screen.findByText(/已保存。备份/)).toBeVisible();
+    expect(await screen.findByText("已保存。")).toBeVisible();
   });
 
   it("persists select field changes immediately before refresh", async () => {
@@ -498,7 +495,6 @@ describe("Config workbench", () => {
       .mockResolvedValueOnce(initialState)
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: savedState,
       })
       .mockResolvedValueOnce(savedState);
@@ -508,7 +504,7 @@ describe("Config workbench", () => {
     const globalSettings = await screen.findByRole("region", { name: "全局配置" });
 
     await user.selectOptions(within(globalSettings).getByLabelText("Reasoning effort"), "high");
-    await screen.findByText(/已保存。备份/);
+    await screen.findByText("已保存。");
     await user.click(screen.getByRole("button", { name: "刷新" }));
 
     expect(invokeMock).toHaveBeenCalledWith("save_changes", {
@@ -590,7 +586,7 @@ describe("Field catalog", () => {
   });
 });
 
-describe("Raw TOML and backups", () => {
+describe("Raw TOML", () => {
   beforeEach(() => {
     invokeMock.mockReset();
   });
@@ -605,7 +601,6 @@ describe("Raw TOML and backups", () => {
       }))
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: appState({
           rawToml: "model = \"gpt-5-mini\"",
         }),
@@ -629,35 +624,7 @@ describe("Raw TOML and backups", () => {
       rawToml: "model = \"gpt-5-mini\"",
       fileToken: null,
     });
-    expect(await screen.findByText(/已保存原始 TOML。备份/)).toBeVisible();
-  });
-
-  it("shows backup history as a quiet list and disables restore when read-only", async () => {
-    invokeMock.mockResolvedValueOnce(appState({
-      writable: false,
-      readonlyReason: "config.toml is not writable",
-      health: {
-        ...appState().health,
-        status: "readOnly",
-      },
-      backups: [
-        {
-          id: "2026-06-08T10-00-00-config.toml.bak",
-          path: "/Users/test/.codex/backups/2026-06-08T10-00-00-config.toml.bak",
-          size: 2048,
-          modifiedMs: 1780893900000,
-        },
-      ],
-    }));
-
-    render(<App />);
-
-    const backups = await screen.findByRole("region", { name: "备份" });
-
-    expect(backups).toHaveTextContent("~/backups");
-    expect(backups).toHaveTextContent("2026-06-08T10-00-00-config.toml.bak");
-    expect(backups).toHaveTextContent("2.0 KB");
-    expect(within(backups).getByRole("button", { name: "恢复备份 2026-06-08T10-00-00-config.toml.bak" })).toBeDisabled();
+    expect(await screen.findByText("已保存原始 TOML。")).toBeVisible();
   });
 });
 
@@ -673,7 +640,6 @@ describe("Model provider editor", () => {
       .mockResolvedValueOnce(appStateWithModelProviders())
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: appStateWithModelProviders({
           modelProviders: {
             reservedIds: ["openai", "azure", "ollama", "lmstudio"],
@@ -723,7 +689,6 @@ describe("Model provider editor", () => {
       .mockResolvedValueOnce(appStateWithModelProviders())
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: appStateWithModelProviders({
           modelProviders: {
             reservedIds: ["openai", "azure", "ollama", "lmstudio"],
@@ -759,7 +724,6 @@ describe("MCP server editor", () => {
       .mockResolvedValueOnce(appStateWithMcpServers())
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: appStateWithMcpServers({
           mcpServers: {
             servers: [
@@ -811,7 +775,6 @@ describe("MCP server editor", () => {
       .mockResolvedValueOnce(appStateWithMcpServers())
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: appStateWithMcpServers({
           mcpServers: {
             servers: [],
@@ -896,7 +859,6 @@ describe("Skills workspace", () => {
       .mockResolvedValueOnce(initialState)
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: nextState,
       });
 
@@ -957,7 +919,6 @@ describe("Skills workspace", () => {
       .mockResolvedValueOnce(initialState)
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: null,
         state: nextState,
       });
 

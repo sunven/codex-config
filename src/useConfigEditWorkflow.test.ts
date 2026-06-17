@@ -56,7 +56,7 @@ describe("useConfigEditWorkflow", () => {
       status: "commit",
       state: { homeDir: "/Users/test/.codex" },
       changed: true,
-      notice: "已保存。备份：~/backups/config.toml.bak",
+      notice: "已保存。",
     });
     const { result, onCommitState, onStatusMessage } = renderWorkflow({
       fileToken: { hash: "abc", size: 10 },
@@ -72,35 +72,7 @@ describe("useConfigEditWorkflow", () => {
 
     expect(runCommitMock).toHaveBeenCalledWith(intent, { hash: "abc", size: 10 });
     expect(onCommitState).toHaveBeenCalledWith({ homeDir: "/Users/test/.codex" });
-    expect(onStatusMessage).toHaveBeenLastCalledWith("已保存。备份：~/backups/config.toml.bak");
-  });
-
-  it("allows restore backup commits without any preview state", async () => {
-    runCommitMock.mockResolvedValueOnce({
-      status: "commit",
-      state: { homeDir: "/Users/test/.codex" },
-      changed: true,
-      notice: "已恢复备份。恢复前备份：~/backups/config.toml.bak",
-    });
-    const { result, onCommitState, onStatusMessage } = renderWorkflow({
-      fileToken: { hash: "abc", size: 10 },
-    });
-
-    await act(async () => {
-      await result.current.runCommit({
-        kind: "restoreBackup",
-        backupId: "config.toml.bak",
-      });
-    });
-
-    expect(runCommitMock).toHaveBeenCalledWith(
-      { kind: "restoreBackup", backupId: "config.toml.bak" },
-      { hash: "abc", size: 10 },
-    );
-    expect(onCommitState).toHaveBeenCalledWith({ homeDir: "/Users/test/.codex" });
-    expect(onStatusMessage).toHaveBeenLastCalledWith(
-      "已恢复备份。恢复前备份：~/backups/config.toml.bak",
-    );
+    expect(onStatusMessage).toHaveBeenLastCalledWith("已保存。");
   });
 
   it("surfaces commit errors without applying state", async () => {

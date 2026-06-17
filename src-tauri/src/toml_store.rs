@@ -75,7 +75,6 @@ pub struct FieldDiff {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveResult {
-    pub backup_path: Option<String>,
     pub changed: bool,
     pub state: crate::app_state::AppState,
 }
@@ -101,13 +100,6 @@ pub fn save_raw_toml(
     file_token: Option<FileToken>,
 ) -> Result<SaveResult, String> {
     config_document_workflow::commit_raw_toml(raw_toml, file_token)
-}
-
-pub fn restore_backup(
-    backup_id: String,
-    file_token: Option<FileToken>,
-) -> Result<SaveResult, String> {
-    config_document_workflow::restore_backup(backup_id, file_token)
 }
 
 pub fn load(path: &Path) -> Result<LoadedToml, String> {
@@ -198,14 +190,6 @@ fn apply_changes(document: &mut DocumentMut, changes: &[DraftChange]) -> Result<
     Ok(())
 }
 
-fn backup_name() -> String {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or_default();
-    format!("config-{timestamp}-{}.toml", std::process::id())
-}
-
 pub(crate) fn ensure_current_token(
     loaded: &LoadedToml,
     expected: Option<&FileToken>,
@@ -219,23 +203,6 @@ pub(crate) fn ensure_current_token(
         }
         (None, Some(_)) => Err("config.toml 已被删除。请先刷新，再保存。".to_string()),
     }
-}
-
-pub(crate) fn backup_existing_file(
-    config_path: &Path,
-    backup_dir: &Path,
-) -> Result<Option<PathBuf>, String> {
-    fs::create_dir_all(backup_dir)
-        .map_err(|error| format!("failed to create backup directory: {error}"))?;
-
-    if !config_path.exists() {
-        return Ok(None);
-    }
-
-    let backup_path = backup_dir.join(backup_name());
-    fs::copy(config_path, &backup_path)
-        .map_err(|error| format!("failed to create backup: {error}"))?;
-    Ok(Some(backup_path))
 }
 
 pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -450,7 +417,6 @@ fast_mode = false
         let saved_document = saved_raw.parse::<DocumentMut>().unwrap();
 
         assert!(result.changed);
-        assert!(result.backup_path.is_some());
         assert_eq!(
             root_string(&saved_document, "model"),
             Some("gpt-5.5".to_string())
@@ -458,7 +424,7 @@ fast_mode = false
     }
 
     #[test]
-    fn raw_toml_save_creates_backup_and_preserves_complex_tables() {
+    fn raw_toml_save_preserves_complex_tables() {
         let _guard = TestCodexHome::new();
         let location = config_locator::locate().unwrap();
         fs::create_dir_all(&location.codex_home).unwrap();
@@ -479,16 +445,11 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
         )
         .unwrap();
         let saved_raw = fs::read_to_string(&location.config_path).unwrap();
-        let backups = fs::read_dir(&location.backup_dir)
-            .unwrap()
-            .collect::<Vec<_>>();
 
         assert!(result.changed);
-        assert!(result.backup_path.is_some());
         assert!(saved_raw.contains("[mcp_servers.filesystem]"));
         assert!(saved_raw
             .contains("args = [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]"));
-        assert_eq!(backups.len(), 1);
     }
 
     #[test]
@@ -776,7 +737,7 @@ fast_mode = false
     }
 
     #[test]
-    fn save_changes_uses_isolated_codex_home_and_creates_backup() {
+    fn save_changes_uses_isolated_codex_home() {
         let _guard = TestCodexHome::new();
         let location = config_locator::locate().unwrap();
         fs::create_dir_all(&location.codex_home).unwrap();
@@ -804,43 +765,13 @@ fast_mode = false
         .unwrap();
         let saved_raw = fs::read_to_string(&location.config_path).unwrap();
         let saved_document = saved_raw.parse::<DocumentMut>().unwrap();
-        let backups = fs::read_dir(&location.backup_dir)
-            .unwrap()
-            .collect::<Vec<_>>();
 
         assert!(result.changed);
-        assert!(result.backup_path.is_some());
         assert_eq!(
             root_bool(&saved_document, "features", "fast_mode"),
             Some(true)
         );
         assert!(saved_raw.contains("[profiles.work.features]"));
         assert!(saved_raw.contains("fast_mode = false"));
-        assert_eq!(backups.len(), 1);
-    }
-
-    #[test]
-    fn restore_backup_uses_isolated_codex_home_and_backs_up_current_file() {
-        let _guard = TestCodexHome::new();
-        let location = config_locator::locate().unwrap();
-        fs::create_dir_all(&location.backup_dir).unwrap();
-        fs::write(&location.config_path, "model = \"gpt-5.4\"\n").unwrap();
-        fs::write(
-            location.backup_dir.join("config-before.toml"),
-            "model = \"gpt-5.5\"\n",
-        )
-        .unwrap();
-        let token = load(&location.config_path).unwrap().token;
-
-        let result = restore_backup("config-before.toml".to_string(), token).unwrap();
-        let restored_raw = fs::read_to_string(&location.config_path).unwrap();
-        let backups = fs::read_dir(&location.backup_dir)
-            .unwrap()
-            .collect::<Vec<_>>();
-
-        assert!(result.changed);
-        assert!(result.backup_path.is_some());
-        assert_eq!(restored_raw, "model = \"gpt-5.5\"\n");
-        assert_eq!(backups.len(), 2);
     }
 }

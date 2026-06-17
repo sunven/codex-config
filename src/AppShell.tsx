@@ -76,7 +76,7 @@ export function FastModeTask({
         </p>
         <h2>开启 Fast 模式</h2>
         <p className="mt-[3px] text-[var(--muted-foreground)]">
-          当前全局值是 <strong>{value}</strong>。保存会直接写入并自动备份。
+          当前全局值是 <strong>{value}</strong>。保存会直接写入 config.toml。
         </p>
       </div>
       <div className="flex justify-end gap-1.5 max-[940px]:w-full [&>button]:max-[940px]:flex-1">

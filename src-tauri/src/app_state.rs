@@ -1,5 +1,4 @@
 use crate::app_preferences::{self, AppPreferences};
-use crate::backup_store::{self, BackupSummary};
 use crate::codex_probe::{self, CodexProbe};
 use crate::codex_session_store::{self, CodexSessionState};
 use crate::config_locator;
@@ -17,7 +16,6 @@ pub struct AppState {
     pub home_dir: Option<String>,
     pub config_path: String,
     pub resolved_path: String,
-    pub backup_dir: String,
     pub writable: bool,
     pub readonly_reason: Option<String>,
     pub file_token: Option<FileToken>,
@@ -33,7 +31,6 @@ pub struct AppState {
     pub parse_issue: Option<ParseIssue>,
     pub profile_status: Option<ProfileStatus>,
     pub profile_warnings: Vec<ProfileWarning>,
-    pub backups: Vec<BackupSummary>,
     pub preferences: AppPreferences,
 }
 
@@ -84,7 +81,6 @@ pub fn load_state() -> Result<AppState, String> {
     let loaded = toml_store::load(&location.config_path)?;
     let preferences = app_preferences::load();
     let codex = codex_probe::probe_with_preferences(&preferences);
-    let backups = backup_store::list(&location.backup_dir);
     let codex_sessions = codex_session_store::state(&location.codex_home);
 
     let mut readonly_reason = None;
@@ -144,7 +140,6 @@ pub fn load_state() -> Result<AppState, String> {
         home_dir: config_locator::user_home_dir().map(|path| path.display().to_string()),
         config_path: location.config_path.display().to_string(),
         resolved_path: location.resolved_path.display().to_string(),
-        backup_dir: location.backup_dir.display().to_string(),
         writable,
         readonly_reason,
         file_token: loaded.token,
@@ -165,7 +160,6 @@ pub fn load_state() -> Result<AppState, String> {
         parse_issue: loaded.parse_issue,
         profile_status,
         profile_warnings,
-        backups,
         preferences,
     })
 }

@@ -242,14 +242,6 @@ function App() {
     });
   }
 
-  async function restoreBackup(backupId: string) {
-    configEditWorkflow.reset({ clearError: true, clearStatus: true });
-    await configEditWorkflow.runCommit({
-      kind: "restoreBackup",
-      backupId,
-    });
-  }
-
   const settingChanges = state ? settingsChanges(state.fields, draftValues, "root") : [];
   const profileSettingChanges = state
     ? settingsChanges(state.profileFields, profileDraftValues, "profile")
@@ -349,7 +341,6 @@ function App() {
                   rawTomlWritable={rawTomlWritable}
                   onRawTomlChange={updateRawTomlDraft}
                   onSaveRawToml={saveRawToml}
-                  onRestoreBackup={restoreBackup}
                 />
               </>
             ) : activeTab === "sessions" ? (
@@ -379,7 +370,6 @@ function App() {
                   rawTomlWritable={rawTomlWritable}
                   onRawTomlChange={updateRawTomlDraft}
                   onSaveRawToml={saveRawToml}
-                  onRestoreBackup={restoreBackup}
                 />
               </>
             ) : (

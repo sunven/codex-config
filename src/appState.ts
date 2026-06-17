@@ -13,7 +13,6 @@ export type AppState = {
   homeDir?: string;
   configPath: string;
   resolvedPath: string;
-  backupDir: string;
   writable: boolean;
   readonlyReason?: string;
   fileToken?: FileToken;
@@ -43,7 +42,6 @@ export type AppState = {
     missing: boolean;
   };
   profileWarnings: ProfileWarning[];
-  backups: BackupSummary[];
   preferences: AppPreferences;
 };
 
@@ -64,13 +62,6 @@ export type ProfileWarning = {
   message: string;
 };
 
-export type BackupSummary = {
-  id: string;
-  path: string;
-  size: number;
-  modifiedMs?: number;
-};
-
 export type ModelProviderState = {
   providers: ModelProviderEntry[];
   reservedIds: string[];
@@ -89,7 +80,6 @@ export type McpServerEntry = McpServerTableEntry & {
 };
 
 export type SaveResult = {
-  backupPath?: string;
   changed: boolean;
   state: AppState;
 };

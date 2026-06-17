@@ -170,11 +170,7 @@ pub fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
 
     let state = crate::app_state::load_state()?;
 
-    Ok(SaveResult {
-        backup_path: None,
-        changed,
-        state,
-    })
+    Ok(SaveResult { changed, state })
 }
 
 fn discovery_roots(location: &config_locator::ConfigLocation) -> Vec<SkillRootCandidate> {

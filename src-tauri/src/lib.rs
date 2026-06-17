@@ -1,6 +1,5 @@
 mod app_preferences;
 mod app_state;
-mod backup_store;
 mod codex_probe;
 mod codex_session_store;
 mod config_document_workflow;
@@ -73,11 +72,6 @@ fn delete_mcp_server(
 }
 
 #[tauri::command]
-fn restore_backup(backup_id: String, file_token: Option<FileToken>) -> Result<SaveResult, String> {
-    toml_store::restore_backup(backup_id, file_token).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn save_codex_binary_path(path: Option<String>) -> Result<AppState, String> {
     app_preferences::save_codex_binary_path(path).map_err(|error| error.to_string())?;
     app_state::load_state().map_err(|error| error.to_string())
@@ -126,7 +120,6 @@ pub fn run() {
             delete_model_provider,
             save_mcp_server,
             delete_mcp_server,
-            restore_backup,
             save_codex_binary_path,
             delete_session,
             read_skill_content,

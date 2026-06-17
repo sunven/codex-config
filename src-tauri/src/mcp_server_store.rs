@@ -237,7 +237,6 @@ command = "node"
         let saved_raw = fs::read_to_string(&location.config_path).unwrap();
 
         assert!(result.changed);
-        assert!(result.backup_path.is_some());
         assert!(saved_raw.contains("[mcp_servers.new]"));
         assert!(!saved_raw.contains("[mcp_servers.old]"));
     }

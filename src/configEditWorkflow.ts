@@ -26,7 +26,6 @@ export type DraftChange = {
 };
 
 type SaveResult<TState> = {
-  backupPath?: string;
   changed: boolean;
   state: TState;
 };
@@ -36,7 +35,6 @@ export type ConfigEditIntent =
   | { kind: "rootSettings"; changes: DraftChange[] }
   | { kind: "profileSettings"; changes: DraftChange[] }
   | { kind: "rawToml"; rawToml: string }
-  | { kind: "restoreBackup"; backupId: string }
   | { kind: "modelProviderSave"; draft: ModelProviderDraft }
   | { kind: "modelProviderDelete"; id: string }
   | { kind: "mcpServerSave"; draft: McpServerDraft }
@@ -60,7 +58,7 @@ export type WorkflowCommitRunOutcome<TState> =
 export type WorkflowRunOutcome<TState> =
   | WorkflowCommitRunOutcome<TState>;
 
-export async function runConfigEditCommit<TState extends { homeDir?: string }>(
+export async function runConfigEditCommit<TState>(
   intent: ConfigEditIntent,
   fileToken: FileToken | null | undefined,
 ): Promise<WorkflowCommitRunOutcome<TState>> {
@@ -78,7 +76,7 @@ export async function runConfigEditCommit<TState extends { homeDir?: string }>(
   }
 }
 
-export async function commitConfigEdit<TState extends { homeDir?: string }>(
+export async function commitConfigEdit<TState>(
   intent: ConfigEditIntent,
   fileToken: FileToken | null | undefined,
 ): Promise<WorkflowCommitOutcome<TState>> {
@@ -92,9 +90,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
       return {
         state: result.state,
         changed: result.changed,
-        notice: result.changed
-          ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
-          : "没有需要保存的变更。",
+        notice: result.changed ? "已保存。" : "没有需要保存的变更。",
       };
     }
     case "rootSettings": {
@@ -106,9 +102,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
       return {
         state: result.state,
         changed: result.changed,
-        notice: result.changed
-          ? `已保存。备份：${backupPathLabel(result.backupPath, result.state.homeDir)}`
-          : "没有需要保存的变更。",
+        notice: result.changed ? "已保存。" : "没有需要保存的变更。",
       };
     }
     case "profileSettings": {
@@ -120,12 +114,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
       return {
         state: result.state,
         changed: result.changed,
-        notice: result.changed
-          ? `已保存 profile 配置。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要保存的变更。",
+        notice: result.changed ? "已保存 profile 配置。" : "没有需要保存的变更。",
       };
     }
     case "rawToml": {
@@ -137,27 +126,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
       return {
         state: result.state,
         changed: result.changed,
-        notice: result.changed
-          ? `已保存原始 TOML。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要保存的原始 TOML 变更。",
-      };
-    }
-    case "restoreBackup": {
-      const result = await invoke<SaveResult<TState>>("restore_backup", {
-        backupId: intent.backupId,
-        fileToken: fileToken ?? null,
-      });
-
-      return {
-        state: result.state,
-        changed: result.changed,
-        notice: `已恢复备份。恢复前备份：${backupPathLabel(
-          result.backupPath,
-          result.state.homeDir,
-        )}`,
+        notice: result.changed ? "已保存原始 TOML。" : "没有需要保存的原始 TOML 变更。",
       };
     }
     case "modelProviderSave": {
@@ -170,10 +139,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
         state: result.state,
         changed: result.changed,
         notice: result.changed
-          ? `已保存 model provider。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
+          ? "已保存 model provider。"
           : "没有需要保存的 model provider 变更。",
       };
     }
@@ -186,12 +152,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
       return {
         state: result.state,
         changed: result.changed,
-        notice: result.changed
-          ? `已删除 model provider。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要删除的 model provider。",
+        notice: result.changed ? "已删除 model provider。" : "没有需要删除的 model provider。",
       };
     }
     case "mcpServerSave": {
@@ -204,10 +165,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
         state: result.state,
         changed: result.changed,
         notice: result.changed
-          ? `已保存 MCP server。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
+          ? "已保存 MCP server。"
           : "没有需要保存的 MCP server 变更。",
       };
     }
@@ -220,12 +178,7 @@ export async function commitConfigEdit<TState extends { homeDir?: string }>(
       return {
         state: result.state,
         changed: result.changed,
-        notice: result.changed
-          ? `已删除 MCP server。备份：${backupPathLabel(
-              result.backupPath,
-              result.state.homeDir,
-            )}`
-          : "没有需要删除的 MCP server。",
+        notice: result.changed ? "已删除 MCP server。" : "没有需要删除的 MCP server。",
       };
     }
   }
@@ -244,41 +197,4 @@ function fastModeChanges(): DraftChange[] {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
-}
-
-function backupPathLabel(path: string | undefined, homeDir: string | undefined) {
-  return path ? displayPath(path, homeDir) : "新配置无需备份";
-}
-
-function displayPath(path: string, homeDir: string | undefined) {
-  const home = normalizedHomeDir(homeDir);
-
-  if (!home) {
-    return path;
-  }
-
-  if (path.replace(/[\\/]+$/, "") === home) {
-    return "~";
-  }
-
-  for (const separator of ["/", "\\"]) {
-    const prefix = `${home}${separator}`;
-    if (path.startsWith(prefix)) {
-      return `~${separator}${path.slice(prefix.length)}`;
-    }
-  }
-
-  return path;
-}
-
-function normalizedHomeDir(homeDir: string | undefined) {
-  const trimmed = homeDir?.trim();
-
-  if (!trimmed || trimmed === "." || trimmed === "/" || trimmed === "\\") {
-    return undefined;
-  }
-
-  const normalized = trimmed.replace(/[\\/]+$/, "");
-
-  return normalized && !/^[A-Za-z]:$/.test(normalized) ? normalized : undefined;
 }

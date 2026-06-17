@@ -10,6 +10,10 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
 }));
 
+type TestState = {
+  homeDir?: string;
+};
+
 describe("config edit workflow", () => {
   beforeEach(() => {
     invokeMock.mockReset();
@@ -18,7 +22,6 @@ describe("config edit workflow", () => {
   it("hides the Fast mode draft behind a named save intent", async () => {
     invokeMock.mockResolvedValueOnce({
       changed: true,
-      backupPath: "/Users/test/.codex/backups/config.toml.bak",
       state: {
         homeDir: "/Users/test/.codex",
       },
@@ -40,19 +43,18 @@ describe("config edit workflow", () => {
       ],
       fileToken: { hash: "abc", size: 10 },
     });
-    expect(outcome.notice).toBe("已保存。备份：~/backups/config.toml.bak");
+    expect(outcome.notice).toBe("已保存。");
   });
 
-  it("maps raw TOML saves to a state outcome with backup notice", async () => {
+  it("maps raw TOML saves to a state outcome", async () => {
     invokeMock.mockResolvedValueOnce({
       changed: true,
-      backupPath: "/Users/test/.codex/backups/config.toml.bak",
       state: {
         homeDir: "/Users/test/.codex",
       },
     });
 
-    const outcome = await commitConfigEdit(
+    const outcome = await commitConfigEdit<TestState>(
       { kind: "rawToml", rawToml: "model = \"gpt-5-mini\"" },
       { hash: "abc", size: 10 },
     );
@@ -62,21 +64,19 @@ describe("config edit workflow", () => {
       fileToken: { hash: "abc", size: 10 },
     });
     expect(outcome.state.homeDir).toBe("/Users/test/.codex");
-    expect(outcome.notice).toBe("已保存原始 TOML。备份：~/backups/config.toml.bak");
+    expect(outcome.notice).toBe("已保存原始 TOML。");
   });
 
   it("maps table saves and deletes to their save commands", async () => {
     invokeMock
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: {
           homeDir: "/Users/test/.codex",
         },
       })
       .mockResolvedValueOnce({
         changed: true,
-        backupPath: "/Users/test/.codex/backups/config.toml.bak",
         state: {
           homeDir: "/Users/test/.codex",
         },

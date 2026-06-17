@@ -15,8 +15,8 @@ unidentified developer warning for this unsigned local build; open it from Finde
 Right Click -> Open.
 
 The app edits the real Codex config at `~/.codex/config.toml` unless launched with a
-custom `CODEX_HOME`. It always previews changes before saving and creates a backup before
-overwriting an existing config.
+custom `CODEX_HOME`. It previews changes before saving and writes directly to
+`config.toml`.
 
 If the app says Codex is not found, use "Codex 命令位置" to choose the `codex` binary,
 for example `/opt/homebrew/bin/codex`.
@@ -29,7 +29,7 @@ CODEX_HOME=/tmp/codex-config-test pnpm tauri dev
 
 Current implementation status:
 - Tauri 2 + React + TypeScript shell.
-- Rust commands for loading, previewing, saving, and restoring config.
+- Rust commands for loading, previewing, and saving config.
 - Health strip with Codex binary detection.
 - Manual Codex binary path preference stored outside Codex `config.toml`.
 - Native file picker for choosing the Codex binary.
@@ -37,15 +37,14 @@ Current implementation status:
 - Editable active profile fields for the same common settings. Profile edits target only the current `profile = "..."` table and can create that profile table if it is missing.
 - Bundled schema metadata drives the editable scalar field catalog and the backend write registry.
 - Full-field catalog/search shows representative official Codex config fields, including complex areas such as `model_providers`, `mcp_servers`, `profiles`, `tools`, and `apps`.
-- Dedicated `model_providers` editor for custom providers: create, edit, rename, delete, preview, save with backup, and protected built-in provider IDs.
-- Dedicated `mcp_servers` editor: create, edit, rename, delete, preview, save with backup, and preserve unknown advanced fields on existing servers.
+- Dedicated `model_providers` editor for custom providers: create, edit, rename, delete, preview, save, and protected built-in provider IDs.
+- Dedicated `mcp_servers` editor: create, edit, rename, delete, preview, save, and preserve unknown advanced fields on existing servers.
 - Global and profile fields are grouped in the UI.
 - Field-level diff plus raw TOML diff preview.
-- Advanced TOML editor for configuring complex fields before dedicated visual editors exist. Raw edits are parsed, reserialized, reparsed, previewed, protected by file tokens, and backed up before save.
+- Advanced TOML editor for configuring complex fields before dedicated visual editors exist. Raw edits are parsed, reserialized, reparsed, previewed, and protected by file tokens.
 - Malformed existing TOML can be repaired through the advanced TOML editor.
 - Active profile override warnings.
 - Raw TOML preview.
-- Backup creation, listing, and restore.
 - Optimistic file tokens to block overwriting config changed outside the app.
 
 Planned next:

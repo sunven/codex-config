@@ -37,7 +37,7 @@ export function SettingsForm({
         <FileCode2 size={18} />
         <div>
           <h2 id={sectionTitleId(title)}>{title}</h2>
-          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">保存会直接写入 config.toml，并自动创建备份。</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">保存会直接写入 config.toml。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <Button
