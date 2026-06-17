@@ -26,31 +26,42 @@ export function settingsChanges(
   scope: "root" | "profile",
 ) {
   return fields.flatMap<DraftChange>((field) => {
-    if (!field.editable || field.kind === "status") {
-      return [];
-    }
-
     const current =
       field.kind === "boolean" ? (field.value ?? "inherited") : (field.value ?? "");
     const next = draftValues[field.path] ?? current;
 
-    if (next === current) {
-      return [];
-    }
-
-    if (field.kind === "boolean") {
-      return [
-        next === "inherited"
-          ? { path: field.path, scope, action: "unset" }
-          : { path: field.path, scope, action: "set", value: next === "true" },
-      ];
-    }
-
-    const trimmed = next.trim();
-    return [
-      trimmed
-        ? { path: field.path, action: "set", value: trimmed, scope }
-        : { path: field.path, action: "unset", scope },
-    ];
+    return fieldChange(field, next, scope);
   });
+}
+
+export function fieldChange(
+  field: FieldState,
+  next: string,
+  scope: "root" | "profile",
+): DraftChange[] {
+  if (!field.editable || field.kind === "status") {
+    return [];
+  }
+
+  const current =
+    field.kind === "boolean" ? (field.value ?? "inherited") : (field.value ?? "");
+
+  if (next === current) {
+    return [];
+  }
+
+  if (field.kind === "boolean") {
+    return [
+      next === "inherited"
+        ? { path: field.path, scope, action: "unset" }
+        : { path: field.path, scope, action: "set", value: next === "true" },
+    ];
+  }
+
+  const trimmed = next.trim();
+  return [
+    trimmed
+      ? { path: field.path, action: "set", value: trimmed, scope }
+      : { path: field.path, action: "unset", scope },
+  ];
 }

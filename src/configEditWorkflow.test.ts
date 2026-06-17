@@ -86,7 +86,7 @@ describe("config edit workflow", () => {
     expect(outcome.notice).toBe("已保存原始 TOML。备份：~/backups/config.toml.bak");
   });
 
-  it("sets pending delete ids for table delete previews", async () => {
+  it("maps table delete previews to their preview commands", async () => {
     invokeMock.mockResolvedValueOnce({
       changed: true,
       fieldDiffs: [],
@@ -103,7 +103,7 @@ describe("config edit workflow", () => {
       id: "filesystem",
     });
     expect(outcome.previewKind).toBe("mcpServerDelete");
-    expect(outcome.pendingDeleteServerId).toBe("filesystem");
+    expect(outcome.preview.textDiff).toContain("filesystem");
   });
 
   it("returns a notice without invoking Tauri for empty settings previews", async () => {
@@ -136,8 +136,6 @@ describe("config edit workflow", () => {
       status: "preview",
       previewKind: "modelProviderDelete",
       notice: null,
-      pendingDeleteProviderId: "local",
-      pendingDeleteServerId: null,
     });
   });
 

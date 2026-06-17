@@ -19,30 +19,24 @@ import {
   StringMapEditor,
   TableEntryEditor,
 } from "./ConfigTableEntryEditor";
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { Select } from "./components/ui/select";
+import { cn } from "./components/ui/utils";
 
 export function ModelProvidersPanel({
   state,
   draft,
-  savePreviewReady,
-  pendingDeleteId,
   onDraftChange,
   onPreview,
   onSave,
-  onPreviewDelete,
   onDelete,
 }: {
   state: AppState;
   draft: ModelProviderDraft;
-  savePreviewReady: boolean;
-  pendingDeleteId: string | null;
   onDraftChange: (draft: ModelProviderDraft) => void;
   onPreview: () => void;
   onSave: () => void;
-  onPreviewDelete: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
   const providers = state.modelProviders.providers;
@@ -62,7 +56,7 @@ export function ModelProvidersPanel({
           const reserved = state.modelProviders.reservedIds.includes(provider.id);
 
           return (
-            <div className={cx("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === provider.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={provider.id}>
+            <div className={cn("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === provider.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={provider.id}>
               <button
                 aria-label={`选择 provider ${providerName}`}
                 className="flex w-full min-w-0 cursor-pointer flex-col gap-[5px] border-0 bg-transparent p-0 text-left text-inherit"
@@ -71,11 +65,11 @@ export function ModelProvidersPanel({
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-[5px] [&>strong]:min-w-0 [&>strong]:break-words">
                   <strong>{providerName}</strong>
-                  <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", !reserved ? "bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--secondary)] text-[var(--secondary-foreground)]")}>
+                  <Badge variant={!reserved ? "success" : "secondary"}>
                     {reserved ? "built-in" : "custom"}
-                  </span>
+                  </Badge>
                   {provider.hasAdvancedFields && (
-                    <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">advanced fields</span>
+                    <Badge variant="muted">advanced fields</Badge>
                   )}
                 </div>
                 <code>{provider.id}</code>
@@ -86,27 +80,16 @@ export function ModelProvidersPanel({
                 </div>
               </button>
               <div className="flex flex-wrap gap-[5px]">
-                <button
-                  aria-label={`预览删除 provider ${provider.id}`}
-                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
+                <Button
+                  aria-label={`删除 provider ${provider.id}`}
                   disabled={!state.writable || reserved}
-                  onClick={() => onPreviewDelete(provider.id)}
-                  title={reserved ? "内置 provider 不能删除" : `预览删除 provider ${provider.id}`}
-                  type="button"
-                >
-                  预览删除
-                </button>
-                <button
-                  aria-label={`确认删除 provider ${provider.id}`}
-                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
-                  disabled={!state.writable || reserved || pendingDeleteId !== provider.id}
                   onClick={() => onDelete(provider.id)}
-                  title={reserved ? "内置 provider 不能删除" : `确认删除 provider ${provider.id}`}
-                  type="button"
+                  title={reserved ? "内置 provider 不能删除" : `删除 provider ${provider.id}`}
+                  size="sm"
                 >
                   <Trash2 size={14} />
                   删除
-                </button>
+                </Button>
               </div>
             </div>
           );
@@ -124,7 +107,6 @@ export function ModelProvidersPanel({
       saveButtonText="保存 provider"
       writable={state.writable}
       dirty={dirty}
-      savePreviewReady={savePreviewReady}
       onPreview={onPreview}
       onSave={onSave}
       newEntryAriaLabel="新建 model provider"
@@ -161,14 +143,14 @@ export function ModelProvidersPanel({
             />
             <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
               <span>Wire API</span>
-              <select
-                className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+              <Select
+                className="!w-full !max-w-none"
                 value={draft.wireApi ?? "responses"}
                 onChange={(event) => patch({ wireApi: event.currentTarget.value })}
               >
                 <option value="">unset</option>
                 <option value="responses">responses</option>
-              </select>
+              </Select>
             </label>
             <LabeledInput
               label="Env key instructions"
@@ -243,22 +225,16 @@ export function ModelProvidersPanel({
 export function McpServersPanel({
   state,
   draft,
-  savePreviewReady,
-  pendingDeleteId,
   onDraftChange,
   onPreview,
   onSave,
-  onPreviewDelete,
   onDelete,
 }: {
   state: AppState;
   draft: McpServerDraft;
-  savePreviewReady: boolean;
-  pendingDeleteId: string | null;
   onDraftChange: (draft: McpServerDraft) => void;
   onPreview: () => void;
   onSave: () => void;
-  onPreviewDelete: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
   const servers = state.mcpServers.servers;
@@ -277,7 +253,7 @@ export function McpServersPanel({
           const enabled = server.enabled !== false;
 
           return (
-            <div className={cx("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === server.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={server.id}>
+            <div className={cn("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === server.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={server.id}>
               <button
                 aria-label={`选择 MCP server ${server.id}`}
                 className="flex w-full min-w-0 cursor-pointer flex-col gap-[5px] border-0 bg-transparent p-0 text-left text-inherit"
@@ -286,11 +262,14 @@ export function McpServersPanel({
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-[5px] [&>strong]:min-w-0 [&>strong]:break-words">
                   <strong>{server.id}</strong>
-                  <span className={cx("self-start rounded-full border border-[var(--border)] bg-[var(--secondary)] px-[7px] py-0.5 text-[0.68rem] font-extrabold uppercase text-[var(--secondary-foreground)]", enabled && "border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]")}>
+                  <Badge
+                    className="self-start text-[0.68rem] font-extrabold uppercase"
+                    variant={enabled ? "success" : "secondary"}
+                  >
                     {enabled ? "enabled" : "disabled"}
-                  </span>
+                  </Badge>
                   {server.hasAdvancedFields && (
-                    <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">advanced fields</span>
+                    <Badge variant="muted">advanced fields</Badge>
                   )}
                 </div>
                 <code>{server.command || "command unset"}</code>
@@ -302,27 +281,16 @@ export function McpServersPanel({
                 </div>
               </button>
               <div className="flex flex-wrap gap-[5px]">
-                <button
-                  aria-label={`预览删除 MCP server ${server.id}`}
-                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
+                <Button
+                  aria-label={`删除 MCP server ${server.id}`}
                   disabled={!state.writable}
-                  onClick={() => onPreviewDelete(server.id)}
-                  title={`预览删除 MCP server ${server.id}`}
-                  type="button"
-                >
-                  预览删除
-                </button>
-                <button
-                  aria-label={`确认删除 MCP server ${server.id}`}
-                  className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
-                  disabled={!state.writable || pendingDeleteId !== server.id}
                   onClick={() => onDelete(server.id)}
-                  title={`确认删除 MCP server ${server.id}`}
-                  type="button"
+                  title={`删除 MCP server ${server.id}`}
+                  size="sm"
                 >
                   <Trash2 size={14} />
                   删除
-                </button>
+                </Button>
               </div>
             </div>
           );
@@ -340,7 +308,6 @@ export function McpServersPanel({
       saveButtonText="保存 server"
       writable={state.writable}
       dirty={dirty}
-      savePreviewReady={savePreviewReady}
       onPreview={onPreview}
       onSave={onSave}
       newEntryAriaLabel="新建 MCP server"
@@ -370,8 +337,8 @@ export function McpServersPanel({
             />
             <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
               <span>Enabled</span>
-              <select
-                className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+              <Select
+                className="!w-full !max-w-none"
                 value={draft.enabled === undefined ? "unset" : String(draft.enabled)}
                 onChange={(event) => {
                   const value = event.currentTarget.value;
@@ -386,7 +353,7 @@ export function McpServersPanel({
                 <option value="unset">unset</option>
                 <option value="true">true</option>
                 <option value="false">false</option>
-              </select>
+              </Select>
             </label>
           </div>
 

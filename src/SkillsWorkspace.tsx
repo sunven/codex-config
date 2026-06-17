@@ -10,6 +10,11 @@ import {
   type SkillContent,
 } from "./globalSkills";
 import { displayPath, formatBytes } from "./formatters";
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { CompactEmpty } from "./components/ui/compact-empty";
+import { Input } from "./components/ui/input";
+import { cn } from "./components/ui/utils";
 
 type SkillsWorkspaceProps = {
   state: AppState;
@@ -17,10 +22,6 @@ type SkillsWorkspaceProps = {
   onError: (message: string | null) => void;
   onStatusMessage: (message: string | null) => void;
 };
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
 
 export function SkillsWorkspace({
   state,
@@ -161,25 +162,25 @@ function SkillsPanel({
         <div>
           <h2 id="global-skills-title">全局 Skills</h2>
         </div>
-        <span className="inline-flex min-h-6 flex-none items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-0.5 text-[0.72rem] font-bold text-[var(--secondary-foreground)]">{resultLabel}</span>
-        <button
+        <Badge size="count">{resultLabel}</Badge>
+        <Button
           aria-label="新增 skill"
-          className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
           disabled={!state.writable || importing}
           onClick={onImport}
-          type="button"
+          size="sm"
         >
           <Plus size={14} />
           <span>{importing ? "导入中" : "新增 skill"}</span>
-        </button>
+        </Button>
         <div className="ml-2 flex min-w-0 flex-[1_1_360px] flex-wrap gap-[5px]">
           {state.skills.roots.map((root) => (
-            <span
-              className={cx("max-w-full break-words rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-[3px] text-[0.72rem] font-bold text-[var(--secondary-foreground)]", root.label.toLowerCase().includes("agent") ? "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]" : "border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]", !root.exists && "border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]")}
+            <Badge
+              className="max-w-full break-words whitespace-normal px-2 py-[3px]"
+              variant={!root.exists ? "muted" : root.label.toLowerCase().includes("agent") ? "success" : "primary"}
               key={root.path}
             >
               {root.label}: {root.exists ? displayPath(root.path, state.homeDir) : "未找到"}
-            </span>
+            </Badge>
           ))}
         </div>
       </div>
@@ -188,8 +189,8 @@ function SkillsPanel({
         <div className="flex min-w-0 flex-col gap-1.5">
           <label className="mb-2 flex min-w-0 flex-col gap-[5px] [&>span]:text-[0.74rem] [&>span]:font-semibold [&>span]:text-[var(--muted-foreground)]">
             <span>搜索全局 skills</span>
-            <input
-              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+            <Input
+              className="!w-full !max-w-none"
               type="search"
               value={query}
               placeholder="搜索 skill 名称、描述或路径"
@@ -197,12 +198,12 @@ function SkillsPanel({
             />
           </label>
           {skills.length === 0 ? (
-            <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">没有发现匹配的全局 skill。</div>
+            <CompactEmpty>没有发现匹配的全局 skill。</CompactEmpty>
           ) : (
             skills.map((skill) => {
               return (
                 <div
-                  className={cx("relative flex min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--secondary)] py-2.5 pl-3 pr-[84px]", skill.source.toLowerCase().includes("agent") ? "border-[#bbf7d0] bg-[#f0fdf4]" : "border-[#bfdbfe] bg-[#eff6ff]", skill.path === selectedSkill?.path && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.24)]")}
+                  className={cn("relative flex min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--secondary)] py-2.5 pl-3 pr-[84px]", skill.source.toLowerCase().includes("agent") ? "border-[#bbf7d0] bg-[#f0fdf4]" : "border-[#bfdbfe] bg-[#eff6ff]", skill.path === selectedSkill?.path && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.24)]")}
                   key={skill.path}
                 >
                   <button
@@ -211,7 +212,9 @@ function SkillsPanel({
                     onClick={() => onSelect(skill.path)}
                     type="button"
                   />
-                  <span className="absolute right-3 top-2.5 z-[1] inline-flex min-w-16 items-center justify-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--card)] px-[9px] py-1 text-[0.72rem] font-extrabold leading-[1.1] text-[var(--secondary-foreground)]">{formatBytes(skill.size)}</span>
+                  <Badge className="absolute right-3 top-2.5 z-[1] bg-[var(--card)] px-[9px] py-1 font-extrabold leading-[1.1]" variant="card">
+                    {formatBytes(skill.size)}
+                  </Badge>
                   <div className="relative z-[1] flex min-w-0 items-start gap-[7px]">
                     <Switch
                       aria-label={`${skill.enabled ? "停用" : "启用"} skill ${skill.name}`}
@@ -223,7 +226,7 @@ function SkillsPanel({
                     />
                     <span className="flex min-w-0 flex-wrap items-center gap-1.5 [&>strong]:text-[var(--foreground)]">
                       <strong>{skill.name}</strong>
-                      {skill.symlink && <span className="rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-[7px] py-[3px] text-[0.68rem] font-extrabold leading-none text-[var(--primary)]">软链</span>}
+                      {skill.symlink && <Badge className="py-[3px] text-[0.68rem] font-extrabold leading-none" variant="primary">软链</Badge>}
                     </span>
                   </div>
                   <code>{displayPath(skill.path, state.homeDir)}</code>
@@ -251,9 +254,12 @@ function SkillsPanel({
                     </p>
                   )}
                 </div>
-                <span className={cx("self-start rounded-full border border-[var(--border)] bg-[var(--secondary)] px-[7px] py-0.5 text-[0.68rem] font-extrabold uppercase text-[var(--secondary-foreground)]", selectedSkill.enabled && "border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]")}>
+                <Badge
+                  className="self-start text-[0.68rem] font-extrabold uppercase"
+                  variant={selectedSkill.enabled ? "success" : "secondary"}
+                >
                   {selectedSkill.enabled ? "enabled" : "disabled"}
-                </span>
+                </Badge>
               </div>
               <pre className="m-0 max-h-[520px] overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius)] bg-[var(--code-background)] p-2.5 text-[0.76rem] leading-[1.42] text-[var(--code-foreground)]">{selectedMarkdown || "选择左侧 skill 后会显示 SKILL.md 内容。"}</pre>
               <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
@@ -261,7 +267,7 @@ function SkillsPanel({
               </p>
             </>
           ) : (
-            <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">没有可预览的 skill。</div>
+            <CompactEmpty>没有可预览的 skill。</CompactEmpty>
           )}
         </div>
       </div>

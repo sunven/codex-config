@@ -8,6 +8,10 @@ import {
   toggleCollapsedMonth,
 } from "./codexSessions";
 import { displayPath, formatBytes, formatIsoDateTime } from "./formatters";
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { CompactEmpty } from "./components/ui/compact-empty";
+import { cn } from "./components/ui/utils";
 
 type SessionsWorkspaceProps = {
   state: AppState;
@@ -15,10 +19,6 @@ type SessionsWorkspaceProps = {
   onError: (message: string | null) => void;
   onStatusMessage: (message: string | null) => void;
 };
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
 
 export function SessionsWorkspace({
   state,
@@ -95,7 +95,7 @@ function SessionsPanel({
             {sessionYears.map((year) => (
               <button
                 aria-selected={year.key === selectedYearKey}
-                className={cx("flex min-h-[54px] min-w-[146px] flex-none cursor-pointer flex-col items-start gap-0.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-[7px] text-left text-[var(--foreground)] [&_strong]:text-[0.88rem] [&_strong]:text-[var(--foreground)] [&_span]:whitespace-nowrap [&_span]:text-[0.74rem] [&_span]:text-[var(--muted-foreground)]", year.key === selectedYearKey && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.14)]")}
+                className={cn("flex min-h-[54px] min-w-[146px] flex-none cursor-pointer flex-col items-start gap-0.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-[7px] text-left text-[var(--foreground)] [&_strong]:text-[0.88rem] [&_strong]:text-[var(--foreground)] [&_span]:whitespace-nowrap [&_span]:text-[0.74rem] [&_span]:text-[var(--muted-foreground)]", year.key === selectedYearKey && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.14)]")}
                 key={year.key}
                 onClick={() => setActiveYear(year.key)}
                 role="tab"
@@ -130,7 +130,7 @@ function SessionsPanel({
 
       <div className="flex min-w-0 flex-col gap-3.5">
         {sessions.length === 0 ? (
-          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">当前 Codex Home 下没有 session 记录。</div>
+          <CompactEmpty>当前 Codex Home 下没有 session 记录。</CompactEmpty>
         ) : selectedYear ? (
           selectedYear.months.map((group) => {
             const isCollapsed = collapsedMonths[group.key] ?? false;
@@ -163,7 +163,9 @@ function SessionsPanel({
                           <div className="flex min-w-0 flex-col gap-1.5">
                             <div className="flex min-w-0 items-center justify-between gap-2 [&>strong]:break-words [&>strong]:text-[var(--foreground)]">
                               <strong>{session.title}</strong>
-                              <span className="inline-flex min-w-16 flex-none items-center justify-center self-start whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-[9px] py-1 text-[0.72rem] font-extrabold leading-[1.1] text-[var(--secondary-foreground)]">{formatBytes(session.size)}</span>
+                              <Badge className="flex-none self-start px-[9px] py-1 font-extrabold leading-[1.1]">
+                                {formatBytes(session.size)}
+                              </Badge>
                             </div>
                             <code>{displayPath(session.path, state.homeDir)}</code>
                             <div className="flex flex-wrap gap-1.5 text-[0.78rem] text-[var(--muted-foreground)] [&>span]:break-words">
@@ -178,16 +180,15 @@ function SessionsPanel({
                             )}
                           </div>
                           <div className="flex flex-wrap justify-end gap-[5px]">
-                            <button
+                            <Button
                               aria-label={deleteLabel}
-                              className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                               onClick={() => onDelete(session.id)}
                               title={deleteLabel}
-                              type="button"
+                              size="sm"
                             >
                               <Trash2 size={14} />
                               {deleting ? "确认删除" : "删除"}
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       );
@@ -198,7 +199,7 @@ function SessionsPanel({
             );
           })
         ) : (
-          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">当前 Codex Home 下没有 session 记录。</div>
+          <CompactEmpty>当前 Codex Home 下没有 session 记录。</CompactEmpty>
         )}
       </div>
     </section>

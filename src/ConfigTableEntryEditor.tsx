@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 import { FileCode2, Plus } from "lucide-react";
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { CompactEmpty } from "./components/ui/compact-empty";
+import { Input } from "./components/ui/input";
 
 export function TableEntryEditor({
   titleId,
@@ -11,7 +15,6 @@ export function TableEntryEditor({
   saveButtonText,
   writable,
   dirty,
-  savePreviewReady,
   onPreview,
   onSave,
   newEntryAriaLabel,
@@ -30,7 +33,6 @@ export function TableEntryEditor({
   saveButtonText: string;
   writable: boolean;
   dirty: boolean;
-  savePreviewReady: boolean;
   onPreview: () => void;
   onSave: () => void;
   newEntryAriaLabel: string;
@@ -48,41 +50,41 @@ export function TableEntryEditor({
           <h2 id={titleId}>{title}</h2>
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">{description}</p>
         </div>
-        <span className="inline-flex min-h-6 flex-none items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-0.5 text-[0.72rem] font-bold text-[var(--secondary-foreground)]">{countLabel}</span>
+        <Badge size="count">{countLabel}</Badge>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
-          <button
+          <Button
             aria-label={previewLabel}
-            className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
             disabled={!writable || !dirty}
             onClick={onPreview}
-            type="button"
+            size="sm"
           >
             预览
-          </button>
-          <button
+          </Button>
+          <Button
             aria-label={saveLabel}
-            className="ml-auto inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--primary)] bg-[var(--primary)] px-[11px] text-[var(--primary-foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:border-[#1d4ed8] hover:bg-[#1d4ed8] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
-            disabled={!writable || !dirty || !savePreviewReady}
+            className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
+            disabled={!writable || !dirty}
             onClick={onSave}
-            type="button"
+            variant="primary"
+            size="sm"
           >
             {saveButtonText}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] gap-3 max-[940px]:grid-cols-1">
         <div className="flex min-w-0 flex-col gap-1.5">
-          <button
+          <Button
             aria-label={newEntryAriaLabel}
-            className="flex w-full min-w-0 flex-row items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left font-bold text-[var(--foreground)]"
+            className="flex w-full min-w-0 flex-row items-center whitespace-normal border-[var(--border)] bg-[var(--muted)] p-2 text-left font-bold text-[var(--foreground)]"
             onClick={onNewEntry}
-            type="button"
+            variant="ghost"
           >
             <Plus size={16} />
             {newEntryText}
-          </button>
-          {entries ? entries : <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">{emptyMessage}</div>}
+          </Button>
+          {entries ? entries : <CompactEmpty>{emptyMessage}</CompactEmpty>}
         </div>
 
         <div className="flex min-w-0 flex-col gap-2.5">{form}</div>
@@ -105,8 +107,8 @@ export function LabeledInput({
   return (
     <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
       <span>{label}</span>
-      <input
-        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+      <Input
+        className="!w-full !max-w-none"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -127,8 +129,8 @@ export function LabeledNumber({
   return (
     <label className="flex min-w-0 flex-col gap-[3px] [&>span]:text-[0.76rem] [&>span]:font-bold [&>span]:text-[var(--muted-foreground)]">
       <span>{label}</span>
-      <input
-        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+      <Input
+        className="!w-full !max-w-none"
         min={0}
         type="number"
         value={value ?? ""}
@@ -168,25 +170,25 @@ export function StringListEditor({
     <div className="flex flex-col gap-1.5 border-t border-[var(--border)] pt-2">
       <div className="flex items-center justify-between gap-1.5 [&>strong]:text-[0.76rem] [&>strong]:font-bold [&>strong]:text-[var(--muted-foreground)]">
         <strong>{label}</strong>
-        <button className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={() => onChange([...values, ""])}>
+        <Button size="sm" onClick={() => onChange([...values, ""])}>
           <Plus size={14} />
           添加
-        </button>
+        </Button>
       </div>
       {values.length === 0 ? (
         <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">未设置。</p>
       ) : (
         values.map((value, index) => (
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5 max-[940px]:grid-cols-1" key={`${label}-${index}`}>
-            <input
-              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+            <Input
+              className="!w-full !max-w-none"
               value={value}
               placeholder={placeholder ?? "value"}
               onChange={(event) => updateValue(index, event.currentTarget.value)}
             />
-            <button className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={() => remove(index)}>
+            <Button size="sm" onClick={() => remove(index)}>
               删除
-            </button>
+            </Button>
           </div>
         ))
       )}
@@ -227,34 +229,34 @@ export function StringMapEditor({
     <div className="flex flex-col gap-1.5 border-t border-[var(--border)] pt-2">
       <div className="flex items-center justify-between gap-1.5 [&>strong]:text-[0.76rem] [&>strong]:font-bold [&>strong]:text-[var(--muted-foreground)]">
         <strong>{label}</strong>
-        <button
-          className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
+        <Button
+          size="sm"
           onClick={() => onChange({ ...values, "": "" })}
         >
           <Plus size={14} />
           添加
-        </button>
+        </Button>
       </div>
       {rows.length === 0 ? (
         <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">未设置。</p>
       ) : (
         rows.map(([key, value], index) => (
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-1.5 max-[940px]:grid-cols-1" key={`${label}-${index}`}>
-            <input
-              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+            <Input
+              className="!w-full !max-w-none"
               value={key}
               placeholder="key"
               onChange={(event) => updateKey(index, event.currentTarget.value)}
             />
-            <input
-              className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+            <Input
+              className="!w-full !max-w-none"
               value={value}
               placeholder="value"
               onChange={(event) => updateValue(index, event.currentTarget.value)}
             />
-            <button className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={() => remove(index)}>
+            <Button size="sm" onClick={() => remove(index)}>
               删除
-            </button>
+            </Button>
           </div>
         ))
       )}

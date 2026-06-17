@@ -1,5 +1,6 @@
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import { ComponentPropsWithoutRef, ElementRef, forwardRef } from "react";
+import { cn } from "./utils";
 
 type SwitchSize = "sm" | "md";
 
@@ -7,16 +8,12 @@ type SwitchProps = ComponentPropsWithoutRef<typeof SwitchPrimitive.Root> & {
   size?: SwitchSize;
 };
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
 const Switch = forwardRef<
   ElementRef<typeof SwitchPrimitive.Root>,
   SwitchProps
 >(({ className, size = "md", ...props }, ref) => (
   <SwitchPrimitive.Root
-    className={cx(
+    className={cn(
       "relative inline-flex flex-none items-center rounded-full border border-[var(--input)] bg-[var(--input)] p-0 transition-[background-color,border-color,opacity] duration-[120ms] data-[state=checked]:border-[var(--primary)] data-[state=checked]:bg-[var(--primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] disabled:cursor-not-allowed disabled:opacity-[0.55]",
       size === "sm" ? "h-5 w-9" : "h-6 w-[42px]",
       className,
@@ -25,7 +22,7 @@ const Switch = forwardRef<
     ref={ref}
   >
     <SwitchPrimitive.Thumb
-      className={cx(
+      className={cn(
         "block translate-x-0.5 rounded-full bg-[var(--card)] shadow-[0_1px_2px_rgba(0,0,0,0.16)] transition-transform duration-[120ms] data-[state=checked]:translate-x-[18px]",
         size === "sm" ? "size-3.5" : "size-[18px]",
       )}

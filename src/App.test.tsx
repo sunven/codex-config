@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import type { AppState } from "./appState";
 
 const invokeMock = vi.hoisted(() => vi.fn());
 const openMock = vi.hoisted(() => vi.fn());
@@ -20,7 +21,7 @@ vi.mock("@tauri-apps/api/window", () => ({
   }),
 }));
 
-function appState(overrides = {}) {
+function appState(overrides: Partial<AppState> = {}): AppState {
   return {
     homeDir: "/Users/test/.codex",
     configPath: "/Users/test/.codex/config.toml",
@@ -206,7 +207,7 @@ function appState(overrides = {}) {
   };
 }
 
-function appStateWithModelProviders(overrides = {}) {
+function appStateWithModelProviders(overrides: Partial<AppState> = {}): AppState {
   return appState({
     modelProviders: {
       reservedIds: ["openai", "azure", "ollama", "lmstudio"],
@@ -252,7 +253,7 @@ function appStateWithModelProviders(overrides = {}) {
   });
 }
 
-function appStateWithMcpServers(overrides = {}) {
+function appStateWithMcpServers(overrides: Partial<AppState> = {}): AppState {
   return appState({
     mcpServers: {
       servers: [
@@ -285,7 +286,7 @@ function appStateWithMcpServers(overrides = {}) {
   });
 }
 
-function appStateWithSkills(overrides = {}): any {
+function appStateWithSkills(overrides: Partial<AppState> = {}): AppState {
   return appState({
     skills: {
       roots: [
@@ -308,7 +309,7 @@ function appStateWithSkills(overrides = {}): any {
           path: "/Users/test/.codex/skills/tdd/SKILL.md",
           directory: "/Users/test/.codex/skills/tdd",
           symlink: false,
-          targetDirectory: null,
+          targetDirectory: undefined,
           source: "Codex global skills",
           enabled: true,
           configured: true,
@@ -320,7 +321,7 @@ function appStateWithSkills(overrides = {}): any {
           path: "/Users/test/.codex/skills/triage/SKILL.md",
           directory: "/Users/test/.codex/skills/triage",
           symlink: false,
-          targetDirectory: null,
+          targetDirectory: undefined,
           source: "Codex global skills",
           enabled: false,
           configured: false,
@@ -435,23 +436,19 @@ describe("Config workbench", () => {
     expect(screen.getByRole("button", { name: "保存全局配置" })).toBeDisabled();
   });
 
-  it("keeps global settings save gated behind a successful preview", async () => {
+  it("saves global settings directly without requiring a preview", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appState())
       .mockResolvedValueOnce({
         changed: true,
-        fieldDiffs: [
-          {
-            scope: "root",
-            path: "model",
-            label: "Model",
-            before: "gpt-5",
-            after: "gpt-5-mini",
-          },
-        ],
-        textDiff: "-model = \"gpt-5\"\n+model = \"gpt-5-mini\"",
-        candidateRawToml: "model = \"gpt-5-mini\"",
+        backupPath: "/Users/test/.codex/backups/config.toml.bak",
+        state: appState({
+          fields: appState().fields.map((field) =>
+            field.path === "model" ? { ...field, value: "gpt-5-mini" } : field,
+          ),
+          rawToml: "model = \"gpt-5-mini\"",
+        }),
       });
 
     render(<App />);
@@ -461,13 +458,72 @@ describe("Config workbench", () => {
     await user.clear(modelInput);
     await user.type(modelInput, "gpt-5-mini");
 
-    expect(screen.getByRole("button", { name: "预览全局配置" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "保存全局配置" })).toBeDisabled();
-
-    await user.click(screen.getByRole("button", { name: "预览全局配置" }));
-
-    expect(await screen.findByText("改为")).toBeVisible();
     expect(screen.getByRole("button", { name: "保存全局配置" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "保存全局配置" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("save_changes", {
+      changes: [{ path: "model", scope: "root", action: "set", value: "gpt-5-mini" }],
+      fileToken: null,
+    });
+    expect(await screen.findByText(/已保存。备份/)).toBeVisible();
+  });
+
+  it("persists select field changes immediately before refresh", async () => {
+    const user = userEvent.setup();
+    const reasoningField = {
+      path: "model_reasoning_effort",
+      label: "Reasoning effort",
+      group: "Model",
+      kind: "select" as const,
+      value: "medium",
+      editable: true,
+      risk: "normal" as const,
+      options: ["low", "medium", "high"],
+    };
+    const initialState = appState({
+      fields: [...appState().fields, reasoningField],
+      rawToml: "model_reasoning_effort = \"medium\"",
+    });
+    const savedState = appState({
+      fields: [
+        ...appState().fields,
+        {
+          ...reasoningField,
+          value: "high",
+        },
+      ],
+      rawToml: "model_reasoning_effort = \"high\"",
+    });
+    invokeMock
+      .mockResolvedValueOnce(initialState)
+      .mockResolvedValueOnce({
+        changed: true,
+        backupPath: "/Users/test/.codex/backups/config.toml.bak",
+        state: savedState,
+      })
+      .mockResolvedValueOnce(savedState);
+
+    render(<App />);
+
+    const globalSettings = await screen.findByRole("region", { name: "全局配置" });
+
+    await user.selectOptions(within(globalSettings).getByLabelText("Reasoning effort"), "high");
+    await screen.findByText(/已保存。备份/);
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("save_changes", {
+      changes: [
+        {
+          path: "model_reasoning_effort",
+          scope: "root",
+          action: "set",
+          value: "high",
+        },
+      ],
+      fileToken: null,
+    });
+    expect(within(globalSettings).getByDisplayValue("high")).toBeVisible();
   });
 
   it("keeps config write actions disabled when the config is read-only", async () => {
@@ -619,15 +675,26 @@ describe("Model provider editor", () => {
     invokeMock.mockReset();
   });
 
-  it("shows provider metadata and renders save previews", async () => {
+  it("shows provider metadata and saves provider changes directly", async () => {
     const user = userEvent.setup();
+    const baseState = appStateWithModelProviders();
     invokeMock
       .mockResolvedValueOnce(appStateWithModelProviders())
       .mockResolvedValueOnce({
         changed: true,
-        fieldDiffs: [],
-        textDiff: "-base_url = \"https://models.example.test/v1/a/very/long/provider/path/that/should/wrap\"\n+base_url = \"https://models.example.test/v1/updated\"",
-        candidateRawToml: "[model_providers.local-gpt]",
+        backupPath: "/Users/test/.codex/backups/config.toml.bak",
+        state: appStateWithModelProviders({
+          modelProviders: {
+            reservedIds: ["openai", "azure", "ollama", "lmstudio"],
+            providers: [
+              {
+                ...baseState.modelProviders.providers[0]!,
+                baseUrl: "https://models.example.test/v1/updated",
+              },
+              baseState.modelProviders.providers[1],
+            ],
+          },
+        }),
       });
 
     render(<App />);
@@ -647,21 +714,22 @@ describe("Model provider editor", () => {
     await user.clear(baseUrlInput);
     await user.type(baseUrlInput, "https://models.example.test/v1/updated");
 
-    await user.click(within(providers).getByRole("button", { name: "预览保存 provider local-gpt" }));
+    await user.click(within(providers).getByRole("button", { name: "保存 provider local-gpt" }));
 
-    expect(await screen.findByText(/updated/)).toBeVisible();
+    expect(invokeMock).toHaveBeenCalledWith("save_model_provider", {
+      draft: expect.objectContaining({
+        id: "local-gpt",
+        baseUrl: "https://models.example.test/v1/updated",
+      }),
+      fileToken: null,
+    });
+    expect(await screen.findByText(/已保存 model provider/)).toBeVisible();
   });
 
-  it("previews provider deletion and disables reserved provider deletion", async () => {
+  it("deletes providers directly and disables reserved provider deletion", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithModelProviders())
-      .mockResolvedValueOnce({
-        changed: true,
-        fieldDiffs: [],
-        textDiff: "-[model_providers.local-gpt]",
-        candidateRawToml: "model = \"gpt-5\"",
-      })
       .mockResolvedValueOnce({
         changed: true,
         backupPath: "/Users/test/.codex/backups/config.toml.bak",
@@ -676,16 +744,9 @@ describe("Model provider editor", () => {
     render(<App />);
 
     const providers = await screen.findByRole("region", { name: "Model providers" });
-    expect(within(providers).getByRole("button", { name: "预览删除 provider openai" })).toBeDisabled();
-    expect(within(providers).getByRole("button", { name: "确认删除 provider openai" })).toBeDisabled();
+    expect(within(providers).getByRole("button", { name: "删除 provider openai" })).toBeDisabled();
 
-    await user.click(within(providers).getByRole("button", { name: "预览删除 provider local-gpt" }));
-
-    expect(invokeMock).toHaveBeenCalledWith("preview_delete_model_provider", {
-      id: "local-gpt",
-    });
-
-    await user.click(within(providers).getByRole("button", { name: "确认删除 provider local-gpt" }));
+    await user.click(within(providers).getByRole("button", { name: "删除 provider local-gpt" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_model_provider", {
       id: "local-gpt",
@@ -700,15 +761,25 @@ describe("MCP server editor", () => {
     invokeMock.mockReset();
   });
 
-  it("shows server metadata and renders save previews", async () => {
+  it("shows server metadata and saves server changes directly", async () => {
     const user = userEvent.setup();
+    const baseState = appStateWithMcpServers();
     invokeMock
       .mockResolvedValueOnce(appStateWithMcpServers())
       .mockResolvedValueOnce({
         changed: true,
-        fieldDiffs: [],
-        textDiff: "-command = \"npx\"\n+command = \"uvx\"",
-        candidateRawToml: "[mcp_servers.filesystem]",
+        backupPath: "/Users/test/.codex/backups/config.toml.bak",
+        state: appStateWithMcpServers({
+          mcpServers: {
+            servers: [
+              {
+                ...baseState.mcpServers.servers[0]!,
+                command: "uvx",
+              },
+              baseState.mcpServers.servers[1],
+            ],
+          },
+        }),
       });
 
     render(<App />);
@@ -731,21 +802,22 @@ describe("MCP server editor", () => {
     await user.clear(commandInput);
     await user.type(commandInput, "uvx");
 
-    await user.click(within(servers).getByRole("button", { name: "预览保存 MCP server filesystem" }));
+    await user.click(within(servers).getByRole("button", { name: "保存 MCP server filesystem" }));
 
-    expect(await screen.findByText(/uvx/)).toBeVisible();
+    expect(invokeMock).toHaveBeenCalledWith("save_mcp_server", {
+      draft: expect.objectContaining({
+        id: "filesystem",
+        command: "uvx",
+      }),
+      fileToken: null,
+    });
+    expect(await screen.findByText(/已保存 MCP server/)).toBeVisible();
   });
 
-  it("previews and commits server deletion", async () => {
+  it("deletes servers directly", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithMcpServers())
-      .mockResolvedValueOnce({
-        changed: true,
-        fieldDiffs: [],
-        textDiff: "-[mcp_servers.filesystem]",
-        candidateRawToml: "model = \"gpt-5\"",
-      })
       .mockResolvedValueOnce({
         changed: true,
         backupPath: "/Users/test/.codex/backups/config.toml.bak",
@@ -762,13 +834,7 @@ describe("MCP server editor", () => {
 
     const servers = screen.getByRole("region", { name: "MCP servers" });
 
-    await user.click(within(servers).getByRole("button", { name: "预览删除 MCP server filesystem" }));
-
-    expect(invokeMock).toHaveBeenCalledWith("preview_delete_mcp_server", {
-      id: "filesystem",
-    });
-
-    await user.click(within(servers).getByRole("button", { name: "确认删除 MCP server filesystem" }));
+    await user.click(within(servers).getByRole("button", { name: "删除 MCP server filesystem" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_mcp_server", {
       id: "filesystem",

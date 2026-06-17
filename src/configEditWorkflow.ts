@@ -65,8 +65,6 @@ export type WorkflowPreviewOutcome = {
   preview: PreviewResult;
   previewKind: ConfigEditPreviewKind;
   notice?: string;
-  pendingDeleteProviderId?: string | null;
-  pendingDeleteServerId?: string | null;
 };
 
 export type WorkflowCommitOutcome<TState> = {
@@ -81,8 +79,6 @@ export type WorkflowPreviewRunOutcome =
       preview: PreviewResult;
       previewKind: ConfigEditPreviewKind;
       notice: string | null;
-      pendingDeleteProviderId: string | null;
-      pendingDeleteServerId: string | null;
     }
   | { status: "notice"; notice: string }
   | { status: "error"; message: string };
@@ -117,8 +113,6 @@ export async function runConfigEditPreview(
       preview: outcome.preview,
       previewKind: outcome.previewKind,
       notice: outcome.notice ?? null,
-      pendingDeleteProviderId: outcome.pendingDeleteProviderId ?? null,
-      pendingDeleteServerId: outcome.pendingDeleteServerId ?? null,
     };
   } catch (error) {
     return { status: "error", message: errorMessage(error) };
@@ -202,7 +196,6 @@ export async function previewConfigEdit(
       return {
         preview,
         previewKind: intent.kind,
-        pendingDeleteProviderId: null,
         notice: preview.changed ? undefined : "Model provider 没有可预览的变更。",
       };
     }
@@ -214,7 +207,6 @@ export async function previewConfigEdit(
       return {
         preview,
         previewKind: intent.kind,
-        pendingDeleteProviderId: preview.changed ? intent.id : null,
         notice: preview.changed ? undefined : "Model provider 没有可删除的变更。",
       };
     }
@@ -226,7 +218,6 @@ export async function previewConfigEdit(
       return {
         preview,
         previewKind: intent.kind,
-        pendingDeleteServerId: null,
         notice: preview.changed ? undefined : "MCP server 没有可预览的变更。",
       };
     }
@@ -238,7 +229,6 @@ export async function previewConfigEdit(
       return {
         preview,
         previewKind: intent.kind,
-        pendingDeleteServerId: preview.changed ? intent.id : null,
         notice: preview.changed ? undefined : "MCP server 没有可删除的变更。",
       };
     }

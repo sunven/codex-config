@@ -55,7 +55,7 @@ describe("useConfigEditWorkflow", () => {
     runCommitMock.mockReset();
   });
 
-  it("stores changed previews and exposes preview readiness by kind", async () => {
+  it("stores changed previews and keeps them readable", async () => {
     runPreviewMock.mockResolvedValueOnce({
       status: "preview",
       preview: {
@@ -66,8 +66,6 @@ describe("useConfigEditWorkflow", () => {
       },
       previewKind: "rootSettings",
       notice: null,
-      pendingDeleteProviderId: null,
-      pendingDeleteServerId: null,
     });
     const { result, onError, onStatusMessage } = renderWorkflow();
     const intent: ConfigEditIntent = {
@@ -80,8 +78,6 @@ describe("useConfigEditWorkflow", () => {
     });
 
     expect(runPreviewMock).toHaveBeenCalledWith(intent);
-    expect(result.current.previewReady("rootSettings")).toBe(true);
-    expect(result.current.previewReady("rawToml")).toBe(false);
     expect(result.current.preview?.textDiff).toContain("gpt-5.5");
     expect(onError).toHaveBeenCalledWith(null);
     expect(onStatusMessage).toHaveBeenCalledWith(null);
@@ -98,27 +94,22 @@ describe("useConfigEditWorkflow", () => {
       },
       previewKind: "modelProviderDelete",
       notice: null,
-      pendingDeleteProviderId: "local",
-      pendingDeleteServerId: null,
     });
     const { result, onStatusMessage } = renderWorkflow();
 
     await act(async () => {
       await result.current.runPreview({ kind: "modelProviderDelete", id: "local" });
     });
-    expect(result.current.pendingDeleteProviderId).toBe("local");
 
     act(() => {
       result.current.reset({ clearStatus: true });
     });
 
     expect(result.current.preview).toBeNull();
-    expect(result.current.pendingDeleteProviderId).toBeNull();
-    expect(result.current.previewReady("modelProviderDelete")).toBe(false);
     expect(onStatusMessage).toHaveBeenLastCalledWith(null);
   });
 
-  it("keeps pending delete ids scoped to changed delete previews", async () => {
+  it("keeps delete previews scoped to changed delete previews", async () => {
     runPreviewMock
       .mockResolvedValueOnce({
         status: "preview",
@@ -130,8 +121,6 @@ describe("useConfigEditWorkflow", () => {
         },
         previewKind: "mcpServerDelete",
         notice: null,
-        pendingDeleteProviderId: null,
-        pendingDeleteServerId: "filesystem",
       })
       .mockResolvedValueOnce({
         status: "preview",
@@ -143,16 +132,12 @@ describe("useConfigEditWorkflow", () => {
         },
         previewKind: "modelProviderSave",
         notice: null,
-        pendingDeleteProviderId: null,
-        pendingDeleteServerId: null,
       });
     const { result } = renderWorkflow();
 
     await act(async () => {
       await result.current.runPreview({ kind: "mcpServerDelete", id: "filesystem" });
     });
-
-    expect(result.current.pendingDeleteServerId).toBe("filesystem");
 
     await act(async () => {
       await result.current.runPreview({
@@ -165,8 +150,6 @@ describe("useConfigEditWorkflow", () => {
         },
       });
     });
-
-    expect(result.current.pendingDeleteServerId).toBeNull();
   });
 
   it("applies committed state and clears preview state", async () => {
@@ -180,8 +163,6 @@ describe("useConfigEditWorkflow", () => {
       },
       previewKind: "rootSettings",
       notice: null,
-      pendingDeleteProviderId: null,
-      pendingDeleteServerId: null,
     });
     runCommitMock.mockResolvedValueOnce({
       status: "commit",
@@ -207,42 +188,7 @@ describe("useConfigEditWorkflow", () => {
     expect(runCommitMock).toHaveBeenCalledWith(intent, { hash: "abc", size: 10 });
     expect(onCommitState).toHaveBeenCalledWith({ homeDir: "/Users/test/.codex" });
     expect(result.current.preview).toBeNull();
-    expect(result.current.previewReady("rootSettings")).toBe(false);
     expect(onStatusMessage).toHaveBeenLastCalledWith("已保存。备份：~/backups/config.toml.bak");
-  });
-
-  it("rejects commits that do not match the latest preview ticket", async () => {
-    runPreviewMock.mockResolvedValueOnce({
-      status: "preview",
-      preview: {
-        changed: true,
-        fieldDiffs: [],
-        textDiff: "+model = \"gpt-5.5\"",
-        candidateRawToml: "model = \"gpt-5.5\"",
-      },
-      previewKind: "rootSettings",
-      notice: null,
-      pendingDeleteProviderId: null,
-      pendingDeleteServerId: null,
-    });
-    const { result, onCommitState, onError } = renderWorkflow();
-
-    await act(async () => {
-      await result.current.runPreview({
-        kind: "rootSettings",
-        changes: [{ path: "model", action: "set", value: "gpt-5.5" }],
-      });
-    });
-    await act(async () => {
-      await result.current.runCommit({
-        kind: "rootSettings",
-        changes: [{ path: "model", action: "set", value: "gpt-5-mini" }],
-      });
-    });
-
-    expect(runCommitMock).not.toHaveBeenCalled();
-    expect(onError).toHaveBeenLastCalledWith("请先预览配置变更。");
-    expect(onCommitState).not.toHaveBeenCalled();
   });
 
   it("allows restore backup commits without a preview ticket", async () => {
@@ -284,8 +230,6 @@ describe("useConfigEditWorkflow", () => {
       },
       previewKind: "fast",
       notice: null,
-      pendingDeleteProviderId: null,
-      pendingDeleteServerId: null,
     });
     runCommitMock.mockResolvedValueOnce({
       status: "error",
@@ -302,5 +246,28 @@ describe("useConfigEditWorkflow", () => {
 
     expect(onError).toHaveBeenLastCalledWith("config.toml changed on disk");
     expect(onCommitState).not.toHaveBeenCalled();
+  });
+
+  it("commits changes without requiring a prior preview", async () => {
+    runCommitMock.mockResolvedValueOnce({
+      status: "commit",
+      state: { homeDir: "/Users/test/.codex" },
+      changed: true,
+      notice: "已保存。备份：~/backups/config.toml.bak",
+    });
+    const { result, onCommitState } = renderWorkflow({
+      fileToken: { hash: "abc", size: 10 },
+    });
+    const intent: ConfigEditIntent = {
+      kind: "rootSettings",
+      changes: [{ path: "model", action: "set", value: "gpt-5.5" }],
+    };
+
+    await act(async () => {
+      await result.current.runCommit(intent);
+    });
+
+    expect(runCommitMock).toHaveBeenCalledWith(intent, { hash: "abc", size: 10 });
+    expect(onCommitState).toHaveBeenCalledWith({ homeDir: "/Users/test/.codex" });
   });
 });

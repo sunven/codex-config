@@ -13,7 +13,9 @@ import {
 } from "./configTableEntries";
 import {
   draftValuesFromFields,
+  fieldChange,
   settingsChanges,
+  type FieldState,
 } from "./configFieldDrafts";
 import {
   FieldCatalog,
@@ -28,11 +30,10 @@ import { displayPath } from "./formatters";
 import { SessionsWorkspace } from "./SessionsWorkspace";
 import { SkillsWorkspace } from "./SkillsWorkspace";
 import { useConfigEditWorkflow } from "./useConfigEditWorkflow";
+import { Button } from "./components/ui/button";
+import { Notice } from "./components/ui/notice";
+import { cn } from "./components/ui/utils";
 import "./App.css";
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
 
 function App() {
   const [state, setState] = useState<AppState | null>(null);
@@ -123,6 +124,38 @@ function App() {
     configEditWorkflow.reset({ clearStatus: true });
   }
 
+  async function updateFieldValue(
+    path: string,
+    value: string,
+    kind: FieldState["kind"],
+  ) {
+    if (!state) {
+      return;
+    }
+
+    const field = state.fields.find((item) => item.path === path);
+    if (!field || !field.editable) {
+      updateDraftValue(path, value);
+      return;
+    }
+
+    if (kind === "boolean" || kind === "select") {
+      const changes = fieldChange(field, value, "root");
+      if (changes.length === 0) {
+        updateDraftValue(path, value);
+        return;
+      }
+
+      await configEditWorkflow.runCommit({
+        kind: "rootSettings",
+        changes,
+      });
+      return;
+    }
+
+    updateDraftValue(path, value);
+  }
+
   async function previewProfileSettings() {
     if (!state) {
       return;
@@ -151,6 +184,38 @@ function App() {
       [path]: value,
     }));
     configEditWorkflow.reset({ clearStatus: true });
+  }
+
+  async function updateProfileFieldValue(
+    path: string,
+    value: string,
+    kind: FieldState["kind"],
+  ) {
+    if (!state) {
+      return;
+    }
+
+    const field = state.profileFields.find((item) => item.path === path);
+    if (!field || !field.editable) {
+      updateProfileDraftValue(path, value);
+      return;
+    }
+
+    if (kind === "boolean" || kind === "select") {
+      const changes = fieldChange(field, value, "profile");
+      if (changes.length === 0) {
+        updateProfileDraftValue(path, value);
+        return;
+      }
+
+      await configEditWorkflow.runCommit({
+        kind: "profileSettings",
+        changes,
+      });
+      return;
+    }
+
+    updateProfileDraftValue(path, value);
   }
 
   async function previewRawToml() {
@@ -196,13 +261,6 @@ function App() {
     });
   }
 
-  async function previewDeleteModelProvider(id: string) {
-    await configEditWorkflow.runPreview({
-      kind: "modelProviderDelete",
-      id,
-    });
-  }
-
   async function deleteModelProvider(id: string) {
     await configEditWorkflow.runCommit({
       kind: "modelProviderDelete",
@@ -221,13 +279,6 @@ function App() {
     await configEditWorkflow.runCommit({
       kind: "mcpServerSave",
       draft: mcpServerDraft,
-    });
-  }
-
-  async function previewDeleteMcpServer(id: string) {
-    await configEditWorkflow.runPreview({
-      kind: "mcpServerDelete",
-      id,
     });
   }
 
@@ -255,8 +306,6 @@ function App() {
   const rawTomlDirty = state ? rawTomlDraft !== state.rawToml : false;
   const rawTomlWritable = Boolean(state?.health.codex.found);
   const preview = configEditWorkflow.preview;
-  const pendingDeleteProviderId = configEditWorkflow.pendingDeleteProviderId;
-  const pendingDeleteServerId = configEditWorkflow.pendingDeleteServerId;
 
   useEffect(() => {
     void loadState();
@@ -279,25 +328,29 @@ function App() {
         <div className="min-w-0">
           <h1>Codex 配置</h1>
         </div>
-        <button className="inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[11px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]" onClick={loadState} disabled={loading}>
+        <Button onClick={loadState} disabled={loading}>
           <RefreshCw size={18} />
           <span>{loading ? "刷新中" : "刷新"}</span>
-        </button>
+        </Button>
       </header>
 
       {error && (
-        <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words border-[#fecaca] bg-[var(--destructive-soft)] text-[#991b1b]" role="alert">
+        <Notice role="alert" variant="destructive">
           <ShieldAlert size={18} />
           <span>{error}</span>
-        </section>
+        </Notice>
       )}
 
       {state && (
         <>
-          {statusMessage && <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words mb-2 border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]">{statusMessage}</section>}
+          {statusMessage && (
+            <Notice className="mb-2" variant="success">
+              {statusMessage}
+            </Notice>
+          )}
           <TabBar activeTab={activeTab} onChange={switchTab} />
           <section
-            className={cx("mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 max-[940px]:grid-cols-1", (activeTab === "skills" || activeTab === "sessions") && "grid-cols-[minmax(0,1fr)]")}
+            className={cn("mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 max-[940px]:grid-cols-1", (activeTab === "skills" || activeTab === "sessions") && "grid-cols-[minmax(0,1fr)]")}
           >
             {activeTab === "config" ? (
               <>
@@ -306,7 +359,6 @@ function App() {
                     state={state}
                     onPreview={previewFastMode}
                     onSave={saveFastMode}
-                    previewReady={configEditWorkflow.previewReady("fast")}
                   />
                   <SettingsForm
                     fields={state.fields}
@@ -315,28 +367,23 @@ function App() {
                     writable={state.writable}
                     title="全局配置"
                     emptyMessage="config.toml 当前无法解析。请先在右侧原始 TOML 中查看错误，修复后刷新。"
-                    previewReady={configEditWorkflow.previewReady("rootSettings")}
-                    onChange={updateDraftValue}
+                    onChange={updateFieldValue}
                     onPreview={previewSettings}
                     onSave={saveSettings}
                   />
                   <ModelProvidersPanel
                     state={state}
                     draft={modelProviderDraft}
-                    savePreviewReady={configEditWorkflow.previewReady("modelProviderSave")}
-                    pendingDeleteId={pendingDeleteProviderId}
                     onDraftChange={updateModelProviderDraft}
                     onPreview={previewModelProvider}
                     onSave={saveModelProvider}
-                    onPreviewDelete={previewDeleteModelProvider}
                     onDelete={deleteModelProvider}
                   />
                   <ProfileSettingsForm
                     state={state}
                     draftValues={profileDraftValues}
                     dirty={profileSettingsDirty}
-                    previewReady={configEditWorkflow.previewReady("profileSettings")}
-                    onChange={updateProfileDraftValue}
+                    onChange={updateProfileFieldValue}
                     onPreview={previewProfileSettings}
                     onSave={saveProfileSettings}
                   />
@@ -353,7 +400,6 @@ function App() {
                   rawTomlDraft={rawTomlDraft}
                   rawTomlDirty={rawTomlDirty}
                   rawTomlWritable={rawTomlWritable}
-                  rawTomlPreviewReady={configEditWorkflow.previewReady("rawToml")}
                   onRawTomlChange={updateRawTomlDraft}
                   onPreviewRawToml={previewRawToml}
                   onSaveRawToml={saveRawToml}
@@ -375,12 +421,9 @@ function App() {
                   <McpServersPanel
                     state={state}
                     draft={mcpServerDraft}
-                    savePreviewReady={configEditWorkflow.previewReady("mcpServerSave")}
-                    pendingDeleteId={pendingDeleteServerId}
                     onDraftChange={updateMcpServerDraft}
                     onPreview={previewMcpServer}
                     onSave={saveMcpServer}
-                    onPreviewDelete={previewDeleteMcpServer}
                     onDelete={deleteMcpServer}
                   />
                 </div>
@@ -390,7 +433,6 @@ function App() {
                   rawTomlDraft={rawTomlDraft}
                   rawTomlDirty={rawTomlDirty}
                   rawTomlWritable={rawTomlWritable}
-                  rawTomlPreviewReady={configEditWorkflow.previewReady("rawToml")}
                   onRawTomlChange={updateRawTomlDraft}
                   onPreviewRawToml={previewRawToml}
                   onSaveRawToml={saveRawToml}

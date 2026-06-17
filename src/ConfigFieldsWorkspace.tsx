@@ -1,10 +1,12 @@
 import { AlertTriangle, CheckCircle2, FileCode2 } from "lucide-react";
 import type { AppState, ProfileWarning } from "./appState";
 import type { FieldState } from "./configFieldDrafts";
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { CompactEmpty } from "./components/ui/compact-empty";
+import { Input } from "./components/ui/input";
+import { Notice } from "./components/ui/notice";
+import { Select } from "./components/ui/select";
 
 export function SettingsForm({
   fields,
@@ -13,7 +15,6 @@ export function SettingsForm({
   writable,
   title,
   emptyMessage,
-  previewReady,
   onChange,
   onPreview,
   onSave,
@@ -24,8 +25,7 @@ export function SettingsForm({
   writable: boolean;
   title: string;
   emptyMessage: string;
-  previewReady: boolean;
-  onChange: (path: string, value: string) => void;
+  onChange: (path: string, value: string, kind: FieldState["kind"]) => void;
   onPreview: () => void;
   onSave: () => void;
 }) {
@@ -40,32 +40,34 @@ export function SettingsForm({
         <FileCode2 size={18} />
         <div>
           <h2 id={sectionTitleId(title)}>{title}</h2>
-          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">先预览 TOML diff，再写入 config.toml。</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">可先预览 TOML diff；保存会直接写入 config.toml。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
-          <button
-            className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
+          <Button
             aria-label={previewLabel}
             disabled={!writable || !dirty}
             onClick={onPreview}
+            size="sm"
           >
             预览
-          </button>
-          <button
-            className="ml-auto inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--primary)] bg-[var(--primary)] px-[11px] text-[var(--primary-foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:border-[#1d4ed8] hover:bg-[#1d4ed8] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
+          </Button>
+          <Button
+            className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
             aria-label={saveLabel}
-            disabled={!writable || !dirty || !previewReady}
+            disabled={!writable || !dirty}
             onClick={onSave}
+            variant="primary"
+            size="sm"
           >
             保存到 config.toml
-          </button>
+          </Button>
         </div>
       </div>
       <div className="flex flex-col gap-3">
         {fields.length === 0 ? (
-          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">
+          <CompactEmpty>
             {emptyMessage}
-          </div>
+          </CompactEmpty>
         ) : (
           groupedFields.map((group) => (
             <section className="flex flex-col gap-0" key={group.name}>
@@ -75,10 +77,10 @@ export function SettingsForm({
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5 [&_label]:mb-0.5 [&_label]:block [&_label]:font-semibold [&_label]:leading-tight [&_label]:text-[var(--foreground)]">
                       <label htmlFor={fieldControlId(title, field.path)}>{field.label}</label>
-                      <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.risk === "normal" ? "bg-[var(--success-soft)] text-[var(--success)]" : field.risk === "caution" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : field.risk === "experimental" ? "bg-[#eff6ff] text-[var(--primary)]" : "bg-[var(--destructive-soft)] text-[var(--destructive)]")}>{field.risk}</span>
-                      <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.editable ? "bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--secondary)] text-[var(--secondary-foreground)]")}>
+                      <Badge variant={riskBadgeVariant(field.risk)}>{field.risk}</Badge>
+                      <Badge variant={field.editable ? "success" : "secondary"}>
                         {field.editable ? "editable" : "read-only"}
-                      </span>
+                      </Badge>
                     </div>
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5 [&_code]:max-w-full">
                       <code>{field.path}</code>
@@ -93,7 +95,7 @@ export function SettingsForm({
                     field={field}
                     id={fieldControlId(title, field.path)}
                     value={draftValues[field.path]}
-                    onChange={(value) => onChange(field.path, value)}
+                    onChange={(value) => onChange(field.path, value, field.kind)}
                   />
                 </div>
               ))}
@@ -135,12 +137,12 @@ export function FieldCatalog({
           <h2 id="field-catalog-title">字段目录</h2>
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">所有 bundled schema 字段都可搜索；复杂字段第一期只读。</p>
         </div>
-        <span className="inline-flex min-h-6 flex-none items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--secondary)] px-2 py-0.5 text-[0.72rem] font-bold text-[var(--secondary-foreground)]">{resultLabel}</span>
+        <Badge size="count">{resultLabel}</Badge>
       </div>
       <label className="mb-2 flex min-w-0 flex-col gap-[5px] [&>span]:text-[0.74rem] [&>span]:font-semibold [&>span]:text-[var(--muted-foreground)]">
         <span>搜索字段目录</span>
-        <input
-          className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-full !max-w-none"
+        <Input
+          className="!w-full !max-w-none"
           type="search"
           value={query}
           placeholder="搜索 label / TOML path / group / risk"
@@ -149,24 +151,24 @@ export function FieldCatalog({
       </label>
       <div className="flex max-h-[336px] flex-col gap-1.5 overflow-auto pr-1">
         {visibleFields.length === 0 ? (
-          <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">没有匹配的 schema 字段。</div>
+          <CompactEmpty>没有匹配的 schema 字段。</CompactEmpty>
         ) : (
           visibleFields.map((field) => (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2.5 max-[940px]:grid-cols-1" key={field.path}>
               <div className="flex min-w-0 flex-col gap-[5px]">
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5 [&>strong]:min-w-0 [&>strong]:break-words [&>strong]:text-[var(--foreground)]">
                   <strong>{field.label}</strong>
-                  <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">{field.kind}</span>
+                  <Badge variant="muted">{field.kind}</Badge>
                 </div>
                 <code>{field.path}</code>
                 {field.note && <p className="mt-0 break-words text-[0.8rem] leading-[1.45] text-[var(--muted-foreground)]">{field.note}</p>}
               </div>
               <div className="flex max-w-[180px] flex-col flex-wrap items-end justify-start gap-1 max-[940px]:max-w-none max-[940px]:items-start" aria-label={`${field.label} metadata`}>
-                <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.risk === "normal" ? "bg-[var(--success-soft)] text-[var(--success)]" : field.risk === "caution" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : field.risk === "experimental" ? "bg-[#eff6ff] text-[var(--primary)]" : "bg-[var(--destructive-soft)] text-[var(--destructive)]")}>{field.risk}</span>
-                <span className={cx("inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)]", field.editable ? "bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--secondary)] text-[var(--secondary-foreground)]")}>
+                <Badge variant={riskBadgeVariant(field.risk)}>{field.risk}</Badge>
+                <Badge variant={field.editable ? "success" : "secondary"}>
                   {field.editable ? "editable" : "read-only"}
-                </span>
-                <span className="inline-flex min-w-16 max-w-full justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--border)] px-[7px] py-0.5 text-center text-[0.72rem] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)] text-[var(--muted-foreground)]">{field.group || "其他"}</span>
+                </Badge>
+                <Badge variant="muted">{field.group || "其他"}</Badge>
               </div>
             </div>
           ))
@@ -180,7 +182,6 @@ export function ProfileSettingsForm({
   state,
   draftValues,
   dirty,
-  previewReady,
   onChange,
   onPreview,
   onSave,
@@ -188,8 +189,7 @@ export function ProfileSettingsForm({
   state: AppState;
   draftValues: Record<string, string>;
   dirty: boolean;
-  previewReady: boolean;
-  onChange: (path: string, value: string) => void;
+  onChange: (path: string, value: string, kind: FieldState["kind"]) => void;
   onPreview: () => void;
   onSave: () => void;
 }) {
@@ -202,10 +202,10 @@ export function ProfileSettingsForm({
           <FileCode2 size={18} />
           <h2>当前 profile 配置</h2>
         </div>
-        <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">
+        <CompactEmpty>
           当前没有 active profile。设置 root 的 <code>profile</code> 后，这里会显示该 profile
           的覆盖配置。
-        </div>
+        </CompactEmpty>
       </section>
     );
   }
@@ -220,7 +220,6 @@ export function ProfileSettingsForm({
         writable={state.writable}
         title={`当前 profile：${status.activeProfile}`}
         emptyMessage="当前 profile 没有可编辑字段。"
-        previewReady={previewReady}
         onChange={onChange}
         onPreview={onPreview}
         onSave={onSave}
@@ -236,20 +235,20 @@ function ProfileStatusNotice({
 }) {
   if (status.exists) {
     return (
-      <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words mb-2 border-[#bbf7d0] bg-[var(--success-soft)] text-[var(--success)]">
+      <Notice className="mb-2" variant="success">
         <CheckCircle2 size={18} />
         <span>正在编辑 active profile：{status.activeProfile}</span>
-      </section>
+      </Notice>
     );
   }
 
   return (
-    <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words border-[#fde68a] bg-[var(--warning-soft)] text-[#713f12]">
+    <Notice variant="warning">
       <AlertTriangle size={18} />
       <span>
         active profile "{status.activeProfile}" 还没有配置表。保存 profile 配置时会创建它。
       </span>
-    </section>
+    </Notice>
   );
 }
 
@@ -259,7 +258,7 @@ export function ProfileWarnings({ warnings }: { warnings: ProfileWarning[] }) {
   }
 
   return (
-    <section className="mx-auto mb-3 flex max-w-[1440px] min-w-0 items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 [&>div]:min-w-0 [&>span]:min-w-0 [&>span]:break-words border-[#fde68a] bg-[var(--warning-soft)] text-[#713f12]">
+    <Notice variant="warning">
       <AlertTriangle size={18} />
       <div>
         <strong>当前 profile 覆盖了全局配置</strong>
@@ -270,7 +269,7 @@ export function ProfileWarnings({ warnings }: { warnings: ProfileWarning[] }) {
           </p>
         ))}
       </div>
-    </section>
+    </Notice>
   );
 }
 
@@ -306,8 +305,8 @@ function FieldValue({
 
   if (field.kind === "boolean") {
     return (
-      <select
-        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none !w-[132px]"
+      <Select
+        className="!w-[132px]"
         id={id}
         value={value ?? "inherited"}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -315,14 +314,13 @@ function FieldValue({
         <option value="inherited">inherited</option>
         <option value="true">true</option>
         <option value="false">false</option>
-      </select>
+      </Select>
     );
   }
 
   if (field.kind === "select") {
     return (
-      <select
-        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none"
+      <Select
         id={id}
         value={value ?? ""}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -333,14 +331,13 @@ function FieldValue({
             {option}
           </option>
         ))}
-      </select>
+      </Select>
     );
   }
 
   if (field.kind === "number") {
     return (
-      <input
-        className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none"
+      <Input
         id={id}
         value={value ?? ""}
         placeholder="unset"
@@ -351,8 +348,7 @@ function FieldValue({
   }
 
   return (
-    <input
-      className="min-h-8 w-[220px] max-w-60 min-w-0 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-[9px] text-[var(--foreground)] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus:outline-none focus-visible:border-[var(--ring)] focus-visible:shadow-[0_0_0_3px_rgba(163,163,163,0.24)] focus-visible:outline-none disabled:opacity-[0.65] max-[940px]:w-full max-[940px]:max-w-none"
+    <Input
       id={id}
       value={value ?? ""}
       placeholder="unset"
@@ -367,6 +363,22 @@ function fieldDisplayValue(field: FieldState) {
   }
 
   return field.value;
+}
+
+function riskBadgeVariant(risk: FieldState["risk"]) {
+  if (risk === "normal") {
+    return "success";
+  }
+
+  if (risk === "caution") {
+    return "warning";
+  }
+
+  if (risk === "experimental") {
+    return "primary";
+  }
+
+  return "destructive";
 }
 
 function sectionTitleId(title: string) {

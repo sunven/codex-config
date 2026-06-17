@@ -3,7 +3,6 @@ import {
   runConfigEditCommit,
   runConfigEditPreview,
   type ConfigEditIntent,
-  type ConfigEditPreviewKind,
   type FileToken,
   type PreviewResult,
   type WorkflowRunOutcome,
@@ -11,10 +10,6 @@ import {
 
 type ConfigEditWorkflowState = {
   preview: PreviewResult | null;
-  previewKind: ConfigEditPreviewKind | null;
-  previewTicket: string | null;
-  pendingDeleteProviderId: string | null;
-  pendingDeleteServerId: string | null;
 };
 
 type ConfigEditWorkflowOptions<TState extends { fileToken?: FileToken; homeDir?: string }> = {
@@ -31,10 +26,6 @@ type ResetOptions = {
 
 const emptyWorkflowState: ConfigEditWorkflowState = {
   preview: null,
-  previewKind: null,
-  previewTicket: null,
-  pendingDeleteProviderId: null,
-  pendingDeleteServerId: null,
 };
 
 export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; homeDir?: string }>({
@@ -58,10 +49,7 @@ export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; ho
     }
   }
 
-  function applyWorkflowOutcome(
-    outcome: WorkflowRunOutcome<TState>,
-    previewIntent?: ConfigEditIntent,
-  ) {
+  function applyWorkflowOutcome(outcome: WorkflowRunOutcome<TState>) {
     if (outcome.status === "error") {
       onError(outcome.message);
       return;
@@ -76,13 +64,6 @@ export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; ho
     if (outcome.status === "preview") {
       setWorkflowState({
         preview: outcome.preview,
-        previewKind: outcome.previewKind,
-        previewTicket:
-          outcome.preview.changed && previewIntent
-            ? previewTicket(previewIntent)
-            : null,
-        pendingDeleteProviderId: outcome.pendingDeleteProviderId,
-        pendingDeleteServerId: outcome.pendingDeleteServerId,
       });
       onStatusMessage(outcome.notice);
       return;
@@ -96,63 +77,20 @@ export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; ho
   async function runPreview(intent: ConfigEditIntent) {
     onError(null);
     onStatusMessage(null);
-    applyWorkflowOutcome(await runConfigEditPreview(intent), intent);
+    applyWorkflowOutcome(await runConfigEditPreview(intent));
   }
 
   async function runCommit(intent: ConfigEditIntent) {
-    if (intent.kind !== "restoreBackup" && !canCommit(intent)) {
-      onError("请先预览配置变更。");
-      return;
-    }
-
     onError(null);
     applyWorkflowOutcome(
       await runConfigEditCommit<TState>(intent, currentState?.fileToken),
     );
   }
 
-  function previewReady(kind: ConfigEditPreviewKind) {
-    return workflowState.previewKind === kind && Boolean(workflowState.preview?.changed);
-  }
-
-  function canCommit(intent: ConfigEditIntent) {
-    const kind = previewKindForIntent(intent);
-
-    return Boolean(
-      kind &&
-        previewReady(kind) &&
-        workflowState.previewTicket === previewTicket(intent),
-    );
-  }
-
   return {
     preview: workflowState.preview,
-    previewKind: workflowState.previewKind,
-    pendingDeleteProviderId: previewReady("modelProviderDelete")
-      ? workflowState.pendingDeleteProviderId
-      : null,
-    pendingDeleteServerId: previewReady("mcpServerDelete")
-      ? workflowState.pendingDeleteServerId
-      : null,
     reset,
     runPreview,
     runCommit,
-    previewReady,
   };
-}
-
-function previewKindForIntent(intent: ConfigEditIntent): ConfigEditPreviewKind | null {
-  if (intent.kind === "fastMode") {
-    return "fast";
-  }
-
-  if (intent.kind === "restoreBackup") {
-    return null;
-  }
-
-  return intent.kind;
-}
-
-function previewTicket(intent: ConfigEditIntent) {
-  return JSON.stringify(intent);
 }

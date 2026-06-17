@@ -2,6 +2,9 @@ import { DatabaseBackup, Edit3, FileCode2 } from "lucide-react";
 import type { AppState, BackupSummary } from "./appState";
 import type { PreviewResult } from "./configEditWorkflow";
 import { displayPath, formatBytes } from "./formatters";
+import { Button } from "./components/ui/button";
+import { CompactEmpty } from "./components/ui/compact-empty";
+import { Textarea } from "./components/ui/textarea";
 
 type ConfigPreviewSidebarProps = {
   state: AppState;
@@ -9,7 +12,6 @@ type ConfigPreviewSidebarProps = {
   rawTomlDraft: string;
   rawTomlDirty: boolean;
   rawTomlWritable: boolean;
-  rawTomlPreviewReady: boolean;
   onRawTomlChange: (value: string) => void;
   onPreviewRawToml: () => void;
   onSaveRawToml: () => void;
@@ -22,7 +24,6 @@ export function ConfigPreviewSidebar({
   rawTomlDraft,
   rawTomlDirty,
   rawTomlWritable,
-  rawTomlPreviewReady,
   onRawTomlChange,
   onPreviewRawToml,
   onSaveRawToml,
@@ -36,7 +37,6 @@ export function ConfigPreviewSidebar({
         draft={rawTomlDraft}
         dirty={rawTomlDirty}
         writable={rawTomlWritable}
-        previewReady={rawTomlPreviewReady}
         onChange={onRawTomlChange}
         onPreview={onPreviewRawToml}
         onSave={onSaveRawToml}
@@ -57,7 +57,6 @@ function RawToml({
   draft,
   dirty,
   writable,
-  previewReady,
   onChange,
   onPreview,
   onSave,
@@ -66,7 +65,6 @@ function RawToml({
   draft: string;
   dirty: boolean;
   writable: boolean;
-  previewReady: boolean;
   onChange: (value: string) => void;
   onPreview: () => void;
   onSave: () => void;
@@ -80,34 +78,35 @@ function RawToml({
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">用于配置字段目录中尚未提供专用控件的复杂配置。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
-          <button
+          <Button
             aria-label="预览原始 TOML"
-            className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
             disabled={!writable || !dirty}
             onClick={onPreview}
-            type="button"
+            size="sm"
           >
             预览
-          </button>
-          <button
+          </Button>
+          <Button
             aria-label="保存原始 TOML"
-            className="ml-auto inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--primary)] bg-[var(--primary)] px-[11px] text-[var(--primary-foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:border-[#1d4ed8] hover:bg-[#1d4ed8] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
-            disabled={!writable || !dirty || !previewReady}
+            className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
+            disabled={!writable || !dirty}
             onClick={onSave}
-            type="button"
+            variant="primary"
+            size="sm"
           >
             保存 TOML
-          </button>
+          </Button>
         </div>
       </div>
       {state.parseIssue && (
         <div className="mb-2 rounded-[var(--radius)] border border-[#fecaca] bg-[var(--destructive-soft)] p-2 text-[#991b1b]" role="alert">{state.parseIssue.message}</div>
       )}
       <label className="sr-only" htmlFor="raw-toml-editor">原始 TOML</label>
-      <textarea
-        className="min-h-80 w-full resize-y rounded-[var(--radius)] border border-[#3f3f46] bg-[var(--code-background)] p-2.5 text-[0.78rem] leading-[1.4] text-[var(--code-foreground)] outline-none [tab-size:2] focus:border-[var(--ring)] focus:shadow-[0_0_0_3px_rgba(163,163,163,0.24)]"
+      <Textarea
+        className="min-h-80"
         id="raw-toml-editor"
         value={draft}
+        variant="code"
         placeholder="# config.toml 还不存在"
         spellCheck={false}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -166,7 +165,7 @@ function Backups({
       </div>
       <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">{displayPath(backupDir, homeDir)}</p>
       {backups.length === 0 ? (
-        <div className="flex min-h-[92px] items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-5 text-center text-[var(--muted-foreground)]">暂无备份。</div>
+        <CompactEmpty>暂无备份。</CompactEmpty>
       ) : (
         <ul className="mt-2 flex list-none flex-col gap-1.5 p-0">
           {backups.slice(0, 5).map((backup) => (
@@ -175,16 +174,15 @@ function Backups({
                 <span>{backup.id}</span>
                 <small>{formatBytes(backup.size)}</small>
               </div>
-              <button
+              <Button
                 aria-label={`恢复备份 ${backup.id}`}
-                className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] border border-[var(--input)] bg-[var(--card)] px-[9px] text-[var(--foreground)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]"
                 disabled={!writable}
                 onClick={() => onRestore(backup.id)}
                 title={`恢复备份 ${backup.id}`}
-                type="button"
+                size="sm"
               >
                 恢复此备份
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
