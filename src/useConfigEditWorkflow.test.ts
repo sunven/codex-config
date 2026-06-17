@@ -83,7 +83,10 @@ describe("useConfigEditWorkflow", () => {
     const { result, onCommitState, onError } = renderWorkflow();
 
     await act(async () => {
-      await result.current.runCommit({ kind: "fastMode" });
+      await result.current.runCommit({
+        kind: "rootSettings",
+        changes: [{ path: "model", action: "set", value: "gpt-5.5" }],
+      });
     });
 
     expect(onError).toHaveBeenLastCalledWith("config.toml changed on disk");

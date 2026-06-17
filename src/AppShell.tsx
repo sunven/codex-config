@@ -1,6 +1,3 @@
-import { Gauge } from "lucide-react";
-import type { AppState } from "./appState";
-import { Button } from "./components/ui/button";
 import { cn } from "./components/ui/utils";
 
 export type MainTab = "config" | "sessions" | "mcp" | "skills";
@@ -51,45 +48,5 @@ export function TabBar({
         Skills
       </button>
     </nav>
-  );
-}
-
-export function FastModeTask({
-  state,
-  onSave,
-}: {
-  state: AppState;
-  onSave: () => void;
-}) {
-  const fastMode = state.fields.find((field) => field.path === "features.fast_mode");
-  const value = fastMode?.value ?? "inherited";
-  const canSave = state.writable && value !== "true";
-
-  return (
-    <section className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3 max-[940px]:grid-cols-1">
-      <div className="flex size-9 items-center justify-center rounded-[var(--radius)] bg-[var(--secondary)] text-[var(--primary)]">
-        <Gauge size={22} />
-      </div>
-      <div>
-        <p className="mb-1 text-[0.75rem] font-medium uppercase text-[var(--muted-foreground)]">
-          推荐操作
-        </p>
-        <h2>开启 Fast 模式</h2>
-        <p className="mt-[3px] text-[var(--muted-foreground)]">
-          当前全局值是 <strong>{value}</strong>。保存会直接写入 config.toml。
-        </p>
-      </div>
-      <div className="flex justify-end gap-1.5 max-[940px]:w-full [&>button]:max-[940px]:flex-1">
-        <Button
-          className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center"
-          aria-label="保存 Fast 模式"
-          disabled={!canSave}
-          onClick={onSave}
-          variant="primary"
-        >
-          保存到 config.toml
-        </Button>
-      </div>
-    </section>
   );
 }

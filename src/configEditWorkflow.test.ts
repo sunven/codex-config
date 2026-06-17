@@ -19,33 +19,6 @@ describe("config edit workflow", () => {
     invokeMock.mockReset();
   });
 
-  it("hides the Fast mode draft behind a named save intent", async () => {
-    invokeMock.mockResolvedValueOnce({
-      changed: true,
-      state: {
-        homeDir: "/Users/test/.codex",
-      },
-    });
-
-    const outcome = await commitConfigEdit(
-      { kind: "fastMode" },
-      { hash: "abc", size: 10 },
-    );
-
-    expect(invokeMock).toHaveBeenCalledWith("save_changes", {
-      changes: [
-        {
-          path: "features.fast_mode",
-          scope: "root",
-          action: "set",
-          value: true,
-        },
-      ],
-      fileToken: { hash: "abc", size: 10 },
-    });
-    expect(outcome.notice).toBe("已保存。");
-  });
-
   it("maps raw TOML saves to a state outcome", async () => {
     invokeMock.mockResolvedValueOnce({
       changed: true,
@@ -129,7 +102,10 @@ describe("config edit workflow", () => {
 
     await expect(
       runConfigEditCommit(
-        { kind: "fastMode" },
+        {
+          kind: "rootSettings",
+          changes: [{ path: "model", action: "set", value: "gpt-5.5" }],
+        },
         { hash: "abc", size: 10 },
       ),
     ).resolves.toEqual({
@@ -142,7 +118,13 @@ describe("config edit workflow", () => {
     });
 
     await expect(
-      runConfigEditCommit({ kind: "fastMode" }, undefined),
+      runConfigEditCommit(
+        {
+          kind: "rootSettings",
+          changes: [{ path: "model", action: "set", value: "gpt-5.5" }],
+        },
+        undefined,
+      ),
     ).resolves.toEqual({
       status: "error",
       message: "config.toml changed on disk",

@@ -416,7 +416,7 @@ describe("Config workbench", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "开启 Fast 模式" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
     expect(screen.getByText("正在编辑 active profile：work")).toBeVisible();
     expect(screen.getByText("当前 profile 覆盖了全局配置")).toBeVisible();
 
@@ -538,7 +538,6 @@ describe("Config workbench", () => {
     render(<App />);
 
     expect(await screen.findByRole("button", { name: "保存全局配置" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "保存 Fast 模式" })).toBeDisabled();
   });
 });
 

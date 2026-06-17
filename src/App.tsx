@@ -22,7 +22,7 @@ import {
   ProfileWarnings,
   SettingsForm,
 } from "./ConfigFieldsWorkspace";
-import { FastModeTask, TabBar, type MainTab } from "./AppShell";
+import { TabBar, type MainTab } from "./AppShell";
 import { McpServersPanel, ModelProvidersPanel } from "./ConfigTablesWorkspace";
 import { ConfigPreviewSidebar } from "./ConfigPreviewSidebar";
 import { displayPath } from "./formatters";
@@ -83,10 +83,6 @@ function App() {
     setActiveTab(tab);
     configEditWorkflow.reset();
     setStatusMessage(null);
-  }
-
-  async function saveFastMode() {
-    await configEditWorkflow.runCommit({ kind: "fastMode" });
   }
 
   async function saveSettings() {
@@ -250,10 +246,6 @@ function App() {
             {activeTab === "config" ? (
               <>
                 <div className="flex min-w-0 flex-col gap-3">
-                  <FastModeTask
-                    state={state}
-                    onSave={saveFastMode}
-                  />
                   <SettingsForm
                     fields={state.fields}
                     draftValues={draftValues}

@@ -31,7 +31,6 @@ type SaveResult<TState> = {
 };
 
 export type ConfigEditIntent =
-  | { kind: "fastMode" }
   | { kind: "rootSettings"; changes: DraftChange[] }
   | { kind: "profileSettings"; changes: DraftChange[] }
   | { kind: "rawToml"; rawToml: string }
@@ -81,18 +80,6 @@ export async function commitConfigEdit<TState>(
   fileToken: FileToken | null | undefined,
 ): Promise<WorkflowCommitOutcome<TState>> {
   switch (intent.kind) {
-    case "fastMode": {
-      const result = await invoke<SaveResult<TState>>("save_changes", {
-        changes: fastModeChanges(),
-        fileToken: fileToken ?? null,
-      });
-
-      return {
-        state: result.state,
-        changed: result.changed,
-        notice: result.changed ? "已保存。" : "没有需要保存的变更。",
-      };
-    }
     case "rootSettings": {
       const result = await invoke<SaveResult<TState>>("save_changes", {
         changes: intent.changes,
@@ -182,17 +169,6 @@ export async function commitConfigEdit<TState>(
       };
     }
   }
-}
-
-function fastModeChanges(): DraftChange[] {
-  return [
-    {
-      path: "features.fast_mode",
-      scope: "root",
-      action: "set",
-      value: true,
-    },
-  ];
 }
 
 function errorMessage(error: unknown) {
