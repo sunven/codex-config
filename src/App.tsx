@@ -13,7 +13,6 @@ import {
 } from "./configTableEntries";
 import {
   draftValuesFromFields,
-  fieldChange,
   settingsChanges,
   type FieldState,
 } from "./configFieldDrafts";
@@ -109,35 +108,11 @@ function App() {
     configEditWorkflow.reset({ clearStatus: true });
   }
 
-  async function updateFieldValue(
+  function updateFieldValue(
     path: string,
     value: string,
-    kind: FieldState["kind"],
+    _kind: FieldState["kind"],
   ) {
-    if (!state) {
-      return;
-    }
-
-    const field = state.fields.find((item) => item.path === path);
-    if (!field || !field.editable) {
-      updateDraftValue(path, value);
-      return;
-    }
-
-    if (kind === "boolean" || kind === "select") {
-      const changes = fieldChange(field, value, "root");
-      if (changes.length === 0) {
-        updateDraftValue(path, value);
-        return;
-      }
-
-      await configEditWorkflow.runCommit({
-        kind: "rootSettings",
-        changes,
-      });
-      return;
-    }
-
     updateDraftValue(path, value);
   }
 
@@ -160,35 +135,11 @@ function App() {
     configEditWorkflow.reset({ clearStatus: true });
   }
 
-  async function updateProfileFieldValue(
+  function updateProfileFieldValue(
     path: string,
     value: string,
-    kind: FieldState["kind"],
+    _kind: FieldState["kind"],
   ) {
-    if (!state) {
-      return;
-    }
-
-    const field = state.profileFields.find((item) => item.path === path);
-    if (!field || !field.editable) {
-      updateProfileDraftValue(path, value);
-      return;
-    }
-
-    if (kind === "boolean" || kind === "select") {
-      const changes = fieldChange(field, value, "profile");
-      if (changes.length === 0) {
-        updateProfileDraftValue(path, value);
-        return;
-      }
-
-      await configEditWorkflow.runCommit({
-        kind: "profileSettings",
-        changes,
-      });
-      return;
-    }
-
     updateProfileDraftValue(path, value);
   }
 

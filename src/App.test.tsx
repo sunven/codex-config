@@ -465,7 +465,7 @@ describe("Config workbench", () => {
     expect(await screen.findByText("已保存。")).toBeVisible();
   });
 
-  it("persists select field changes immediately before refresh", async () => {
+  it("saves select field changes only when the save button is clicked", async () => {
     const user = userEvent.setup();
     const reasoningField = {
       path: "model_reasoning_effort",
@@ -504,6 +504,10 @@ describe("Config workbench", () => {
     const globalSettings = await screen.findByRole("region", { name: "全局配置" });
 
     await user.selectOptions(within(globalSettings).getByLabelText("Reasoning effort"), "high");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "保存全局配置" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "保存全局配置" }));
     await screen.findByText("已保存。");
     await user.click(screen.getByRole("button", { name: "刷新" }));
 
