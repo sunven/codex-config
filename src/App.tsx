@@ -86,23 +86,8 @@ function App() {
     setStatusMessage(null);
   }
 
-  async function previewFastMode() {
-    await configEditWorkflow.runPreview({ kind: "fastMode" });
-  }
-
   async function saveFastMode() {
     await configEditWorkflow.runCommit({ kind: "fastMode" });
-  }
-
-  async function previewSettings() {
-    if (!state) {
-      return;
-    }
-
-    await configEditWorkflow.runPreview({
-      kind: "rootSettings",
-      changes: settingsChanges(state.fields, draftValues, "root"),
-    });
   }
 
   async function saveSettings() {
@@ -156,17 +141,6 @@ function App() {
     updateDraftValue(path, value);
   }
 
-  async function previewProfileSettings() {
-    if (!state) {
-      return;
-    }
-
-    await configEditWorkflow.runPreview({
-      kind: "profileSettings",
-      changes: settingsChanges(state.profileFields, profileDraftValues, "profile"),
-    });
-  }
-
   async function saveProfileSettings() {
     if (!state) {
       return;
@@ -218,13 +192,6 @@ function App() {
     updateProfileDraftValue(path, value);
   }
 
-  async function previewRawToml() {
-    await configEditWorkflow.runPreview({
-      kind: "rawToml",
-      rawToml: rawTomlDraft,
-    });
-  }
-
   async function saveRawToml() {
     await configEditWorkflow.runCommit({
       kind: "rawToml",
@@ -247,13 +214,6 @@ function App() {
     configEditWorkflow.reset({ clearStatus: true });
   }
 
-  async function previewModelProvider() {
-    await configEditWorkflow.runPreview({
-      kind: "modelProviderSave",
-      draft: modelProviderDraft,
-    });
-  }
-
   async function saveModelProvider() {
     await configEditWorkflow.runCommit({
       kind: "modelProviderSave",
@@ -265,13 +225,6 @@ function App() {
     await configEditWorkflow.runCommit({
       kind: "modelProviderDelete",
       id,
-    });
-  }
-
-  async function previewMcpServer() {
-    await configEditWorkflow.runPreview({
-      kind: "mcpServerSave",
-      draft: mcpServerDraft,
     });
   }
 
@@ -305,7 +258,6 @@ function App() {
   const profileSettingsDirty = profileSettingChanges.length > 0;
   const rawTomlDirty = state ? rawTomlDraft !== state.rawToml : false;
   const rawTomlWritable = Boolean(state?.health.codex.found);
-  const preview = configEditWorkflow.preview;
 
   useEffect(() => {
     void loadState();
@@ -357,7 +309,6 @@ function App() {
                 <div className="flex min-w-0 flex-col gap-3">
                   <FastModeTask
                     state={state}
-                    onPreview={previewFastMode}
                     onSave={saveFastMode}
                   />
                   <SettingsForm
@@ -368,14 +319,12 @@ function App() {
                     title="全局配置"
                     emptyMessage="config.toml 当前无法解析。请先在右侧原始 TOML 中查看错误，修复后刷新。"
                     onChange={updateFieldValue}
-                    onPreview={previewSettings}
                     onSave={saveSettings}
                   />
                   <ModelProvidersPanel
                     state={state}
                     draft={modelProviderDraft}
                     onDraftChange={updateModelProviderDraft}
-                    onPreview={previewModelProvider}
                     onSave={saveModelProvider}
                     onDelete={deleteModelProvider}
                   />
@@ -384,7 +333,6 @@ function App() {
                     draftValues={profileDraftValues}
                     dirty={profileSettingsDirty}
                     onChange={updateProfileFieldValue}
-                    onPreview={previewProfileSettings}
                     onSave={saveProfileSettings}
                   />
                   <FieldCatalog
@@ -396,12 +344,10 @@ function App() {
                 </div>
                 <ConfigPreviewSidebar
                   state={state}
-                  preview={preview}
                   rawTomlDraft={rawTomlDraft}
                   rawTomlDirty={rawTomlDirty}
                   rawTomlWritable={rawTomlWritable}
                   onRawTomlChange={updateRawTomlDraft}
-                  onPreviewRawToml={previewRawToml}
                   onSaveRawToml={saveRawToml}
                   onRestoreBackup={restoreBackup}
                 />
@@ -422,19 +368,16 @@ function App() {
                     state={state}
                     draft={mcpServerDraft}
                     onDraftChange={updateMcpServerDraft}
-                    onPreview={previewMcpServer}
                     onSave={saveMcpServer}
                     onDelete={deleteMcpServer}
                   />
                 </div>
                 <ConfigPreviewSidebar
                   state={state}
-                  preview={preview}
                   rawTomlDraft={rawTomlDraft}
                   rawTomlDirty={rawTomlDirty}
                   rawTomlWritable={rawTomlWritable}
                   onRawTomlChange={updateRawTomlDraft}
-                  onPreviewRawToml={previewRawToml}
                   onSaveRawToml={saveRawToml}
                   onRestoreBackup={restoreBackup}
                 />

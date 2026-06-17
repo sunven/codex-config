@@ -10,12 +10,10 @@ export function TableEntryEditor({
   title,
   description,
   countLabel,
-  previewLabel,
   saveLabel,
   saveButtonText,
   writable,
   dirty,
-  onPreview,
   onSave,
   newEntryAriaLabel,
   newEntryText,
@@ -28,12 +26,10 @@ export function TableEntryEditor({
   title: string;
   description: ReactNode;
   countLabel: string;
-  previewLabel: string;
   saveLabel: string;
   saveButtonText: string;
   writable: boolean;
   dirty: boolean;
-  onPreview: () => void;
   onSave: () => void;
   newEntryAriaLabel: string;
   newEntryText: string;
@@ -52,14 +48,6 @@ export function TableEntryEditor({
         </div>
         <Badge size="count">{countLabel}</Badge>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
-          <Button
-            aria-label={previewLabel}
-            disabled={!writable || !dirty}
-            onClick={onPreview}
-            size="sm"
-          >
-            预览
-          </Button>
           <Button
             aria-label={saveLabel}
             className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"

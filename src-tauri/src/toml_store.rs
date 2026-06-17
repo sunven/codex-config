@@ -89,20 +89,6 @@ pub struct LoadedToml {
     pub exists: bool,
 }
 
-pub fn preview_changes(changes: Vec<DraftChange>) -> Result<PreviewResult, String> {
-    config_document_workflow::preview_edit(
-        |document| apply_changes(document, &changes),
-        |original, candidate| match original {
-            Some(document) => field_diffs(document, candidate, &changes),
-            None => Ok(Vec::new()),
-        },
-    )
-}
-
-pub fn preview_raw_toml(raw_toml: String) -> Result<PreviewResult, String> {
-    config_document_workflow::preview_raw_toml(raw_toml)
-}
-
 pub fn save_changes(
     changes: Vec<DraftChange>,
     file_token: Option<FileToken>,
@@ -210,52 +196,6 @@ fn apply_changes(document: &mut DocumentMut, changes: &[DraftChange]) -> Result<
         schema_write::apply_change(document, change)?;
     }
     Ok(())
-}
-
-fn field_diffs(
-    original: &DocumentMut,
-    candidate: &DocumentMut,
-    changes: &[DraftChange],
-) -> Result<Vec<FieldDiff>, String> {
-    let mut diffs = Vec::new();
-    let mut seen_paths = Vec::<String>::new();
-
-    for change in changes {
-        let scope = change.scope.unwrap_or(DraftScope::Root);
-        let seen_key = format!("{scope:?}:{}", change.path);
-
-        if seen_paths.contains(&seen_key) {
-            continue;
-        }
-        seen_paths.push(seen_key);
-
-        let before = display_field_value(original, scope, &change.path)?;
-        let after = display_field_value(candidate, scope, &change.path)?;
-
-        if before != after {
-            diffs.push(FieldDiff {
-                scope,
-                path: change.path.clone(),
-                label: field_label(scope, &change.path)?,
-                before,
-                after,
-            });
-        }
-    }
-
-    Ok(diffs)
-}
-
-fn display_field_value(
-    document: &DocumentMut,
-    scope: DraftScope,
-    path: &str,
-) -> Result<String, String> {
-    schema_write::display_field_value(document, scope, path)
-}
-
-fn field_label(scope: DraftScope, path: &str) -> Result<String, String> {
-    schema_write::field_label(scope, path)
 }
 
 fn backup_name() -> String {
@@ -480,77 +420,6 @@ fast_mode = false
             ensure_current_token(&loaded, Some(&expected)).unwrap_err(),
             "config.toml 已被其他程序修改。请先刷新，再保存。"
         );
-    }
-
-    #[test]
-    fn preview_reports_field_level_diffs() {
-        let _guard = TestCodexHome::new();
-        let location = config_locator::locate().unwrap();
-        fs::create_dir_all(&location.codex_home).unwrap();
-        fs::write(
-            &location.config_path,
-            r#"
-model = "gpt-5.4"
-
-[features]
-fast_mode = false
-"#,
-        )
-        .unwrap();
-
-        let preview = preview_changes(vec![
-            DraftChange {
-                path: "features.fast_mode".to_string(),
-                scope: None,
-                action: DraftAction::Set,
-                value: Some(serde_json::Value::Bool(true)),
-            },
-            DraftChange {
-                path: "model".to_string(),
-                scope: None,
-                action: DraftAction::Set,
-                value: Some(serde_json::Value::String("gpt-5.5".to_string())),
-            },
-        ])
-        .unwrap();
-
-        assert!(preview.changed);
-        assert_eq!(preview.field_diffs.len(), 2);
-        assert_eq!(preview.field_diffs[0].path, "features.fast_mode");
-        assert_eq!(preview.field_diffs[0].before, "false");
-        assert_eq!(preview.field_diffs[0].after, "true");
-        assert_eq!(preview.field_diffs[1].path, "model");
-        assert_eq!(preview.field_diffs[1].before, "gpt-5.4");
-        assert_eq!(preview.field_diffs[1].after, "gpt-5.5");
-    }
-
-    #[test]
-    fn preview_raw_toml_reports_text_diff_without_field_diffs() {
-        let _guard = TestCodexHome::new();
-        let location = config_locator::locate().unwrap();
-        fs::create_dir_all(&location.codex_home).unwrap();
-        fs::write(&location.config_path, "model = \"gpt-5.4\"\n").unwrap();
-
-        let preview = preview_raw_toml(
-            r#"
-model = "gpt-5.5"
-
-[model_providers.local]
-base_url = "http://localhost:1234/v1"
-env_key = "LOCAL_API_KEY"
-"#
-            .trim_start()
-            .to_string(),
-        )
-        .unwrap();
-
-        assert!(preview.changed);
-        assert!(preview.field_diffs.is_empty());
-        assert!(preview.text_diff.contains("- model = \"gpt-5.4\""));
-        assert!(preview.text_diff.contains("+ model = \"gpt-5.5\""));
-        assert!(preview
-            .candidate_raw_toml
-            .contains("[model_providers.local]"));
     }
 
     #[test]

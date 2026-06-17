@@ -2,7 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   runConfigEditCommit,
-  runConfigEditPreview,
   type ConfigEditIntent,
 } from "./configEditWorkflow";
 import { useConfigEditWorkflow } from "./useConfigEditWorkflow";
@@ -12,12 +11,10 @@ vi.mock("./configEditWorkflow", async (importOriginal) => {
 
   return {
     ...actual,
-    runConfigEditPreview: vi.fn(),
     runConfigEditCommit: vi.fn(),
   };
 });
 
-const runPreviewMock = vi.mocked(runConfigEditPreview);
 const runCommitMock = vi.mocked(runConfigEditCommit);
 
 type TestState = {
@@ -51,119 +48,10 @@ function renderWorkflow(currentState: TestState | null = null) {
 
 describe("useConfigEditWorkflow", () => {
   beforeEach(() => {
-    runPreviewMock.mockReset();
     runCommitMock.mockReset();
   });
 
-  it("stores changed previews and keeps them readable", async () => {
-    runPreviewMock.mockResolvedValueOnce({
-      status: "preview",
-      preview: {
-        changed: true,
-        fieldDiffs: [],
-        textDiff: "+model = \"gpt-5.5\"",
-        candidateRawToml: "model = \"gpt-5.5\"",
-      },
-      previewKind: "rootSettings",
-      notice: null,
-    });
-    const { result, onError, onStatusMessage } = renderWorkflow();
-    const intent: ConfigEditIntent = {
-      kind: "rootSettings",
-      changes: [{ path: "model", action: "set", value: "gpt-5.5" }],
-    };
-
-    await act(async () => {
-      await result.current.runPreview(intent);
-    });
-
-    expect(runPreviewMock).toHaveBeenCalledWith(intent);
-    expect(result.current.preview?.textDiff).toContain("gpt-5.5");
-    expect(onError).toHaveBeenCalledWith(null);
-    expect(onStatusMessage).toHaveBeenCalledWith(null);
-  });
-
-  it("resets previews and status when callers invalidate a draft", async () => {
-    runPreviewMock.mockResolvedValueOnce({
-      status: "preview",
-      preview: {
-        changed: true,
-        fieldDiffs: [],
-        textDiff: "-[model_providers.local]",
-        candidateRawToml: "model = \"gpt-5\"",
-      },
-      previewKind: "modelProviderDelete",
-      notice: null,
-    });
-    const { result, onStatusMessage } = renderWorkflow();
-
-    await act(async () => {
-      await result.current.runPreview({ kind: "modelProviderDelete", id: "local" });
-    });
-
-    act(() => {
-      result.current.reset({ clearStatus: true });
-    });
-
-    expect(result.current.preview).toBeNull();
-    expect(onStatusMessage).toHaveBeenLastCalledWith(null);
-  });
-
-  it("keeps delete previews scoped to changed delete previews", async () => {
-    runPreviewMock
-      .mockResolvedValueOnce({
-        status: "preview",
-        preview: {
-          changed: true,
-          fieldDiffs: [],
-          textDiff: "-[mcp_servers.filesystem]",
-          candidateRawToml: "model = \"gpt-5\"",
-        },
-        previewKind: "mcpServerDelete",
-        notice: null,
-      })
-      .mockResolvedValueOnce({
-        status: "preview",
-        preview: {
-          changed: true,
-          fieldDiffs: [],
-          textDiff: "+[model_providers.local]",
-          candidateRawToml: "[model_providers.local]",
-        },
-        previewKind: "modelProviderSave",
-        notice: null,
-      });
-    const { result } = renderWorkflow();
-
-    await act(async () => {
-      await result.current.runPreview({ kind: "mcpServerDelete", id: "filesystem" });
-    });
-
-    await act(async () => {
-      await result.current.runPreview({
-        kind: "modelProviderSave",
-        draft: {
-          id: "local",
-          queryParams: {},
-          httpHeaders: {},
-          envHttpHeaders: {},
-        },
-      });
-    });
-  });
-
-  it("applies committed state and clears preview state", async () => {
-    runPreviewMock.mockResolvedValueOnce({
-      status: "preview",
-      preview: {
-        changed: true,
-        fieldDiffs: [],
-        textDiff: "+model = \"gpt-5.5\"",
-        candidateRawToml: "model = \"gpt-5.5\"",
-      },
-      previewKind: "rootSettings",
-      notice: null,
-    });
+  it("applies committed state and status messages", async () => {
     runCommitMock.mockResolvedValueOnce({
       status: "commit",
       state: { homeDir: "/Users/test/.codex" },
@@ -179,19 +67,15 @@ describe("useConfigEditWorkflow", () => {
     };
 
     await act(async () => {
-      await result.current.runPreview(intent);
-    });
-    await act(async () => {
       await result.current.runCommit(intent);
     });
 
     expect(runCommitMock).toHaveBeenCalledWith(intent, { hash: "abc", size: 10 });
     expect(onCommitState).toHaveBeenCalledWith({ homeDir: "/Users/test/.codex" });
-    expect(result.current.preview).toBeNull();
     expect(onStatusMessage).toHaveBeenLastCalledWith("已保存。备份：~/backups/config.toml.bak");
   });
 
-  it("allows restore backup commits without a preview ticket", async () => {
+  it("allows restore backup commits without any preview state", async () => {
     runCommitMock.mockResolvedValueOnce({
       status: "commit",
       state: { homeDir: "/Users/test/.codex" },
@@ -220,26 +104,12 @@ describe("useConfigEditWorkflow", () => {
   });
 
   it("surfaces commit errors without applying state", async () => {
-    runPreviewMock.mockResolvedValueOnce({
-      status: "preview",
-      preview: {
-        changed: true,
-        fieldDiffs: [],
-        textDiff: "+features.fast_mode = true",
-        candidateRawToml: "[features]\nfast_mode = true",
-      },
-      previewKind: "fast",
-      notice: null,
-    });
     runCommitMock.mockResolvedValueOnce({
       status: "error",
       message: "config.toml changed on disk",
     });
     const { result, onCommitState, onError } = renderWorkflow();
 
-    await act(async () => {
-      await result.current.runPreview({ kind: "fastMode" });
-    });
     await act(async () => {
       await result.current.runCommit({ kind: "fastMode" });
     });
@@ -248,26 +118,14 @@ describe("useConfigEditWorkflow", () => {
     expect(onCommitState).not.toHaveBeenCalled();
   });
 
-  it("commits changes without requiring a prior preview", async () => {
-    runCommitMock.mockResolvedValueOnce({
-      status: "commit",
-      state: { homeDir: "/Users/test/.codex" },
-      changed: true,
-      notice: "已保存。备份：~/backups/config.toml.bak",
-    });
-    const { result, onCommitState } = renderWorkflow({
-      fileToken: { hash: "abc", size: 10 },
-    });
-    const intent: ConfigEditIntent = {
-      kind: "rootSettings",
-      changes: [{ path: "model", action: "set", value: "gpt-5.5" }],
-    };
+  it("clears status and errors when callers invalidate a draft", () => {
+    const { result, onError, onStatusMessage } = renderWorkflow();
 
-    await act(async () => {
-      await result.current.runCommit(intent);
+    act(() => {
+      result.current.reset({ clearError: true, clearStatus: true });
     });
 
-    expect(runCommitMock).toHaveBeenCalledWith(intent, { hash: "abc", size: 10 });
-    expect(onCommitState).toHaveBeenCalledWith({ homeDir: "/Users/test/.codex" });
+    expect(onError).toHaveBeenCalledWith(null);
+    expect(onStatusMessage).toHaveBeenCalledWith(null);
   });
 });

@@ -56,11 +56,9 @@ export function TabBar({
 
 export function FastModeTask({
   state,
-  onPreview,
   onSave,
 }: {
   state: AppState;
-  onPreview: () => void;
   onSave: () => void;
 }) {
   const fastMode = state.fields.find((field) => field.path === "features.fast_mode");
@@ -78,18 +76,10 @@ export function FastModeTask({
         </p>
         <h2>开启 Fast 模式</h2>
         <p className="mt-[3px] text-[var(--muted-foreground)]">
-          当前全局值是 <strong>{value}</strong>。可先预览 TOML 变更；保存会直接写入并自动备份。
+          当前全局值是 <strong>{value}</strong>。保存会直接写入并自动备份。
         </p>
       </div>
       <div className="flex justify-end gap-1.5 max-[940px]:w-full [&>button]:max-[940px]:flex-1">
-        <Button
-          aria-label="预览 Fast 模式"
-          disabled={!canSave}
-          onClick={onPreview}
-          size="md"
-        >
-          预览
-        </Button>
         <Button
           className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center"
           aria-label="保存 Fast 模式"

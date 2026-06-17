@@ -4,7 +4,7 @@ use crate::config_table_entry::{
     set_integer, set_string, set_string_map, table_bool, table_integer, table_string,
     table_string_map, upsert_table_entry,
 };
-use crate::toml_store::{FileToken, PreviewResult, SaveResult};
+use crate::toml_store::{FileToken, SaveResult};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use toml_edit::{DocumentMut, Item, Table};
@@ -75,13 +75,6 @@ pub fn state_from_document(document: &DocumentMut) -> ModelProviderState {
     }
 }
 
-pub fn preview_save_provider(draft: ModelProviderDraft) -> Result<PreviewResult, String> {
-    config_document_workflow::preview_edit(
-        |document| apply_provider_draft(document, &draft),
-        |_, _| Ok(Vec::new()),
-    )
-}
-
 pub fn save_provider(
     draft: ModelProviderDraft,
     file_token: Option<FileToken>,
@@ -89,13 +82,6 @@ pub fn save_provider(
     config_document_workflow::commit_edit(file_token, |document| {
         apply_provider_draft(document, &draft)
     })
-}
-
-pub fn preview_delete_provider(id: String) -> Result<PreviewResult, String> {
-    config_document_workflow::preview_edit(
-        |document| remove_provider(document, &id),
-        |_, _| Ok(Vec::new()),
-    )
 }
 
 pub fn delete_provider(
@@ -276,47 +262,47 @@ api-version = "2026-01-01"
     }
 
     #[test]
-    fn preview_save_provider_writes_nested_tables() {
+    fn save_provider_writes_nested_tables() {
         let _guard = TestCodexHome::new();
         let location = config_locator::locate().unwrap();
         fs::create_dir_all(&location.codex_home).unwrap();
         fs::write(&location.config_path, "model = \"gpt-5.5\"\n").unwrap();
+        let token = toml_store::load(&location.config_path).unwrap().token;
 
-        let preview = preview_save_provider(ModelProviderDraft {
-            id: "local".to_string(),
-            original_id: None,
-            name: Some("Local".to_string()),
-            base_url: Some("http://localhost:1234/v1".to_string()),
-            env_key: Some("LOCAL_API_KEY".to_string()),
-            env_key_instructions: None,
-            wire_api: Some("responses".to_string()),
-            request_max_retries: Some(2),
-            stream_max_retries: None,
-            stream_idle_timeout_ms: None,
-            requires_openai_auth: Some(false),
-            supports_websockets: None,
-            query_params: BTreeMap::from([("api-version".to_string(), "2026-01-01".to_string())]),
-            http_headers: BTreeMap::new(),
-            env_http_headers: BTreeMap::from([(
-                "Authorization".to_string(),
-                "LOCAL_AUTH_HEADER".to_string(),
-            )]),
-        })
+        let result = save_provider(
+            ModelProviderDraft {
+                id: "local".to_string(),
+                original_id: None,
+                name: Some("Local".to_string()),
+                base_url: Some("http://localhost:1234/v1".to_string()),
+                env_key: Some("LOCAL_API_KEY".to_string()),
+                env_key_instructions: None,
+                wire_api: Some("responses".to_string()),
+                request_max_retries: Some(2),
+                stream_max_retries: None,
+                stream_idle_timeout_ms: None,
+                requires_openai_auth: Some(false),
+                supports_websockets: None,
+                query_params: BTreeMap::from([(
+                    "api-version".to_string(),
+                    "2026-01-01".to_string(),
+                )]),
+                http_headers: BTreeMap::new(),
+                env_http_headers: BTreeMap::from([(
+                    "Authorization".to_string(),
+                    "LOCAL_AUTH_HEADER".to_string(),
+                )]),
+            },
+            token,
+        )
         .unwrap();
+        let saved_raw = fs::read_to_string(&location.config_path).unwrap();
 
-        assert!(preview.changed);
-        assert!(preview
-            .candidate_raw_toml
-            .contains("[model_providers.local]"));
-        assert!(preview
-            .candidate_raw_toml
-            .contains("[model_providers.local.query_params]"));
-        assert!(preview
-            .candidate_raw_toml
-            .contains("api-version = \"2026-01-01\""));
-        assert!(preview
-            .candidate_raw_toml
-            .contains("[model_providers.local.env_http_headers]"));
+        assert!(result.changed);
+        assert!(saved_raw.contains("[model_providers.local]"));
+        assert!(saved_raw.contains("[model_providers.local.query_params]"));
+        assert!(saved_raw.contains("api-version = \"2026-01-01\""));
+        assert!(saved_raw.contains("[model_providers.local.env_http_headers]"));
     }
 
     #[test]
@@ -469,7 +455,11 @@ base_url = "http://localhost:1234/v1"
         assert!(result.changed);
         assert!(!saved_raw.contains("[model_providers.local]"));
         assert_eq!(
-            preview_delete_provider("openai".to_string()).unwrap_err(),
+            delete_provider(
+                "openai".to_string(),
+                toml_store::load(&location.config_path).unwrap().token,
+            )
+            .unwrap_err(),
             "openai is a built-in provider id and cannot be overwritten"
         );
     }

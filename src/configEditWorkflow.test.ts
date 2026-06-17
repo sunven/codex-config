@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   commitConfigEdit,
-  previewConfigEdit,
   runConfigEditCommit,
-  runConfigEditPreview,
 } from "./configEditWorkflow";
 
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -17,17 +15,21 @@ describe("config edit workflow", () => {
     invokeMock.mockReset();
   });
 
-  it("hides the Fast mode draft behind a named intent", async () => {
+  it("hides the Fast mode draft behind a named save intent", async () => {
     invokeMock.mockResolvedValueOnce({
       changed: true,
-      fieldDiffs: [],
-      textDiff: "+features.fast_mode = true",
-      candidateRawToml: "[features]\nfast_mode = true",
+      backupPath: "/Users/test/.codex/backups/config.toml.bak",
+      state: {
+        homeDir: "/Users/test/.codex",
+      },
     });
 
-    const outcome = await previewConfigEdit({ kind: "fastMode" });
+    const outcome = await commitConfigEdit(
+      { kind: "fastMode" },
+      { hash: "abc", size: 10 },
+    );
 
-    expect(invokeMock).toHaveBeenCalledWith("preview_changes", {
+    expect(invokeMock).toHaveBeenCalledWith("save_changes", {
       changes: [
         {
           path: "features.fast_mode",
@@ -36,32 +38,9 @@ describe("config edit workflow", () => {
           value: true,
         },
       ],
+      fileToken: { hash: "abc", size: 10 },
     });
-    expect(outcome.previewKind).toBe("fast");
-    expect(outcome.notice).toBeUndefined();
-  });
-
-  it("maps settings intents to the shared preview command", async () => {
-    const changes = [
-      {
-        path: "model",
-        scope: "profile" as const,
-        action: "set" as const,
-        value: "gpt-5-mini",
-      },
-    ];
-    invokeMock.mockResolvedValueOnce({
-      changed: false,
-      fieldDiffs: [],
-      textDiff: "No changes",
-      candidateRawToml: "model = \"gpt-5\"",
-    });
-
-    const outcome = await previewConfigEdit({ kind: "profileSettings", changes });
-
-    expect(invokeMock).toHaveBeenCalledWith("preview_changes", { changes });
-    expect(outcome.previewKind).toBe("profileSettings");
-    expect(outcome.notice).toBe("没有可预览的 profile 配置变更。");
+    expect(outcome.notice).toBe("已保存。备份：~/backups/config.toml.bak");
   });
 
   it("maps raw TOML saves to a state outcome with backup notice", async () => {
@@ -86,56 +65,55 @@ describe("config edit workflow", () => {
     expect(outcome.notice).toBe("已保存原始 TOML。备份：~/backups/config.toml.bak");
   });
 
-  it("maps table delete previews to their preview commands", async () => {
-    invokeMock.mockResolvedValueOnce({
-      changed: true,
-      fieldDiffs: [],
-      textDiff: "-[mcp_servers.filesystem]",
-      candidateRawToml: "model = \"gpt-5\"",
-    });
+  it("maps table saves and deletes to their save commands", async () => {
+    invokeMock
+      .mockResolvedValueOnce({
+        changed: true,
+        backupPath: "/Users/test/.codex/backups/config.toml.bak",
+        state: {
+          homeDir: "/Users/test/.codex",
+        },
+      })
+      .mockResolvedValueOnce({
+        changed: true,
+        backupPath: "/Users/test/.codex/backups/config.toml.bak",
+        state: {
+          homeDir: "/Users/test/.codex",
+        },
+      });
 
-    const outcome = await previewConfigEdit({
-      kind: "mcpServerDelete",
+    await commitConfigEdit(
+      {
+        kind: "modelProviderSave",
+        draft: {
+          id: "local",
+          queryParams: {},
+          httpHeaders: {},
+          envHttpHeaders: {},
+        },
+      },
+      { hash: "abc", size: 10 },
+    );
+    await commitConfigEdit(
+      {
+        kind: "mcpServerDelete",
+        id: "filesystem",
+      },
+      { hash: "abc", size: 10 },
+    );
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "save_model_provider", {
+      draft: {
+        id: "local",
+        queryParams: {},
+        httpHeaders: {},
+        envHttpHeaders: {},
+      },
+      fileToken: { hash: "abc", size: 10 },
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "delete_mcp_server", {
       id: "filesystem",
-    });
-
-    expect(invokeMock).toHaveBeenCalledWith("preview_delete_mcp_server", {
-      id: "filesystem",
-    });
-    expect(outcome.previewKind).toBe("mcpServerDelete");
-    expect(outcome.preview.textDiff).toContain("filesystem");
-  });
-
-  it("returns a notice without invoking Tauri for empty settings previews", async () => {
-    const outcome = await runConfigEditPreview({
-      kind: "rootSettings",
-      changes: [],
-    });
-
-    expect(invokeMock).not.toHaveBeenCalled();
-    expect(outcome).toEqual({
-      status: "notice",
-      notice: "没有可预览的配置变更。",
-    });
-  });
-
-  it("normalizes preview outcomes for App state application", async () => {
-    invokeMock.mockResolvedValueOnce({
-      changed: true,
-      fieldDiffs: [],
-      textDiff: "-[model_providers.local]",
-      candidateRawToml: "model = \"gpt-5\"",
-    });
-
-    const outcome = await runConfigEditPreview({
-      kind: "modelProviderDelete",
-      id: "local",
-    });
-
-    expect(outcome).toMatchObject({
-      status: "preview",
-      previewKind: "modelProviderDelete",
-      notice: null,
+      fileToken: { hash: "abc", size: 10 },
     });
   });
 
@@ -170,5 +148,4 @@ describe("config edit workflow", () => {
       message: "config.toml changed on disk",
     });
   });
-
 });

@@ -28,16 +28,6 @@ fn load_state() -> Result<AppState, String> {
 }
 
 #[tauri::command]
-fn preview_changes(changes: Vec<DraftChange>) -> Result<PreviewResult, String> {
-    toml_store::preview_changes(changes).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn preview_raw_toml(raw_toml: String) -> Result<PreviewResult, String> {
-    toml_store::preview_raw_toml(raw_toml).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn save_changes(
     changes: Vec<DraftChange>,
     file_token: Option<FileToken>,
@@ -51,21 +41,11 @@ fn save_raw_toml(raw_toml: String, file_token: Option<FileToken>) -> Result<Save
 }
 
 #[tauri::command]
-fn preview_save_model_provider(draft: ModelProviderDraft) -> Result<PreviewResult, String> {
-    model_provider_store::preview_save_provider(draft).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn save_model_provider(
     draft: ModelProviderDraft,
     file_token: Option<FileToken>,
 ) -> Result<ModelProviderSaveResult, String> {
     model_provider_store::save_provider(draft, file_token).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn preview_delete_model_provider(id: String) -> Result<PreviewResult, String> {
-    model_provider_store::preview_delete_provider(id).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -77,21 +57,11 @@ fn delete_model_provider(
 }
 
 #[tauri::command]
-fn preview_save_mcp_server(draft: McpServerDraft) -> Result<PreviewResult, String> {
-    mcp_server_store::preview_save_server(draft).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn save_mcp_server(
     draft: McpServerDraft,
     file_token: Option<FileToken>,
 ) -> Result<McpServerSaveResult, String> {
     mcp_server_store::save_server(draft, file_token).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn preview_delete_mcp_server(id: String) -> Result<PreviewResult, String> {
-    mcp_server_store::preview_delete_server(id).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -150,17 +120,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             load_state,
-            preview_changes,
-            preview_raw_toml,
             save_changes,
             save_raw_toml,
-            preview_save_model_provider,
             save_model_provider,
-            preview_delete_model_provider,
             delete_model_provider,
-            preview_save_mcp_server,
             save_mcp_server,
-            preview_delete_mcp_server,
             delete_mcp_server,
             restore_backup,
             save_codex_binary_path,

@@ -1,6 +1,5 @@
-import { DatabaseBackup, Edit3, FileCode2 } from "lucide-react";
+import { DatabaseBackup, Edit3 } from "lucide-react";
 import type { AppState, BackupSummary } from "./appState";
-import type { PreviewResult } from "./configEditWorkflow";
 import { displayPath, formatBytes } from "./formatters";
 import { Button } from "./components/ui/button";
 import { CompactEmpty } from "./components/ui/compact-empty";
@@ -8,37 +7,31 @@ import { Textarea } from "./components/ui/textarea";
 
 type ConfigPreviewSidebarProps = {
   state: AppState;
-  preview: PreviewResult | null;
   rawTomlDraft: string;
   rawTomlDirty: boolean;
   rawTomlWritable: boolean;
   onRawTomlChange: (value: string) => void;
-  onPreviewRawToml: () => void;
   onSaveRawToml: () => void;
   onRestoreBackup: (backupId: string) => void;
 };
 
 export function ConfigPreviewSidebar({
   state,
-  preview,
   rawTomlDraft,
   rawTomlDirty,
   rawTomlWritable,
   onRawTomlChange,
-  onPreviewRawToml,
   onSaveRawToml,
   onRestoreBackup,
 }: ConfigPreviewSidebarProps) {
   return (
     <div className="flex min-w-0 flex-col gap-3 self-start sticky top-3 max-[940px]:static">
-      <DiffPanel preview={preview} />
       <RawToml
         state={state}
         draft={rawTomlDraft}
         dirty={rawTomlDirty}
         writable={rawTomlWritable}
         onChange={onRawTomlChange}
-        onPreview={onPreviewRawToml}
         onSave={onSaveRawToml}
       />
       <Backups
@@ -58,7 +51,6 @@ function RawToml({
   dirty,
   writable,
   onChange,
-  onPreview,
   onSave,
 }: {
   state: AppState;
@@ -66,7 +58,6 @@ function RawToml({
   dirty: boolean;
   writable: boolean;
   onChange: (value: string) => void;
-  onPreview: () => void;
   onSave: () => void;
 }) {
   return (
@@ -78,14 +69,6 @@ function RawToml({
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">用于配置字段目录中尚未提供专用控件的复杂配置。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
-          <Button
-            aria-label="预览原始 TOML"
-            disabled={!writable || !dirty}
-            onClick={onPreview}
-            size="sm"
-          >
-            预览
-          </Button>
           <Button
             aria-label="保存原始 TOML"
             className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
@@ -111,35 +94,6 @@ function RawToml({
         spellCheck={false}
         onChange={(event) => onChange(event.currentTarget.value)}
       />
-    </section>
-  );
-}
-
-function DiffPanel({ preview }: { preview: PreviewResult | null }) {
-  return (
-    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="diff-preview-title">
-      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
-        <FileCode2 size={18} />
-        <h2 id="diff-preview-title">变更预览</h2>
-      </div>
-      {preview?.fieldDiffs.length ? (
-        <div className="mb-2 flex flex-col gap-1.5">
-          {preview.fieldDiffs.map((diff) => (
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 max-[940px]:grid-cols-1 [&>div:first-child]:flex [&>div:first-child]:min-w-0 [&>div:first-child]:flex-col [&>div:first-child]:gap-[3px]" key={`${diff.scope}-${diff.path}`}>
-              <div>
-                <strong>{diff.label}</strong>
-                <code>{diff.path}</code>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-1.5 max-[940px]:justify-start [&>span]:rounded-[var(--radius)] [&>span]:border [&>span]:border-[var(--border)] [&>span]:bg-[var(--card)] [&>span]:px-1.5 [&>span]:py-[3px] [&>span]:text-[0.78rem] [&>span]:text-[var(--foreground)] [&>strong]:rounded-[var(--radius)] [&>strong]:border [&>strong]:border-[#bbf7d0] [&>strong]:bg-[var(--success-soft)] [&>strong]:px-1.5 [&>strong]:py-[3px] [&>strong]:text-[0.78rem] [&>strong]:text-[var(--success)]">
-                <span>{diff.before}</span>
-                <span className="!border-0 !bg-transparent !p-0 !text-[var(--muted-foreground)]">改为</span>
-                <strong>{diff.after}</strong>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <pre className="m-0 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius)] bg-[var(--code-background)] p-2.5 text-[0.78rem] leading-[1.4] text-[var(--code-foreground)]">{preview?.textDiff ?? "预览后会在这里显示 TOML diff。"}</pre>
     </section>
   );
 }

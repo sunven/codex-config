@@ -1,16 +1,9 @@
-import { useState } from "react";
 import {
   runConfigEditCommit,
-  runConfigEditPreview,
   type ConfigEditIntent,
   type FileToken,
-  type PreviewResult,
-  type WorkflowRunOutcome,
+  type WorkflowCommitRunOutcome,
 } from "./configEditWorkflow";
-
-type ConfigEditWorkflowState = {
-  preview: PreviewResult | null;
-};
 
 type ConfigEditWorkflowOptions<TState extends { fileToken?: FileToken; homeDir?: string }> = {
   currentState: TState | null;
@@ -24,22 +17,13 @@ type ResetOptions = {
   clearError?: boolean;
 };
 
-const emptyWorkflowState: ConfigEditWorkflowState = {
-  preview: null,
-};
-
 export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; homeDir?: string }>({
   currentState,
   onCommitState,
   onError,
   onStatusMessage,
 }: ConfigEditWorkflowOptions<TState>) {
-  const [workflowState, setWorkflowState] =
-    useState<ConfigEditWorkflowState>(emptyWorkflowState);
-
   function reset(options: ResetOptions = {}) {
-    setWorkflowState(emptyWorkflowState);
-
     if (options.clearStatus) {
       onStatusMessage(null);
     }
@@ -49,35 +33,15 @@ export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; ho
     }
   }
 
-  function applyWorkflowOutcome(outcome: WorkflowRunOutcome<TState>) {
+  function applyWorkflowOutcome(outcome: WorkflowCommitRunOutcome<TState>) {
     if (outcome.status === "error") {
       onError(outcome.message);
       return;
     }
 
-    if (outcome.status === "notice") {
-      setWorkflowState(emptyWorkflowState);
-      onStatusMessage(outcome.notice);
-      return;
-    }
-
-    if (outcome.status === "preview") {
-      setWorkflowState({
-        preview: outcome.preview,
-      });
-      onStatusMessage(outcome.notice);
-      return;
-    }
-
-    setWorkflowState(emptyWorkflowState);
+    reset();
     onCommitState(outcome.state);
     onStatusMessage(outcome.notice);
-  }
-
-  async function runPreview(intent: ConfigEditIntent) {
-    onError(null);
-    onStatusMessage(null);
-    applyWorkflowOutcome(await runConfigEditPreview(intent));
   }
 
   async function runCommit(intent: ConfigEditIntent) {
@@ -88,9 +52,7 @@ export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; ho
   }
 
   return {
-    preview: workflowState.preview,
     reset,
-    runPreview,
     runCommit,
   };
 }

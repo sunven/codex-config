@@ -432,7 +432,6 @@ describe("Config workbench", () => {
     expect(globalSettings).toHaveTextContent("secret");
     expect(globalSettings).toHaveTextContent("继承 / 未设置");
 
-    expect(screen.getByRole("button", { name: "预览全局配置" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "保存全局配置" })).toBeDisabled();
   });
 
@@ -538,9 +537,7 @@ describe("Config workbench", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "预览全局配置" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "保存全局配置" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "预览 Fast 模式" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "保存全局配置" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "保存 Fast 模式" })).toBeDisabled();
   });
 });
@@ -593,12 +590,12 @@ describe("Field catalog", () => {
   });
 });
 
-describe("Preview, raw TOML, and backups", () => {
+describe("Raw TOML and backups", () => {
   beforeEach(() => {
     invokeMock.mockReset();
   });
 
-  it("shows diff and raw TOML surfaces with parse errors near the editor", async () => {
+  it("shows parse errors near the editor and saves raw TOML directly", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appState({
@@ -608,37 +605,31 @@ describe("Preview, raw TOML, and backups", () => {
       }))
       .mockResolvedValueOnce({
         changed: true,
-        fieldDiffs: [
-          {
-            scope: "root",
-            path: "model",
-            label: "Model",
-            before: "gpt-5",
-            after: "gpt-5-mini",
-          },
-        ],
-        textDiff: "-model = \"gpt-5\"\n+model = \"gpt-5-mini\"",
-        candidateRawToml: "model = \"gpt-5-mini\"",
+        backupPath: "/Users/test/.codex/backups/config.toml.bak",
+        state: appState({
+          rawToml: "model = \"gpt-5-mini\"",
+        }),
       });
 
     render(<App />);
 
-    const preview = await screen.findByRole("region", { name: "变更预览" });
-    const rawToml = screen.getByRole("region", { name: "高级 TOML 编辑" });
+    const rawToml = await screen.findByRole("region", { name: "高级 TOML 编辑" });
 
-    expect(preview).toHaveTextContent("预览后会在这里显示 TOML diff。");
     expect(within(rawToml).getByRole("alert")).toHaveTextContent("TOML parse error at line 2");
 
     const editor = within(rawToml).getByRole("textbox", { name: "原始 TOML" });
     await user.clear(editor);
     await user.type(editor, "model = \"gpt-5-mini\"");
 
-    expect(within(rawToml).getByRole("button", { name: "预览原始 TOML" })).toBeEnabled();
+    expect(within(rawToml).getByRole("button", { name: "保存原始 TOML" })).toBeEnabled();
 
-    await user.click(within(rawToml).getByRole("button", { name: "预览原始 TOML" }));
+    await user.click(within(rawToml).getByRole("button", { name: "保存原始 TOML" }));
 
-    expect(await within(preview).findByText("Model")).toBeVisible();
-    expect(within(preview).getByText("改为")).toBeVisible();
+    expect(invokeMock).toHaveBeenCalledWith("save_raw_toml", {
+      rawToml: "model = \"gpt-5-mini\"",
+      fileToken: null,
+    });
+    expect(await screen.findByText(/已保存原始 TOML。备份/)).toBeVisible();
   });
 
   it("shows backup history as a quiet list and disables restore when read-only", async () => {

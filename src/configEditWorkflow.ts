@@ -18,26 +18,11 @@ export type FileToken = {
   size: number;
 };
 
-export type PreviewResult = {
-  changed: boolean;
-  fieldDiffs: FieldDiff[];
-  textDiff: string;
-  candidateRawToml: string;
-};
-
 export type DraftChange = {
   path: string;
   scope?: "root" | "profile";
   action: "set" | "unset";
   value?: boolean | string;
-};
-
-type FieldDiff = {
-  scope: "root" | "profile";
-  path: string;
-  label: string;
-  before: string;
-  after: string;
 };
 
 type SaveResult<TState> = {
@@ -57,31 +42,11 @@ export type ConfigEditIntent =
   | { kind: "mcpServerSave"; draft: McpServerDraft }
   | { kind: "mcpServerDelete"; id: string };
 
-export type ConfigEditPreviewKind =
-  | "fast"
-  | Exclude<ConfigEditIntent["kind"], "fastMode" | "restoreBackup">;
-
-export type WorkflowPreviewOutcome = {
-  preview: PreviewResult;
-  previewKind: ConfigEditPreviewKind;
-  notice?: string;
-};
-
 export type WorkflowCommitOutcome<TState> = {
   state: TState;
   changed: boolean;
   notice: string;
 };
-
-export type WorkflowPreviewRunOutcome =
-  | {
-      status: "preview";
-      preview: PreviewResult;
-      previewKind: ConfigEditPreviewKind;
-      notice: string | null;
-    }
-  | { status: "notice"; notice: string }
-  | { status: "error"; message: string };
 
 export type WorkflowCommitRunOutcome<TState> =
   | {
@@ -93,31 +58,7 @@ export type WorkflowCommitRunOutcome<TState> =
   | { status: "error"; message: string };
 
 export type WorkflowRunOutcome<TState> =
-  | WorkflowPreviewRunOutcome
   | WorkflowCommitRunOutcome<TState>;
-
-export async function runConfigEditPreview(
-  intent: ConfigEditIntent,
-): Promise<WorkflowPreviewRunOutcome> {
-  const noChangesNotice = noChangesPreviewNotice(intent);
-
-  if (noChangesNotice) {
-    return { status: "notice", notice: noChangesNotice };
-  }
-
-  try {
-    const outcome = await previewConfigEdit(intent);
-
-    return {
-      status: "preview",
-      preview: outcome.preview,
-      previewKind: outcome.previewKind,
-      notice: outcome.notice ?? null,
-    };
-  } catch (error) {
-    return { status: "error", message: errorMessage(error) };
-  }
-}
 
 export async function runConfigEditCommit<TState extends { homeDir?: string }>(
   intent: ConfigEditIntent,
@@ -134,104 +75,6 @@ export async function runConfigEditCommit<TState extends { homeDir?: string }>(
     };
   } catch (error) {
     return { status: "error", message: errorMessage(error) };
-  }
-}
-
-export async function previewConfigEdit(
-  intent: ConfigEditIntent,
-): Promise<WorkflowPreviewOutcome> {
-  switch (intent.kind) {
-    case "fastMode": {
-      const preview = await invoke<PreviewResult>("preview_changes", {
-        changes: fastModeChanges(),
-      });
-
-      return {
-        preview,
-        previewKind: "fast",
-        notice: preview.changed ? undefined : "没有可预览的配置变更。",
-      };
-    }
-    case "rootSettings": {
-      const preview = await invoke<PreviewResult>("preview_changes", {
-        changes: intent.changes,
-      });
-
-      return {
-        preview,
-        previewKind: intent.kind,
-        notice: preview.changed ? undefined : "没有可预览的配置变更。",
-      };
-    }
-    case "profileSettings": {
-      const preview = await invoke<PreviewResult>("preview_changes", {
-        changes: intent.changes,
-      });
-
-      return {
-        preview,
-        previewKind: intent.kind,
-        notice: preview.changed ? undefined : "没有可预览的 profile 配置变更。",
-      };
-    }
-    case "rawToml": {
-      const preview = await invoke<PreviewResult>("preview_raw_toml", {
-        rawToml: intent.rawToml,
-      });
-
-      return {
-        preview,
-        previewKind: intent.kind,
-        notice: preview.changed ? undefined : "原始 TOML 没有可预览的变更。",
-      };
-    }
-    case "restoreBackup": {
-      throw new Error("restoreBackup does not support preview");
-    }
-    case "modelProviderSave": {
-      const preview = await invoke<PreviewResult>("preview_save_model_provider", {
-        draft: compactModelProviderDraft(intent.draft),
-      });
-
-      return {
-        preview,
-        previewKind: intent.kind,
-        notice: preview.changed ? undefined : "Model provider 没有可预览的变更。",
-      };
-    }
-    case "modelProviderDelete": {
-      const preview = await invoke<PreviewResult>("preview_delete_model_provider", {
-        id: intent.id,
-      });
-
-      return {
-        preview,
-        previewKind: intent.kind,
-        notice: preview.changed ? undefined : "Model provider 没有可删除的变更。",
-      };
-    }
-    case "mcpServerSave": {
-      const preview = await invoke<PreviewResult>("preview_save_mcp_server", {
-        draft: compactMcpServerDraft(intent.draft),
-      });
-
-      return {
-        preview,
-        previewKind: intent.kind,
-        notice: preview.changed ? undefined : "MCP server 没有可预览的变更。",
-      };
-    }
-    case "mcpServerDelete": {
-      const preview = await invoke<PreviewResult>("preview_delete_mcp_server", {
-        id: intent.id,
-      });
-
-      return {
-        preview,
-        previewKind: intent.kind,
-        notice: preview.changed ? undefined : "MCP server 没有可删除的变更。",
-      };
-    }
   }
 }
 
@@ -397,24 +240,6 @@ function fastModeChanges(): DraftChange[] {
       value: true,
     },
   ];
-}
-
-function noChangesPreviewNotice(intent: ConfigEditIntent) {
-  if (
-    intent.kind === "rootSettings" &&
-    intent.changes.length === 0
-  ) {
-    return "没有可预览的配置变更。";
-  }
-
-  if (
-    intent.kind === "profileSettings" &&
-    intent.changes.length === 0
-  ) {
-    return "没有可预览的 profile 配置变更。";
-  }
-
-  return undefined;
 }
 
 function errorMessage(error: unknown) {

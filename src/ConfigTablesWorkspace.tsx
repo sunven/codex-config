@@ -28,21 +28,18 @@ export function ModelProvidersPanel({
   state,
   draft,
   onDraftChange,
-  onPreview,
   onSave,
   onDelete,
 }: {
   state: AppState;
   draft: ModelProviderDraft;
   onDraftChange: (draft: ModelProviderDraft) => void;
-  onPreview: () => void;
   onSave: () => void;
   onDelete: (id: string) => void;
 }) {
   const providers = state.modelProviders.providers;
   const dirty = isModelProviderDraftDirty(draft, providers);
   const draftProviderId = modelProviderDraftId(draft);
-  const previewLabel = `预览保存 provider ${draftProviderId}`;
   const saveLabel = `保存 provider ${draftProviderId}`;
 
   function patch(patch: Partial<ModelProviderDraft>) {
@@ -102,12 +99,10 @@ export function ModelProvidersPanel({
       title="Model providers"
       description={<>管理写入 <code>model_providers</code> 的自定义 provider。</>}
       countLabel={`${providers.length} providers`}
-      previewLabel={previewLabel}
       saveLabel={saveLabel}
       saveButtonText="保存 provider"
       writable={state.writable}
       dirty={dirty}
-      onPreview={onPreview}
       onSave={onSave}
       newEntryAriaLabel="新建 model provider"
       newEntryText="新建 provider"
@@ -226,21 +221,18 @@ export function McpServersPanel({
   state,
   draft,
   onDraftChange,
-  onPreview,
   onSave,
   onDelete,
 }: {
   state: AppState;
   draft: McpServerDraft;
   onDraftChange: (draft: McpServerDraft) => void;
-  onPreview: () => void;
   onSave: () => void;
   onDelete: (id: string) => void;
 }) {
   const servers = state.mcpServers.servers;
   const dirty = isMcpServerDraftDirty(draft, servers);
   const draftServerId = mcpServerDraftId(draft);
-  const previewLabel = `预览保存 MCP server ${draftServerId}`;
   const saveLabel = `保存 MCP server ${draftServerId}`;
 
   function patch(patch: Partial<McpServerDraft>) {
@@ -303,12 +295,10 @@ export function McpServersPanel({
       title="MCP servers"
       description={<>管理写入 <code>mcp_servers</code> 的 server 启动配置。</>}
       countLabel={`${servers.length} servers`}
-      previewLabel={previewLabel}
       saveLabel={saveLabel}
       saveButtonText="保存 server"
       writable={state.writable}
       dirty={dirty}
-      onPreview={onPreview}
       onSave={onSave}
       newEntryAriaLabel="新建 MCP server"
       newEntryText="新建 MCP server"

@@ -28,19 +28,6 @@ where
     })
 }
 
-pub fn preview_raw_toml(raw_toml: String) -> Result<PreviewResult, String> {
-    let location = config_locator::locate()?;
-    let loaded = toml_store::load(&location.config_path)?;
-    let candidate = validated_raw_toml(raw_toml)?;
-
-    Ok(PreviewResult {
-        changed: loaded.raw != candidate,
-        field_diffs: Vec::new(),
-        text_diff: toml_store::simple_diff(&loaded.raw, &candidate),
-        candidate_raw_toml: candidate,
-    })
-}
-
 pub fn commit_edit<Edit>(file_token: Option<FileToken>, edit: Edit) -> Result<SaveResult, String>
 where
     Edit: FnOnce(&mut DocumentMut) -> Result<(), String>,

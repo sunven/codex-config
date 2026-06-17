@@ -16,7 +16,6 @@ export function SettingsForm({
   title,
   emptyMessage,
   onChange,
-  onPreview,
   onSave,
 }: {
   fields: FieldState[];
@@ -26,11 +25,9 @@ export function SettingsForm({
   title: string;
   emptyMessage: string;
   onChange: (path: string, value: string, kind: FieldState["kind"]) => void;
-  onPreview: () => void;
   onSave: () => void;
 }) {
   const groupedFields = groupFields(fields);
-  const previewLabel = `预览${title}`;
   const saveLabel =
     title === "全局配置" ? "保存全局配置" : `保存${title}`;
 
@@ -40,17 +37,9 @@ export function SettingsForm({
         <FileCode2 size={18} />
         <div>
           <h2 id={sectionTitleId(title)}>{title}</h2>
-          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">可先预览 TOML diff；保存会直接写入 config.toml。</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">保存会直接写入 config.toml，并自动创建备份。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
-          <Button
-            aria-label={previewLabel}
-            disabled={!writable || !dirty}
-            onClick={onPreview}
-            size="sm"
-          >
-            预览
-          </Button>
           <Button
             className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
             aria-label={saveLabel}
@@ -183,14 +172,12 @@ export function ProfileSettingsForm({
   draftValues,
   dirty,
   onChange,
-  onPreview,
   onSave,
 }: {
   state: AppState;
   draftValues: Record<string, string>;
   dirty: boolean;
   onChange: (path: string, value: string, kind: FieldState["kind"]) => void;
-  onPreview: () => void;
   onSave: () => void;
 }) {
   const status = state.profileStatus;
@@ -221,7 +208,6 @@ export function ProfileSettingsForm({
         title={`当前 profile：${status.activeProfile}`}
         emptyMessage="当前 profile 没有可编辑字段。"
         onChange={onChange}
-        onPreview={onPreview}
         onSave={onSave}
       />
     </section>

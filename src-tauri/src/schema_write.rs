@@ -24,45 +24,6 @@ pub fn apply_change(document: &mut DocumentMut, change: &DraftChange) -> Result<
     }
 }
 
-pub fn display_field_value(
-    document: &DocumentMut,
-    scope: DraftScope,
-    path: &str,
-) -> Result<String, String> {
-    let schema = config_schema::schema()?;
-    let field = schema
-        .field(path)
-        .ok_or_else(|| format!("unsupported field path: {path}"))?;
-
-    let value = match scope {
-        DraftScope::Root => item_at_root(document, path),
-        DraftScope::Profile => {
-            if field.profile_behavior != ProfileBehavior::Allowed {
-                return Err(format!("{path} is not editable in profiles"));
-            }
-            let profile_name = active_profile_name(document)?;
-            item_at_profile(document, &profile_name, path)
-        }
-    };
-
-    Ok(value
-        .and_then(display_item_value)
-        .unwrap_or_else(|| unset_value(field)))
-}
-
-pub fn field_label(scope: DraftScope, path: &str) -> Result<String, String> {
-    let schema = config_schema::schema()?;
-    let field = schema
-        .field(path)
-        .ok_or_else(|| format!("unsupported field path: {path}"))?;
-    let scope_label = match scope {
-        DraftScope::Root => "Global",
-        DraftScope::Profile => "Profile",
-    };
-
-    Ok(format!("{scope_label} {}", field.label))
-}
-
 pub fn root_string(document: &DocumentMut, key: &str) -> Option<String> {
     item_at_root(document, key)
         .and_then(Item::as_value)
@@ -240,27 +201,6 @@ fn item_at_table<'a>(table: &'a Table, path: &str) -> Option<&'a Item> {
     }
 
     Some(item)
-}
-
-fn display_item_value(item: &Item) -> Option<String> {
-    let value = item.as_value()?;
-    if let Some(text) = value.as_str() {
-        return Some(text.to_string());
-    }
-    if let Some(boolean) = value.as_bool() {
-        return Some(boolean.to_string());
-    }
-    if let Some(integer) = value.as_integer() {
-        return Some(integer.to_string());
-    }
-    Some(value.to_string())
-}
-
-fn unset_value(field: &FieldDefinition) -> String {
-    match field.kind {
-        crate::app_state::FieldKind::Boolean => "inherited".to_string(),
-        _ => "unset".to_string(),
-    }
 }
 
 pub fn active_profile_name(document: &DocumentMut) -> Result<String, String> {
@@ -448,31 +388,6 @@ model = "gpt-5.3"
             )
             .unwrap_err(),
             "features.fast_mode requires a boolean"
-        );
-    }
-
-    #[test]
-    fn formats_schema_backed_diff_labels_and_values() {
-        let document = r#"
-model = "gpt-5.5"
-
-[features]
-fast_mode = true
-"#
-        .parse::<DocumentMut>()
-        .unwrap();
-
-        assert_eq!(
-            display_field_value(&document, DraftScope::Root, "model").unwrap(),
-            "gpt-5.5"
-        );
-        assert_eq!(
-            display_field_value(&document, DraftScope::Root, "features.fast_mode").unwrap(),
-            "true"
-        );
-        assert_eq!(
-            field_label(DraftScope::Root, "features.fast_mode").unwrap(),
-            "Global Fast 模式"
         );
     }
 }

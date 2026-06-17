@@ -4,7 +4,7 @@ use crate::config_table_entry::{
     set_integer, set_string, set_string_array, set_string_map, table_bool, table_integer,
     table_string, table_string_array, table_string_map, upsert_table_entry,
 };
-use crate::toml_store::{FileToken, PreviewResult, SaveResult};
+use crate::toml_store::{FileToken, SaveResult};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use toml_edit::{DocumentMut, Item, Table};
@@ -49,13 +49,6 @@ pub fn state_from_document(document: &DocumentMut) -> McpServerState {
     McpServerState { servers }
 }
 
-pub fn preview_save_server(draft: McpServerDraft) -> Result<PreviewResult, String> {
-    config_document_workflow::preview_edit(
-        |document| apply_server_draft(document, &draft),
-        |_, _| Ok(Vec::new()),
-    )
-}
-
 pub fn save_server(
     draft: McpServerDraft,
     file_token: Option<FileToken>,
@@ -63,13 +56,6 @@ pub fn save_server(
     config_document_workflow::commit_edit(file_token, |document| {
         apply_server_draft(document, &draft)
     })
-}
-
-pub fn preview_delete_server(id: String) -> Result<PreviewResult, String> {
-    config_document_workflow::preview_edit(
-        |document| remove_server(document, &id),
-        |_, _| Ok(Vec::new()),
-    )
 }
 
 pub fn delete_server(
@@ -186,41 +172,38 @@ NODE_ENV = "production"
     }
 
     #[test]
-    fn preview_save_server_writes_array_and_env_table() {
+    fn save_server_writes_array_and_env_table() {
         let _guard = TestCodexHome::new();
         let location = config_locator::locate().unwrap();
         fs::create_dir_all(&location.codex_home).unwrap();
         fs::write(&location.config_path, "model = \"gpt-5.5\"\n").unwrap();
+        let token = toml_store::load(&location.config_path).unwrap().token;
 
-        let preview = preview_save_server(McpServerDraft {
-            id: "filesystem".to_string(),
-            original_id: None,
-            command: Some("npx".to_string()),
-            args: vec![
-                "-y".to_string(),
-                "@modelcontextprotocol/server-filesystem".to_string(),
-                "/tmp".to_string(),
-            ],
-            env: BTreeMap::from([("NODE_ENV".to_string(), "production".to_string())]),
-            startup_timeout_ms: Some(5000),
-            enabled: Some(true),
-        })
+        let result = save_server(
+            McpServerDraft {
+                id: "filesystem".to_string(),
+                original_id: None,
+                command: Some("npx".to_string()),
+                args: vec![
+                    "-y".to_string(),
+                    "@modelcontextprotocol/server-filesystem".to_string(),
+                    "/tmp".to_string(),
+                ],
+                env: BTreeMap::from([("NODE_ENV".to_string(), "production".to_string())]),
+                startup_timeout_ms: Some(5000),
+                enabled: Some(true),
+            },
+            token,
+        )
         .unwrap();
+        let saved_raw = fs::read_to_string(&location.config_path).unwrap();
 
-        assert!(preview.changed);
-        assert!(preview
-            .candidate_raw_toml
-            .contains("[mcp_servers.filesystem]"));
-        assert!(preview.candidate_raw_toml.contains("command = \"npx\""));
-        assert!(preview
-            .candidate_raw_toml
-            .contains("@modelcontextprotocol/server-filesystem"));
-        assert!(preview
-            .candidate_raw_toml
-            .contains("[mcp_servers.filesystem.env]"));
-        assert!(preview
-            .candidate_raw_toml
-            .contains("NODE_ENV = \"production\""));
+        assert!(result.changed);
+        assert!(saved_raw.contains("[mcp_servers.filesystem]"));
+        assert!(saved_raw.contains("command = \"npx\""));
+        assert!(saved_raw.contains("@modelcontextprotocol/server-filesystem"));
+        assert!(saved_raw.contains("[mcp_servers.filesystem.env]"));
+        assert!(saved_raw.contains("NODE_ENV = \"production\""));
     }
 
     #[test]
