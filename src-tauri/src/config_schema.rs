@@ -28,24 +28,9 @@ pub struct FieldDefinition {
     pub kind: FieldKind,
     #[serde(default)]
     pub editable: bool,
-    #[serde(default)]
-    pub profile_behavior: ProfileBehavior,
     pub risk: FieldRisk,
     pub note: Option<String>,
     pub options: Option<Vec<String>>,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub enum ProfileBehavior {
-    Allowed,
-    RootOnly,
-}
-
-impl Default for ProfileBehavior {
-    fn default() -> Self {
-        Self::RootOnly
-    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -91,12 +76,6 @@ impl ProductSchema {
 
     pub fn editable_fields(&self) -> impl Iterator<Item = &FieldDefinition> {
         self.fields.iter().filter(|field| field.editable)
-    }
-
-    pub fn profile_fields(&self) -> impl Iterator<Item = &FieldDefinition> {
-        self.fields
-            .iter()
-            .filter(|field| field.editable && field.profile_behavior == ProfileBehavior::Allowed)
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -177,13 +156,7 @@ mod tests {
     fn exposes_representative_complex_fields_as_read_only_catalog_entries() {
         let schema = schema().unwrap();
 
-        for path in [
-            "model_providers",
-            "mcp_servers",
-            "profiles",
-            "tools",
-            "apps",
-        ] {
+        for path in ["model_providers", "mcp_servers", "tools", "apps"] {
             let field = schema.field(path).unwrap();
             assert!(!field.editable);
             assert_eq!(field.kind, FieldKind::Object);
@@ -202,7 +175,6 @@ mod tests {
                     group: "Model".to_string(),
                     kind: FieldKind::Text,
                     editable: true,
-                    profile_behavior: ProfileBehavior::Allowed,
                     risk: FieldRisk::Normal,
                     note: None,
                     options: None,
@@ -213,7 +185,6 @@ mod tests {
                     group: "Model".to_string(),
                     kind: FieldKind::Text,
                     editable: true,
-                    profile_behavior: ProfileBehavior::Allowed,
                     risk: FieldRisk::Normal,
                     note: None,
                     options: None,

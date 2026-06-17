@@ -1,4 +1,4 @@
-use crate::config_schema::{self, FieldDefinition, ProfileBehavior};
+use crate::config_schema::{self, FieldDefinition};
 use crate::toml_store::{DraftAction, DraftChange, DraftScope};
 use serde_json::Value as JsonValue;
 use toml_edit::{value as toml_value, DocumentMut, Item, Table, Value};
@@ -13,15 +13,11 @@ pub fn apply_change(document: &mut DocumentMut, change: &DraftChange) -> Result<
         return Err(format!("{} is read-only in this release", field.path));
     }
 
-    let scope = change.scope.unwrap_or(DraftScope::Root);
-    if scope == DraftScope::Profile && field.profile_behavior != ProfileBehavior::Allowed {
-        return Err(format!("{} is not editable in profiles", field.path));
+    if change.scope.is_some_and(|scope| scope != DraftScope::Root) {
+        return Err("profile-scoped structured edits are no longer supported".to_string());
     }
 
-    match scope {
-        DraftScope::Root => apply_at_root(document, field, change),
-        DraftScope::Profile => apply_at_profile(document, field, change),
-    }
+    apply_at_root(document, field, change)
 }
 
 pub fn root_string(document: &DocumentMut, key: &str) -> Option<String> {
@@ -46,33 +42,6 @@ pub fn root_bool_key(document: &DocumentMut, key: &str) -> Option<bool> {
         .and_then(Value::as_bool)
 }
 
-pub fn profile_string(document: &DocumentMut, profile_name: &str, key: &str) -> Option<String> {
-    item_at_profile(document, profile_name, key)
-        .and_then(Item::as_value)
-        .and_then(Value::as_str)
-        .map(ToOwned::to_owned)
-}
-
-pub fn profile_bool(
-    document: &DocumentMut,
-    profile_name: &str,
-    table: &str,
-    key: &str,
-) -> Option<bool> {
-    profile_table(document, profile_name)
-        .and_then(|profile| profile.get(table))
-        .and_then(Item::as_table)
-        .and_then(|table| table.get(key))
-        .and_then(Item::as_value)
-        .and_then(Value::as_bool)
-}
-
-pub fn profile_bool_key(document: &DocumentMut, profile_name: &str, key: &str) -> Option<bool> {
-    item_at_profile(document, profile_name, key)
-        .and_then(Item::as_value)
-        .and_then(Value::as_bool)
-}
-
 fn apply_at_root(
     document: &mut DocumentMut,
     field: &FieldDefinition,
@@ -85,25 +54,6 @@ fn apply_at_root(
         }
         DraftAction::Unset => {
             remove_path(document.as_table_mut(), &field.path);
-            Ok(())
-        }
-    }
-}
-
-fn apply_at_profile(
-    document: &mut DocumentMut,
-    field: &FieldDefinition,
-    change: &DraftChange,
-) -> Result<(), String> {
-    match change.action {
-        DraftAction::Set => {
-            let next_value = typed_value(field, change.value.as_ref())?;
-            let profile = active_profile_table_mut(document)?;
-            set_path(profile, &field.path, next_value)
-        }
-        DraftAction::Unset => {
-            let profile = active_profile_table_mut(document)?;
-            remove_path(profile, &field.path);
             Ok(())
         }
     }
@@ -183,14 +133,6 @@ fn item_at_root<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a Item> {
     item_at_table(document.as_table(), path)
 }
 
-fn item_at_profile<'a>(
-    document: &'a DocumentMut,
-    profile_name: &str,
-    path: &str,
-) -> Option<&'a Item> {
-    profile_table(document, profile_name).and_then(|profile| item_at_table(profile, path))
-}
-
 fn item_at_table<'a>(table: &'a Table, path: &str) -> Option<&'a Item> {
     let mut segments = path.split('.');
     let first = segments.next()?;
@@ -201,51 +143,6 @@ fn item_at_table<'a>(table: &'a Table, path: &str) -> Option<&'a Item> {
     }
 
     Some(item)
-}
-
-pub fn active_profile_name(document: &DocumentMut) -> Result<String, String> {
-    root_string(document, "profile")
-        .filter(|profile| !profile.trim().is_empty())
-        .ok_or_else(|| "没有 active profile，无法编辑 profile 配置。".to_string())
-}
-
-fn active_profile_table_mut(document: &mut DocumentMut) -> Result<&mut Table, String> {
-    let profile_name = active_profile_name(document)?;
-
-    if !document
-        .get("profiles")
-        .map(|item| item.is_table())
-        .unwrap_or(false)
-    {
-        document["profiles"] = Item::Table(Table::new());
-    }
-
-    let profiles = document["profiles"]
-        .as_table_mut()
-        .ok_or_else(|| "profiles must be a table".to_string())?;
-
-    if !profiles
-        .get(profile_name.as_str())
-        .map(|item| item.is_table())
-        .unwrap_or(false)
-    {
-        profiles[profile_name.as_str()] = Item::Table(Table::new());
-    }
-
-    profiles[profile_name.as_str()]
-        .as_table_mut()
-        .ok_or_else(|| format!("profiles.{profile_name} must be a table"))
-}
-
-fn profile_table<'a>(
-    document: &'a DocumentMut,
-    profile_name: &str,
-) -> Option<&'a toml_edit::Table> {
-    document
-        .get("profiles")
-        .and_then(Item::as_table)
-        .and_then(|profiles| profiles.get(profile_name))
-        .and_then(Item::as_table)
 }
 
 #[cfg(test)]
@@ -299,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn sets_active_profile_without_touching_root_or_other_profiles() {
+    fn rejects_profile_scoped_structured_edits() {
         let mut document = r#"
 profile = "work"
 model = "gpt-5.4"
@@ -310,40 +207,44 @@ model = "gpt-5.3"
         .parse::<DocumentMut>()
         .unwrap();
 
-        apply_change(
-            &mut document,
-            &DraftChange {
-                path: "model".to_string(),
-                scope: Some(DraftScope::Profile),
-                action: DraftAction::Set,
-                value: Some(JsonValue::String("gpt-5.5".to_string())),
-            },
-        )
-        .unwrap();
-        apply_change(
-            &mut document,
-            &DraftChange {
-                path: "features.fast_mode".to_string(),
-                scope: Some(DraftScope::Profile),
-                action: DraftAction::Set,
-                value: Some(JsonValue::Bool(true)),
-            },
-        )
-        .unwrap();
+        assert_eq!(
+            apply_change(
+                &mut document,
+                &DraftChange {
+                    path: "model".to_string(),
+                    scope: Some(DraftScope::Profile),
+                    action: DraftAction::Set,
+                    value: Some(JsonValue::String("gpt-5.5".to_string())),
+                },
+            )
+            .unwrap_err(),
+            "profile-scoped structured edits are no longer supported"
+        );
+
+        assert_eq!(
+            apply_change(
+                &mut document,
+                &DraftChange {
+                    path: "features.fast_mode".to_string(),
+                    scope: Some(DraftScope::Profile),
+                    action: DraftAction::Set,
+                    value: Some(JsonValue::Bool(true)),
+                },
+            )
+            .unwrap_err(),
+            "profile-scoped structured edits are no longer supported"
+        );
 
         assert_eq!(root_string(&document, "model"), Some("gpt-5.4".to_string()));
-        assert_eq!(
-            profile_string(&document, "personal", "model"),
-            Some("gpt-5.3".to_string())
-        );
-        assert_eq!(
-            profile_string(&document, "work", "model"),
-            Some("gpt-5.5".to_string())
-        );
-        assert_eq!(
-            profile_bool(&document, "work", "features", "fast_mode"),
-            Some(true)
-        );
+        assert!(document
+            .get("profiles")
+            .and_then(Item::as_table)
+            .and_then(|profiles| profiles.get("personal"))
+            .and_then(Item::as_table)
+            .and_then(|personal| personal.get("model"))
+            .and_then(Item::as_value)
+            .and_then(Value::as_str)
+            .is_some_and(|value| value == "gpt-5.3"));
     }
 
     #[test]

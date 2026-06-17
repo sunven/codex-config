@@ -6,7 +6,6 @@ mod config_document_workflow;
 mod config_locator;
 mod config_schema;
 mod config_table_entry;
-mod effective_config;
 mod mcp_server_store;
 mod model_provider_store;
 mod schema_write;

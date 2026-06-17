@@ -79,17 +79,6 @@ function appState(overrides: Partial<AppState> = {}): AppState {
         risk: "secret",
       },
     ],
-    profileFields: [
-      {
-        path: "model",
-        label: "Model",
-        group: "Model",
-        kind: "text",
-        value: "gpt-5-mini",
-        editable: true,
-        risk: "caution",
-      },
-    ],
     catalogFields: [
       {
         path: "features.fast_mode",
@@ -186,20 +175,6 @@ function appState(overrides: Partial<AppState> = {}): AppState {
       skills: [],
     },
     rawToml: "model = \"gpt-5\"",
-    profileStatus: {
-      activeProfile: "work",
-      exists: true,
-      missing: false,
-    },
-    profileWarnings: [
-      {
-        path: "model",
-        profile: "work",
-        rootValue: "gpt-5",
-        profileValue: "gpt-5-mini",
-        message: "profile overrides model",
-      },
-    ],
     preferences: {},
     ...overrides,
   };
@@ -411,14 +386,12 @@ describe("Config workbench", () => {
     invokeMock.mockReset();
   });
 
-  it("shows global and profile settings with field metadata and write gating", async () => {
+  it("shows global settings with field metadata and write gating", async () => {
     invokeMock.mockResolvedValueOnce(appState());
 
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
-    expect(screen.getByText("正在编辑 active profile：work")).toBeVisible();
-    expect(screen.getByText("当前 profile 覆盖了全局配置")).toBeVisible();
 
     const globalSettings = screen.getByRole("region", { name: "全局配置" });
     expect(globalSettings).toHaveTextContent("Model");

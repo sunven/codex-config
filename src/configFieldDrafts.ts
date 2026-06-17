@@ -23,7 +23,7 @@ export function draftValuesFromFields(fields: FieldState[]) {
 export function settingsChanges(
   fields: FieldState[],
   draftValues: Record<string, string>,
-  scope: "root" | "profile",
+  scope: "root",
 ) {
   return fields.flatMap<DraftChange>((field) => {
     const current =
@@ -37,7 +37,7 @@ export function settingsChanges(
 export function fieldChange(
   field: FieldState,
   next: string,
-  scope: "root" | "profile",
+  scope: "root",
 ): DraftChange[] {
   if (!field.editable || field.kind === "status") {
     return [];

@@ -149,23 +149,6 @@ pub fn root_bool_key(document: &DocumentMut, key: &str) -> Option<bool> {
     schema_write::root_bool_key(document, key)
 }
 
-pub fn profile_string(document: &DocumentMut, profile_name: &str, key: &str) -> Option<String> {
-    schema_write::profile_string(document, profile_name, key)
-}
-
-pub fn profile_bool(
-    document: &DocumentMut,
-    profile_name: &str,
-    table: &str,
-    key: &str,
-) -> Option<bool> {
-    schema_write::profile_bool(document, profile_name, table, key)
-}
-
-pub fn profile_bool_key(document: &DocumentMut, profile_name: &str, key: &str) -> Option<bool> {
-    schema_write::profile_bool_key(document, profile_name, key)
-}
-
 pub fn root_item_exists(document: &DocumentMut, key: &str) -> Option<bool> {
     document.get(key).map(|_| true)
 }
@@ -591,129 +574,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
     }
 
     #[test]
-    fn applies_active_profile_fields_without_touching_root_or_other_profiles() {
-        let loaded = LoadedToml {
-            raw: r#"
-profile = "work"
-model = "gpt-5.4"
-
-[features]
-fast_mode = false
-
-[profiles.personal]
-model = "gpt-5.3"
-
-[profiles.work]
-model = "gpt-5.5"
-hide_agent_reasoning = false
-
-[profiles.work.features]
-fast_mode = false
-"#
-            .to_string(),
-            document: Some(
-                r#"
-profile = "work"
-model = "gpt-5.4"
-
-[features]
-fast_mode = false
-
-[profiles.personal]
-model = "gpt-5.3"
-
-[profiles.work]
-model = "gpt-5.5"
-hide_agent_reasoning = false
-
-[profiles.work.features]
-fast_mode = false
-"#
-                .parse::<DocumentMut>()
-                .unwrap(),
-            ),
-            token: None,
-            parse_issue: None,
-            exists: true,
-        };
-
-        let candidate = candidate_document(
-            loaded,
-            &[
-                DraftChange {
-                    path: "features.fast_mode".to_string(),
-                    scope: Some(DraftScope::Profile),
-                    action: DraftAction::Set,
-                    value: Some(serde_json::Value::Bool(true)),
-                },
-                DraftChange {
-                    path: "model".to_string(),
-                    scope: Some(DraftScope::Profile),
-                    action: DraftAction::Set,
-                    value: Some(serde_json::Value::String("gpt-5.6".to_string())),
-                },
-                DraftChange {
-                    path: "hide_agent_reasoning".to_string(),
-                    scope: Some(DraftScope::Profile),
-                    action: DraftAction::Unset,
-                    value: None,
-                },
-            ],
-        )
-        .unwrap();
-
-        assert_eq!(
-            root_string(&candidate, "model"),
-            Some("gpt-5.4".to_string())
-        );
-        assert_eq!(root_bool(&candidate, "features", "fast_mode"), Some(false));
-        assert_eq!(
-            profile_string(&candidate, "work", "model"),
-            Some("gpt-5.6".to_string())
-        );
-        assert_eq!(
-            profile_bool(&candidate, "work", "features", "fast_mode"),
-            Some(true)
-        );
-        assert_eq!(
-            profile_bool_key(&candidate, "work", "hide_agent_reasoning"),
-            None
-        );
-        assert_eq!(
-            profile_string(&candidate, "personal", "model"),
-            Some("gpt-5.3".to_string())
-        );
-    }
-
-    #[test]
-    fn creates_missing_active_profile_table_when_editing_profile_scope() {
-        let loaded = LoadedToml {
-            raw: r#"profile = "new-work""#.to_string(),
-            document: Some(r#"profile = "new-work""#.parse::<DocumentMut>().unwrap()),
-            token: None,
-            parse_issue: None,
-            exists: true,
-        };
-
-        let candidate = candidate_document(
-            loaded,
-            &[DraftChange {
-                path: "model".to_string(),
-                scope: Some(DraftScope::Profile),
-                action: DraftAction::Set,
-                value: Some(serde_json::Value::String("gpt-5.5".to_string())),
-            }],
-        )
-        .unwrap();
-
-        assert_eq!(
-            profile_string(&candidate, "new-work", "model"),
-            Some("gpt-5.5".to_string())
-        );
-    }
-
-    #[test]
-    fn profile_scope_requires_active_profile() {
+    fn profile_scope_is_rejected_for_structured_edits() {
         let loaded = LoadedToml {
             raw: String::new(),
             document: Some(DocumentMut::new()),
@@ -733,7 +594,10 @@ fast_mode = false
         )
         .unwrap_err();
 
-        assert_eq!(error, "没有 active profile，无法编辑 profile 配置。");
+        assert_eq!(
+            error,
+            "profile-scoped structured edits are no longer supported"
+        );
     }
 
     #[test]

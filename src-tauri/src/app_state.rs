@@ -3,7 +3,6 @@ use crate::codex_probe::{self, CodexProbe};
 use crate::codex_session_store::{self, CodexSessionState};
 use crate::config_locator;
 use crate::config_schema::{self, FieldDefinition};
-use crate::effective_config::{self, ProfileStatus, ProfileWarning};
 use crate::mcp_server_store::{self, McpServerState};
 use crate::model_provider_store::{self, ModelProviderState};
 use crate::skill_store::{self, SkillState};
@@ -21,7 +20,6 @@ pub struct AppState {
     pub file_token: Option<FileToken>,
     pub health: HealthState,
     pub fields: Vec<FieldState>,
-    pub profile_fields: Vec<FieldState>,
     pub catalog_fields: Vec<FieldState>,
     pub model_providers: ModelProviderState,
     pub mcp_servers: McpServerState,
@@ -29,8 +27,6 @@ pub struct AppState {
     pub skills: SkillState,
     pub raw_toml: String,
     pub parse_issue: Option<ParseIssue>,
-    pub profile_status: Option<ProfileStatus>,
-    pub profile_warnings: Vec<ProfileWarning>,
     pub preferences: AppPreferences,
 }
 
@@ -96,45 +92,28 @@ pub fn load_state() -> Result<AppState, String> {
 
     let writable = readonly_reason.is_none();
     let schema = config_schema::schema()?;
-    let (
-        fields,
-        profile_fields,
-        catalog_fields,
-        model_providers,
-        mcp_servers,
-        skills,
-        profile_status,
-        profile_warnings,
-    ) = match loaded.document.as_ref() {
-        Some(document) => {
-            let profile_status = effective_config::profile_status(document);
-            (
+    let (fields, catalog_fields, model_providers, mcp_servers, skills) =
+        match loaded.document.as_ref() {
+            Some(document) => (
                 fields_from_document(document, writable, schema),
-                profile_fields_from_document(document, writable, &profile_status, schema),
                 catalog_fields_from_document(document, schema),
                 model_provider_store::state_from_document(document),
                 mcp_server_store::state_from_document(document),
                 skill_store::state_from_document(Some(document)),
-                Some(profile_status),
-                effective_config::profile_warnings(document),
-            )
-        }
-        None => (
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            ModelProviderState {
-                providers: Vec::new(),
-                reserved_ids: Vec::new(),
-            },
-            McpServerState {
-                servers: Vec::new(),
-            },
-            skill_store::state_from_document(None),
-            None,
-            Vec::new(),
-        ),
-    };
+            ),
+            None => (
+                Vec::new(),
+                Vec::new(),
+                ModelProviderState {
+                    providers: Vec::new(),
+                    reserved_ids: Vec::new(),
+                },
+                McpServerState {
+                    servers: Vec::new(),
+                },
+                skill_store::state_from_document(None),
+            ),
+        };
 
     Ok(AppState {
         home_dir: config_locator::user_home_dir().map(|path| path.display().to_string()),
@@ -150,7 +129,6 @@ pub fn load_state() -> Result<AppState, String> {
             schema_version: format!("{} ({})", schema.schema_version, schema.official_snapshot),
         },
         fields,
-        profile_fields,
         catalog_fields,
         model_providers,
         mcp_servers,
@@ -158,8 +136,6 @@ pub fn load_state() -> Result<AppState, String> {
         skills,
         raw_toml: loaded.raw,
         parse_issue: loaded.parse_issue,
-        profile_status,
-        profile_warnings,
         preferences,
     })
 }
@@ -180,34 +156,6 @@ fn fields_from_document(
             editable: editable && definition.editable,
             risk: definition.risk.to_string(),
             note: definition.note.clone(),
-            options: definition.options.clone(),
-        })
-        .collect()
-}
-
-fn profile_fields_from_document(
-    document: &toml_edit::DocumentMut,
-    editable: bool,
-    profile_status: &ProfileStatus,
-    schema: &config_schema::ProductSchema,
-) -> Vec<FieldState> {
-    let Some(profile_name) = profile_status.active_profile.as_deref() else {
-        return Vec::new();
-    };
-
-    schema
-        .profile_fields()
-        .map(|definition| FieldState {
-            path: definition.path.clone(),
-            label: definition.label.clone(),
-            group: definition.group.clone(),
-            kind: definition.kind,
-            value: profile_field_value(document, profile_name, definition),
-            editable: editable && definition.editable,
-            risk: definition.risk.to_string(),
-            note: Some(format!(
-                "编辑 profile \"{profile_name}\"；留空或 inherited 表示回退到全局值。"
-            )),
             options: definition.options.clone(),
         })
         .collect()
@@ -249,24 +197,6 @@ fn field_value(document: &toml_edit::DocumentMut, definition: &FieldDefinition) 
     }
 }
 
-fn profile_field_value(
-    document: &toml_edit::DocumentMut,
-    profile_name: &str,
-    definition: &FieldDefinition,
-) -> Option<String> {
-    match definition.path.as_str() {
-        "features.fast_mode" => {
-            toml_store::profile_bool(document, profile_name, "features", "fast_mode")
-                .map(|value| value.to_string())
-        }
-        "hide_agent_reasoning" | "show_raw_agent_reasoning" => {
-            toml_store::profile_bool_key(document, profile_name, &definition.path)
-                .map(|value| value.to_string())
-        }
-        path => toml_store::profile_string(document, profile_name, path),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,12 +218,7 @@ mod tests {
         assert!(state
             .catalog_fields
             .iter()
-            .any(|field| field.path == "profile" && !field.editable));
-        assert!(state
-            .catalog_fields
-            .iter()
             .any(|field| field.path == "model_providers" && field.kind == FieldKind::Object));
-        assert!(state.profile_fields.is_empty());
         assert!(state.raw_toml.is_empty());
     }
 
@@ -370,66 +295,6 @@ hide_agent_reasoning = false
             .catalog_fields
             .iter()
             .any(|field| field.path == "mcp_servers" && !field.editable));
-        assert!(state.profile_fields.is_empty());
-    }
-
-    #[test]
-    fn exposes_active_profile_fields_from_catalog() {
-        let guard = TestCodexHome::new();
-        let location = config_locator::locate().unwrap();
-        fs::create_dir_all(&location.codex_home).unwrap();
-        fs::write(
-            &location.config_path,
-            r#"
-profile = "work"
-model = "gpt-5.4"
-
-[profiles.work]
-model = "gpt-5.5"
-sandbox_mode = "workspace-write"
-web_search = "cached"
-hide_agent_reasoning = true
-
-[profiles.work.features]
-fast_mode = false
-"#,
-        )
-        .unwrap();
-        let codex = guard.write_fake_codex_binary();
-        app_preferences::save_codex_binary_path(Some(codex.display().to_string())).unwrap();
-
-        let state = load_state().unwrap();
-        let profile_model = state
-            .profile_fields
-            .iter()
-            .find(|field| field.path == "model")
-            .unwrap();
-        let profile_fast = state
-            .profile_fields
-            .iter()
-            .find(|field| field.path == "features.fast_mode")
-            .unwrap();
-        let profile_web_search = state
-            .profile_fields
-            .iter()
-            .find(|field| field.path == "web_search")
-            .unwrap();
-        let profile_hide_reasoning = state
-            .profile_fields
-            .iter()
-            .find(|field| field.path == "hide_agent_reasoning")
-            .unwrap();
-
-        assert_eq!(state.profile_fields.len(), 13);
-        assert_eq!(profile_model.value, Some("gpt-5.5".to_string()));
-        assert_eq!(profile_fast.value, Some("false".to_string()));
-        assert_eq!(profile_web_search.value, Some("cached".to_string()));
-        assert_eq!(profile_hide_reasoning.value, Some("true".to_string()));
-        assert!(profile_model
-            .note
-            .as_deref()
-            .unwrap()
-            .contains("profile \"work\""));
     }
 
     #[test]
@@ -468,46 +333,5 @@ fast_mode = false
             state.readonly_reason,
             Some("未找到 Codex 命令。请选择 codex 文件后再保存配置。".to_string())
         );
-    }
-
-    #[test]
-    fn active_profile_override_is_visible_in_state() {
-        let guard = TestCodexHome::new();
-        let location = config_locator::locate().unwrap();
-        fs::create_dir_all(&location.codex_home).unwrap();
-        fs::write(
-            &location.config_path,
-            r#"
-profile = "work"
-
-[features]
-fast_mode = true
-
-[profiles.work.features]
-fast_mode = false
-
-[profiles.work]
-sandbox_mode = "read-only"
-web_search = "live"
-"#,
-        )
-        .unwrap();
-        let codex = guard.write_fake_codex_binary();
-        app_preferences::save_codex_binary_path(Some(codex.display().to_string())).unwrap();
-
-        let state = load_state().unwrap();
-
-        assert!(state.writable);
-        assert_eq!(state.profile_warnings.len(), 3);
-        assert_eq!(state.profile_warnings[0].path, "features.fast_mode");
-        assert_eq!(
-            state.profile_warnings[0].root_value,
-            Some("true".to_string())
-        );
-        assert_eq!(state.profile_warnings[0].profile_value, "false");
-        assert_eq!(state.profile_warnings[1].path, "sandbox_mode");
-        assert_eq!(state.profile_warnings[1].profile_value, "read-only");
-        assert_eq!(state.profile_warnings[2].path, "web_search");
-        assert_eq!(state.profile_warnings[2].profile_value, "live");
     }
 }

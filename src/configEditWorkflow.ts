@@ -20,7 +20,7 @@ export type FileToken = {
 
 export type DraftChange = {
   path: string;
-  scope?: "root" | "profile";
+  scope?: "root";
   action: "set" | "unset";
   value?: boolean | string;
 };
@@ -32,7 +32,6 @@ type SaveResult<TState> = {
 
 export type ConfigEditIntent =
   | { kind: "rootSettings"; changes: DraftChange[] }
-  | { kind: "profileSettings"; changes: DraftChange[] }
   | { kind: "rawToml"; rawToml: string }
   | { kind: "modelProviderSave"; draft: ModelProviderDraft }
   | { kind: "modelProviderDelete"; id: string }
@@ -90,18 +89,6 @@ export async function commitConfigEdit<TState>(
         state: result.state,
         changed: result.changed,
         notice: result.changed ? "已保存。" : "没有需要保存的变更。",
-      };
-    }
-    case "profileSettings": {
-      const result = await invoke<SaveResult<TState>>("save_changes", {
-        changes: intent.changes,
-        fileToken: fileToken ?? null,
-      });
-
-      return {
-        state: result.state,
-        changed: result.changed,
-        notice: result.changed ? "已保存 profile 配置。" : "没有需要保存的变更。",
       };
     }
     case "rawToml": {

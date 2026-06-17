@@ -28,7 +28,6 @@ export type AppState = {
     };
   };
   fields: FieldState[];
-  profileFields: FieldState[];
   catalogFields: FieldState[];
   modelProviders: ModelProviderState;
   mcpServers: McpServerState;
@@ -36,12 +35,6 @@ export type AppState = {
   skills: SkillState;
   rawToml: string;
   parseIssue?: { message: string };
-  profileStatus?: {
-    activeProfile?: string;
-    exists: boolean;
-    missing: boolean;
-  };
-  profileWarnings: ProfileWarning[];
   preferences: AppPreferences;
 };
 
@@ -52,14 +45,6 @@ export type AppPreferences = {
 export type CodexSessionState = {
   sessionsDir: string;
   sessions: CodexSessionSummary[];
-};
-
-export type ProfileWarning = {
-  path: string;
-  profile: string;
-  rootValue?: string;
-  profileValue: string;
-  message: string;
 };
 
 export type ModelProviderState = {

@@ -18,8 +18,6 @@ import {
 } from "./configFieldDrafts";
 import {
   FieldCatalog,
-  ProfileSettingsForm,
-  ProfileWarnings,
   SettingsForm,
 } from "./ConfigFieldsWorkspace";
 import { TabBar, type MainTab } from "./AppShell";
@@ -39,7 +37,6 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MainTab>("config");
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
-  const [profileDraftValues, setProfileDraftValues] = useState<Record<string, string>>({});
   const [modelProviderDraft, setModelProviderDraft] =
     useState<ModelProviderDraft>(emptyModelProviderDraft());
   const [mcpServerDraft, setMcpServerDraft] = useState<McpServerDraft>(emptyMcpServerDraft());
@@ -57,7 +54,6 @@ function App() {
   function applyAppState(nextState: AppState) {
     setState(nextState);
     setDraftValues(draftValuesFromFields(nextState.fields));
-    setProfileDraftValues(draftValuesFromFields(nextState.profileFields));
     setModelProviderDraft(emptyModelProviderDraft());
     setMcpServerDraft(emptyMcpServerDraft());
     setRawTomlDraft(nextState.rawToml);
@@ -112,33 +108,6 @@ function App() {
     updateDraftValue(path, value);
   }
 
-  async function saveProfileSettings() {
-    if (!state) {
-      return;
-    }
-
-    await configEditWorkflow.runCommit({
-      kind: "profileSettings",
-      changes: settingsChanges(state.profileFields, profileDraftValues, "profile"),
-    });
-  }
-
-  function updateProfileDraftValue(path: string, value: string) {
-    setProfileDraftValues((current) => ({
-      ...current,
-      [path]: value,
-    }));
-    configEditWorkflow.reset({ clearStatus: true });
-  }
-
-  function updateProfileFieldValue(
-    path: string,
-    value: string,
-    _kind: FieldState["kind"],
-  ) {
-    updateProfileDraftValue(path, value);
-  }
-
   async function saveRawToml() {
     await configEditWorkflow.runCommit({
       kind: "rawToml",
@@ -190,11 +159,7 @@ function App() {
   }
 
   const settingChanges = state ? settingsChanges(state.fields, draftValues, "root") : [];
-  const profileSettingChanges = state
-    ? settingsChanges(state.profileFields, profileDraftValues, "profile")
-    : [];
   const settingsDirty = settingChanges.length > 0;
-  const profileSettingsDirty = profileSettingChanges.length > 0;
   const rawTomlDirty = state ? rawTomlDraft !== state.rawToml : false;
   const rawTomlWritable = Boolean(state?.health.codex.found);
 
@@ -263,19 +228,11 @@ function App() {
                     onSave={saveModelProvider}
                     onDelete={deleteModelProvider}
                   />
-                  <ProfileSettingsForm
-                    state={state}
-                    draftValues={profileDraftValues}
-                    dirty={profileSettingsDirty}
-                    onChange={updateProfileFieldValue}
-                    onSave={saveProfileSettings}
-                  />
                   <FieldCatalog
                     fields={state.catalogFields}
                     query={catalogQuery}
                     onQueryChange={setCatalogQuery}
                   />
-                  <ProfileWarnings warnings={state.profileWarnings} />
                 </div>
                 <ConfigPreviewSidebar
                   state={state}

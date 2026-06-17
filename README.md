@@ -34,21 +34,18 @@ Current implementation status:
 - Manual Codex binary path preference stored outside Codex `config.toml`.
 - Native file picker for choosing the Codex binary.
 - Editable root/global fields: Fast mode, model, model provider, OSS provider, reasoning effort, reasoning summary, verbosity, service tier, sandbox mode, approval policy, web search mode, and reasoning display toggles.
-- Editable active profile fields for the same common settings. Profile edits target only the current `profile = "..."` table and can create that profile table if it is missing.
 - Bundled schema metadata drives the editable scalar field catalog and the backend write registry.
-- Full-field catalog/search shows representative official Codex config fields, including complex areas such as `model_providers`, `mcp_servers`, `profiles`, `tools`, and `apps`.
+- Full-field catalog/search shows representative official Codex config fields, including complex areas such as `model_providers`, `mcp_servers`, `tools`, and `apps`.
 - Dedicated `model_providers` editor for custom providers: create, edit, rename, delete, preview, save, and protected built-in provider IDs.
 - Dedicated `mcp_servers` editor: create, edit, rename, delete, preview, save, and preserve unknown advanced fields on existing servers.
-- Global and profile fields are grouped in the UI.
+- Global fields are grouped in the UI.
 - Field-level diff plus raw TOML diff preview.
 - Advanced TOML editor for configuring complex fields before dedicated visual editors exist. Raw edits are parsed, reserialized, reparsed, previewed, and protected by file tokens.
 - Malformed existing TOML can be repaired through the advanced TOML editor.
-- Active profile override warnings.
 - Raw TOML preview.
 - Optimistic file tokens to block overwriting config changed outside the app.
 
 Planned next:
-- Dedicated editor for profile management.
 - Runtime schema refresh workflow.
 - Dedicated visual controls for remaining complex nested settings.
 

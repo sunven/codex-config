@@ -84,12 +84,12 @@ describe("Codex config field drafts", () => {
         {
           "features.fast_mode": "inherited",
         },
-        "profile",
+        "root",
       ),
     ).toEqual([
       {
         path: "features.fast_mode",
-        scope: "profile",
+        scope: "root",
         action: "unset",
       },
     ]);
@@ -128,13 +128,13 @@ describe("Codex config field drafts", () => {
           ...draftValuesFromFields(fields),
           model: " ",
         },
-        "profile",
+        "root",
       ),
     ).toEqual([
       {
         path: "model",
         action: "unset",
-        scope: "profile",
+        scope: "root",
       },
     ]);
   });
