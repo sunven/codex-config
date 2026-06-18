@@ -16,10 +16,7 @@ import {
   settingsChanges,
   type FieldState,
 } from "./configFieldDrafts";
-import {
-  FieldCatalog,
-  SettingsForm,
-} from "./ConfigFieldsWorkspace";
+import { SettingsForm } from "./ConfigFieldsWorkspace";
 import { TabBar, type MainTab } from "./AppShell";
 import { McpServersPanel, ModelProvidersPanel } from "./ConfigTablesWorkspace";
 import { ConfigPreviewSidebar } from "./ConfigPreviewSidebar";
@@ -41,7 +38,6 @@ function App() {
     useState<ModelProviderDraft>(emptyModelProviderDraft());
   const [mcpServerDraft, setMcpServerDraft] = useState<McpServerDraft>(emptyMcpServerDraft());
   const [rawTomlDraft, setRawTomlDraft] = useState("");
-  const [catalogQuery, setCatalogQuery] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const configEditWorkflow = useConfigEditWorkflow<AppState>({
@@ -227,11 +223,6 @@ function App() {
                     onDraftChange={updateModelProviderDraft}
                     onSave={saveModelProvider}
                     onDelete={deleteModelProvider}
-                  />
-                  <FieldCatalog
-                    fields={state.catalogFields}
-                    query={catalogQuery}
-                    onQueryChange={setCatalogQuery}
                   />
                 </div>
                 <ConfigPreviewSidebar

@@ -20,7 +20,6 @@ pub struct AppState {
     pub file_token: Option<FileToken>,
     pub health: HealthState,
     pub fields: Vec<FieldState>,
-    pub catalog_fields: Vec<FieldState>,
     pub model_providers: ModelProviderState,
     pub mcp_servers: McpServerState,
     pub codex_sessions: CodexSessionState,
@@ -92,17 +91,15 @@ pub fn load_state() -> Result<AppState, String> {
 
     let writable = readonly_reason.is_none();
     let schema = config_schema::schema()?;
-    let (fields, catalog_fields, model_providers, mcp_servers, skills) =
+    let (fields, model_providers, mcp_servers, skills) =
         match loaded.document.as_ref() {
             Some(document) => (
                 fields_from_document(document, writable, schema),
-                catalog_fields_from_document(document, schema),
                 model_provider_store::state_from_document(document),
                 mcp_server_store::state_from_document(document),
                 skill_store::state_from_document(Some(document)),
             ),
             None => (
-                Vec::new(),
                 Vec::new(),
                 ModelProviderState {
                     providers: Vec::new(),
@@ -129,7 +126,6 @@ pub fn load_state() -> Result<AppState, String> {
             schema_version: format!("{} ({})", schema.schema_version, schema.official_snapshot),
         },
         fields,
-        catalog_fields,
         model_providers,
         mcp_servers,
         codex_sessions,
@@ -154,27 +150,6 @@ fn fields_from_document(
             kind: definition.kind,
             value: field_value(document, definition),
             editable: editable && definition.editable,
-            risk: definition.risk.to_string(),
-            note: definition.note.clone(),
-            options: definition.options.clone(),
-        })
-        .collect()
-}
-
-fn catalog_fields_from_document(
-    document: &toml_edit::DocumentMut,
-    schema: &config_schema::ProductSchema,
-) -> Vec<FieldState> {
-    schema
-        .fields
-        .iter()
-        .map(|definition| FieldState {
-            path: definition.path.clone(),
-            label: definition.label.clone(),
-            group: definition.group.clone(),
-            kind: definition.kind,
-            value: field_value(document, definition),
-            editable: definition.editable,
             risk: definition.risk.to_string(),
             note: definition.note.clone(),
             options: definition.options.clone(),
@@ -215,15 +190,11 @@ mod tests {
         assert!(state.writable);
         assert!(!state.health.config_exists);
         assert_eq!(state.fields.len(), 13);
-        assert!(state
-            .catalog_fields
-            .iter()
-            .any(|field| field.path == "model_providers" && field.kind == FieldKind::Object));
         assert!(state.raw_toml.is_empty());
     }
 
     #[test]
-    fn exposes_root_fields_from_catalog() {
+    fn exposes_root_fields() {
         let guard = TestCodexHome::new();
         let location = config_locator::locate().unwrap();
         fs::create_dir_all(&location.codex_home).unwrap();
@@ -291,10 +262,6 @@ hide_agent_reasoning = false
         assert_eq!(approval.value, Some("on-request".to_string()));
         assert_eq!(web_search.group, "交互显示");
         assert_eq!(web_search.value, Some("live".to_string()));
-        assert!(state
-            .catalog_fields
-            .iter()
-            .any(|field| field.path == "mcp_servers" && !field.editable));
     }
 
     #[test]

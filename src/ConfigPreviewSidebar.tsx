@@ -55,7 +55,7 @@ function RawToml({
         <Edit3 size={18} />
         <div>
           <h2 id="raw-toml-title">高级 TOML 编辑</h2>
-          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">用于配置字段目录中尚未提供专用控件的复杂配置。</p>
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">用于编辑尚未提供专用控件的复杂配置。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <Button

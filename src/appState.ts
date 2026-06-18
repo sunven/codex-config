@@ -28,7 +28,6 @@ export type AppState = {
     };
   };
   fields: FieldState[];
-  catalogFields: FieldState[];
   modelProviders: ModelProviderState;
   mcpServers: McpServerState;
   codexSessions: CodexSessionState;

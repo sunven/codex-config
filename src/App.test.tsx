@@ -79,48 +79,6 @@ function appState(overrides: Partial<AppState> = {}): AppState {
         risk: "secret",
       },
     ],
-    catalogFields: [
-      {
-        path: "features.fast_mode",
-        label: "Fast mode",
-        group: "Features",
-        kind: "boolean",
-        value: "false",
-        editable: true,
-        risk: "normal",
-        note: "Use the optimized Codex execution profile.",
-      },
-      {
-        path: "approval_policy",
-        label: "Approval policy",
-        group: "Safety",
-        kind: "select",
-        value: undefined,
-        editable: true,
-        risk: "dangerous",
-        options: ["never", "on-request", "on-failure"],
-        note: "Controls when Codex asks before running commands.",
-      },
-      {
-        path: "model_provider.env_key",
-        label: "Provider env key",
-        group: "Model providers",
-        kind: "text",
-        value: undefined,
-        editable: true,
-        risk: "secret",
-        note: "Very long schema note that should wrap cleanly without overlapping controls or metadata badges in the catalog list.",
-      },
-      {
-        path: "experimental_resume",
-        label: "Experimental resume",
-        group: "Sessions",
-        kind: "boolean",
-        value: undefined,
-        editable: false,
-        risk: "experimental",
-      },
-    ],
     modelProviders: {
       providers: [],
       reservedIds: ["openai"],
@@ -396,12 +354,10 @@ describe("Config workbench", () => {
     const globalSettings = screen.getByRole("region", { name: "全局配置" });
     expect(globalSettings).toHaveTextContent("Model");
     expect(globalSettings).toHaveTextContent("model");
-    expect(globalSettings).toHaveTextContent("当前值");
-    expect(globalSettings).toHaveTextContent("gpt-5");
-    expect(globalSettings).toHaveTextContent("caution");
-    expect(globalSettings).toHaveTextContent("dangerous");
-    expect(globalSettings).toHaveTextContent("secret");
-    expect(globalSettings).toHaveTextContent("继承 / 未设置");
+    expect(screen.getByDisplayValue("gpt-5")).toBeVisible();
+    expect(globalSettings).toHaveTextContent("Approval policy");
+    expect(globalSettings).toHaveTextContent("Shell environment policy");
+    expect(screen.getByRole("combobox", { name: "Approval policy" })).toBeVisible();
 
     expect(screen.getByRole("button", { name: "保存全局配置" })).toBeDisabled();
   });
@@ -511,54 +467,6 @@ describe("Config workbench", () => {
     render(<App />);
 
     expect(await screen.findByRole("button", { name: "保存全局配置" })).toBeDisabled();
-  });
-});
-
-describe("Field catalog", () => {
-  beforeEach(() => {
-    invokeMock.mockReset();
-  });
-
-  it("filters schema fields and shows metadata with an empty result state", async () => {
-    const user = userEvent.setup();
-    invokeMock.mockResolvedValueOnce(appState());
-
-    render(<App />);
-
-    const catalog = await screen.findByRole("region", { name: "字段目录" });
-    const search = within(catalog).getByRole("searchbox", { name: "搜索字段目录" });
-
-    expect(catalog).toHaveTextContent("4 个字段");
-    expect(catalog).toHaveTextContent("Fast mode");
-    expect(catalog).toHaveTextContent("dangerous");
-    expect(catalog).toHaveTextContent("secret");
-    expect(catalog).toHaveTextContent("experimental");
-    expect(catalog).toHaveTextContent("read-only");
-
-    await user.type(search, "secret");
-
-    expect(catalog).toHaveTextContent("1 / 4 个字段");
-    expect(catalog).toHaveTextContent("Provider env key");
-    expect(catalog).not.toHaveTextContent("Fast mode");
-
-    await user.clear(search);
-    await user.type(search, "no-such-field");
-
-    expect(catalog).toHaveTextContent("没有匹配的 schema 字段。");
-  });
-
-  it("exposes the catalog search as a keyboard-focusable searchbox", async () => {
-    const user = userEvent.setup();
-    invokeMock.mockResolvedValueOnce(appState());
-
-    render(<App />);
-
-    const catalog = await screen.findByRole("region", { name: "字段目录" });
-    const search = within(catalog).getByRole("searchbox", { name: "搜索字段目录" });
-
-    await user.click(search);
-
-    expect(search).toHaveFocus();
   });
 });
 

@@ -153,7 +153,7 @@ mod tests {
     }
 
     #[test]
-    fn exposes_representative_complex_fields_as_read_only_catalog_entries() {
+    fn exposes_representative_complex_fields_as_read_only_fields() {
         let schema = schema().unwrap();
 
         for path in ["model_providers", "mcp_servers", "tools", "apps"] {
