@@ -50,6 +50,35 @@ pub struct SkillContent {
     pub raw_markdown: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillImportBatchResult {
+    pub changed: bool,
+    pub state: Option<crate::app_state::AppState>,
+    pub refresh_error: Option<String>,
+    pub imported: Vec<SkillImportItem>,
+    pub existing: Vec<SkillImportItem>,
+    pub skipped: Vec<SkillImportProblem>,
+    pub conflicts: Vec<SkillImportProblem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillImportItem {
+    pub name: String,
+    pub source_directory: String,
+    pub link_directory: String,
+    pub skill_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillImportProblem {
+    pub source_directory: String,
+    pub code: String,
+    pub reason: String,
+}
+
 #[derive(Debug, Clone)]
 struct SkillRootCandidate {
     path: PathBuf,
@@ -60,6 +89,20 @@ struct SkillRootCandidate {
 struct SkillMetadata {
     name: Option<String>,
     description: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct SkillImportCandidate {
+    source_dir: PathBuf,
+    skill_path: PathBuf,
+    name: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SkillDirectoryLinkOutcome {
+    Imported,
+    Existing,
+    Conflict,
 }
 
 pub fn state_from_document(document: Option<&DocumentMut>) -> SkillState {
@@ -173,6 +216,94 @@ pub fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
     Ok(SaveResult { changed, state })
 }
 
+pub fn import_skill_directories(
+    directories: Vec<String>,
+) -> Result<SkillImportBatchResult, String> {
+    let location = config_locator::locate()?;
+    let root = agent_global_skills_root(&location)?;
+
+    let mut result = SkillImportBatchResult {
+        changed: false,
+        state: None,
+        refresh_error: None,
+        imported: Vec::new(),
+        existing: Vec::new(),
+        skipped: Vec::new(),
+        conflicts: Vec::new(),
+    };
+    let candidates = import_candidates(directories, &mut result.skipped);
+    if candidates.is_empty() {
+        match crate::app_state::load_state() {
+            Ok(state) => result.state = Some(state),
+            Err(error) => result.refresh_error = Some(error),
+        }
+
+        return Ok(result);
+    }
+
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("failed to create Agent global skills root: {error}"))?;
+    let mut destination_sources = BTreeMap::<String, PathBuf>::new();
+
+    for candidate in candidates {
+        let Some(link_name) = candidate.source_dir.file_name() else {
+            result.skipped.push(import_problem(
+                &candidate.source_dir,
+                "invalid_directory_name",
+                "skill directory must have a name",
+            ));
+            continue;
+        };
+        let link_path = root.join(link_name);
+        let destination_key = destination_key(&link_path);
+        let candidate_source = canonical_or_self(&candidate.source_dir);
+
+        if let Some(existing_source) = destination_sources.get(&destination_key) {
+            if existing_source != &candidate_source {
+                result.conflicts.push(import_problem(
+                    &candidate.source_dir,
+                    "duplicate_destination",
+                    "another selected skill uses the same destination directory name",
+                ));
+            }
+            continue;
+        }
+
+        destination_sources.insert(destination_key, candidate_source);
+
+        match link_skill_directory(&candidate.source_dir, &link_path) {
+            Ok(SkillDirectoryLinkOutcome::Imported) => {
+                result.changed = true;
+                result.imported.push(import_item(&candidate, &link_path));
+            }
+            Ok(SkillDirectoryLinkOutcome::Existing) => {
+                result.existing.push(import_item(&candidate, &link_path));
+            }
+            Ok(SkillDirectoryLinkOutcome::Conflict) => {
+                result.conflicts.push(import_problem(
+                    &candidate.source_dir,
+                    "destination_conflict",
+                    "a skill entry with this directory name already exists",
+                ));
+            }
+            Err(error) => {
+                result.skipped.push(import_problem(
+                    &candidate.source_dir,
+                    "symlink_failed",
+                    error,
+                ));
+            }
+        }
+    }
+
+    match crate::app_state::load_state() {
+        Ok(state) => result.state = Some(state),
+        Err(error) => result.refresh_error = Some(error),
+    }
+
+    Ok(result)
+}
+
 fn discovery_roots(location: &config_locator::ConfigLocation) -> Vec<SkillRootCandidate> {
     let mut roots = Vec::new();
     push_root(
@@ -203,27 +334,171 @@ fn agent_global_skills_root(location: &config_locator::ConfigLocation) -> Result
 }
 
 fn create_skill_directory_symlink(source: &Path, link: &Path) -> Result<bool, String> {
+    match link_skill_directory(source, link)? {
+        SkillDirectoryLinkOutcome::Imported => Ok(true),
+        SkillDirectoryLinkOutcome::Existing => Ok(false),
+        SkillDirectoryLinkOutcome::Conflict => {
+            Err("a skill entry with this directory name already exists".to_string())
+        }
+    }
+}
+
+fn link_skill_directory(source: &Path, link: &Path) -> Result<SkillDirectoryLinkOutcome, String> {
     if fs::symlink_metadata(link).is_ok() {
         if canonical_or_self(link) == canonical_or_self(source) {
-            return Ok(false);
+            return Ok(SkillDirectoryLinkOutcome::Existing);
         }
 
-        return Err("a skill entry with this directory name already exists".to_string());
+        return Ok(SkillDirectoryLinkOutcome::Conflict);
     }
 
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(source, link)
             .map_err(|error| format!("failed to create skill symlink: {error}"))?;
-        Ok(true)
+        Ok(SkillDirectoryLinkOutcome::Imported)
     }
 
     #[cfg(windows)]
     {
         std::os::windows::fs::symlink_dir(source, link)
             .map_err(|error| format!("failed to create skill symlink: {error}"))?;
-        Ok(true)
+        Ok(SkillDirectoryLinkOutcome::Imported)
     }
+}
+
+fn import_candidates(
+    directories: Vec<String>,
+    skipped: &mut Vec<SkillImportProblem>,
+) -> Vec<SkillImportCandidate> {
+    let mut candidates = Vec::new();
+    let mut seen = BTreeSet::<PathBuf>::new();
+
+    for directory in directories {
+        let selected = PathBuf::from(directory);
+        if seen.contains(&canonical_or_self(&selected)) {
+            continue;
+        }
+        let before_candidates = candidates.len();
+        let before_skipped = skipped.len();
+
+        collect_import_candidates(
+            &selected,
+            MAX_SCAN_DEPTH,
+            &mut seen,
+            &mut candidates,
+            skipped,
+        );
+
+        if before_candidates == candidates.len() && before_skipped == skipped.len() {
+            skipped.push(import_problem(
+                &selected,
+                "no_skill_found",
+                "no SKILL.md found in selected directory",
+            ));
+        }
+    }
+
+    candidates.sort_by(|left, right| {
+        left.source_dir
+            .display()
+            .to_string()
+            .cmp(&right.source_dir.display().to_string())
+    });
+    candidates
+}
+
+fn collect_import_candidates(
+    directory: &Path,
+    depth: usize,
+    seen: &mut BTreeSet<PathBuf>,
+    candidates: &mut Vec<SkillImportCandidate>,
+    skipped: &mut Vec<SkillImportProblem>,
+) {
+    if depth == 0 {
+        return;
+    }
+
+    if !directory.is_dir() {
+        skipped.push(import_problem(
+            directory,
+            "not_directory",
+            "skill directory must be a directory",
+        ));
+        return;
+    }
+
+    let canonical_directory = canonical_or_self(directory);
+    if !seen.insert(canonical_directory) {
+        return;
+    }
+
+    let skill_path = directory.join("SKILL.md");
+    if skill_path.is_file() {
+        match fs::read_to_string(&skill_path) {
+            Ok(raw) => {
+                let metadata = parse_metadata(&raw);
+                candidates.push(SkillImportCandidate {
+                    source_dir: directory.to_path_buf(),
+                    name: metadata
+                        .name
+                        .unwrap_or_else(|| fallback_skill_name(&skill_path)),
+                    skill_path,
+                });
+            }
+            Err(error) => skipped.push(import_problem(
+                directory,
+                "unreadable_skill",
+                format!("failed to read skill: {error}"),
+            )),
+        }
+        return;
+    }
+
+    let Ok(entries) = fs::read_dir(directory) else {
+        skipped.push(import_problem(
+            directory,
+            "unreadable_directory",
+            "failed to read directory",
+        ));
+        return;
+    };
+    let mut child_dirs = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            match fs::metadata(&path) {
+                Ok(metadata) if metadata.is_dir() => Some(path),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+    child_dirs.sort();
+
+    for child in child_dirs {
+        collect_import_candidates(&child, depth - 1, seen, candidates, skipped);
+    }
+}
+
+fn import_item(candidate: &SkillImportCandidate, link_path: &Path) -> SkillImportItem {
+    SkillImportItem {
+        name: candidate.name.clone(),
+        source_directory: candidate.source_dir.display().to_string(),
+        link_directory: link_path.display().to_string(),
+        skill_path: candidate.skill_path.display().to_string(),
+    }
+}
+
+fn import_problem(path: &Path, code: &str, reason: impl Into<String>) -> SkillImportProblem {
+    SkillImportProblem {
+        source_directory: path.display().to_string(),
+        code: code.to_string(),
+        reason: reason.into(),
+    }
+}
+
+fn destination_key(path: &Path) -> String {
+    path.display().to_string().to_lowercase()
 }
 
 fn push_root(roots: &mut Vec<SkillRootCandidate>, path: PathBuf, label: &str) {
@@ -270,6 +545,7 @@ fn collect_skill_paths(
     let skill_path = directory.join("SKILL.md");
     if skill_path.is_file() {
         paths.push(skill_path);
+        return;
     }
 
     let Ok(entries) = fs::read_dir(directory) else {
@@ -749,6 +1025,229 @@ description: Skill through a directory symlink.
             .roots
             .iter()
             .any(|root| root.label == "Agent global skills"));
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_multiple_skill_directories_returns_batch_summary() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let first = home.join("first");
+        let second = home.join("second");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        fs::write(first.join("SKILL.md"), "---\nname: first\n---\n").unwrap();
+        fs::write(second.join("SKILL.md"), "---\nname: second\n---\n").unwrap();
+
+        let result = import_skill_directories(vec![
+            second.display().to_string(),
+            first.display().to_string(),
+        ])
+        .unwrap();
+
+        assert!(result.changed);
+        assert_eq!(result.imported.len(), 2);
+        assert!(result.existing.is_empty());
+        assert!(result.skipped.is_empty());
+        assert!(result.conflicts.is_empty());
+        assert_eq!(
+            result
+                .imported
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first", "second"]
+        );
+        assert_eq!(result.state.unwrap().skills.skills.len(), 2);
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_a_parent_directory_discovers_child_skills() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let parent = home.join("bundle");
+        let first = parent.join("first");
+        let second = parent.join("nested").join("second");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        fs::write(first.join("SKILL.md"), "---\nname: first\n---\n").unwrap();
+        fs::write(second.join("SKILL.md"), "---\nname: second\n---\n").unwrap();
+
+        let result = import_skill_directories(vec![parent.display().to_string()]).unwrap();
+
+        assert!(result.changed);
+        assert_eq!(result.imported.len(), 2);
+        assert!(result.skipped.is_empty());
+        assert_eq!(result.state.unwrap().skills.skills.len(), 2);
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_a_skill_directory_does_not_import_nested_child_skills() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let parent = home.join("parent-skill");
+        let child = parent.join("child-skill");
+        fs::create_dir_all(&child).unwrap();
+        fs::write(parent.join("SKILL.md"), "---\nname: parent\n---\n").unwrap();
+        fs::write(child.join("SKILL.md"), "---\nname: child\n---\n").unwrap();
+
+        let result = import_skill_directories(vec![parent.display().to_string()]).unwrap();
+
+        assert!(result.changed);
+        assert_eq!(result.imported.len(), 1);
+        assert_eq!(result.imported[0].name, "parent");
+        assert_eq!(result.state.unwrap().skills.skills.len(), 1);
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_dedupes_the_same_canonical_source() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let source = home.join("demo");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let result = import_skill_directories(vec![
+            source.display().to_string(),
+            source.display().to_string(),
+        ])
+        .unwrap();
+
+        assert!(result.changed);
+        assert_eq!(result.imported.len(), 1);
+        assert!(result.skipped.is_empty());
+        assert!(result.conflicts.is_empty());
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_classifies_existing_symlink_to_same_source() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let source = home.join("demo");
+        let link = home.join(".agents").join("skills").join("demo");
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(link.parent().unwrap()).unwrap();
+        fs::write(source.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+        create_dir_symlink(&source, &link);
+
+        let result = import_skill_directories(vec![source.display().to_string()]).unwrap();
+
+        assert!(!result.changed);
+        assert!(result.imported.is_empty());
+        assert_eq!(result.existing.len(), 1);
+        assert!(result.conflicts.is_empty());
+        assert_eq!(result.state.unwrap().skills.skills.len(), 1);
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_classifies_destination_name_conflicts() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let source = home.join("demo");
+        let existing = home.join(".agents").join("skills").join("demo");
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&existing).unwrap();
+        fs::write(source.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+        fs::write(existing.join("SKILL.md"), "---\nname: existing\n---\n").unwrap();
+
+        let result = import_skill_directories(vec![source.display().to_string()]).unwrap();
+
+        assert!(!result.changed);
+        assert!(result.imported.is_empty());
+        assert_eq!(result.conflicts.len(), 1);
+        assert_eq!(result.conflicts[0].code, "destination_conflict");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_classifies_duplicate_destination_names_in_the_same_batch() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let first = home.join("one").join("demo");
+        let second = home.join("two").join("demo");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        fs::write(first.join("SKILL.md"), "---\nname: first\n---\n").unwrap();
+        fs::write(second.join("SKILL.md"), "---\nname: second\n---\n").unwrap();
+
+        let result = import_skill_directories(vec![
+            first.display().to_string(),
+            second.display().to_string(),
+        ])
+        .unwrap();
+
+        assert!(result.changed);
+        assert_eq!(result.imported.len(), 1);
+        assert_eq!(result.conflicts.len(), 1);
+        assert_eq!(result.conflicts[0].code, "duplicate_destination");
+        assert_eq!(result.state.unwrap().skills.skills.len(), 1);
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn importing_skips_invalid_selected_directories_without_aborting_batch() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let invalid = home.join("not-a-skill");
+        let valid = home.join("valid");
+        let file = home.join("SKILL.md");
+        fs::create_dir_all(&invalid).unwrap();
+        fs::create_dir_all(&valid).unwrap();
+        fs::write(&file, "---\nname: nope\n---\n").unwrap();
+        fs::write(valid.join("SKILL.md"), "---\nname: valid\n---\n").unwrap();
+
+        let result = import_skill_directories(vec![
+            invalid.display().to_string(),
+            file.display().to_string(),
+            valid.display().to_string(),
+        ])
+        .unwrap();
+
+        assert!(result.changed);
+        assert_eq!(result.imported.len(), 1);
+        assert_eq!(result.skipped.len(), 2);
+        assert!(result
+            .skipped
+            .iter()
+            .any(|problem| problem.code == "no_skill_found"));
+        assert!(result
+            .skipped
+            .iter()
+            .any(|problem| problem.code == "not_directory"));
+        assert_eq!(result.state.unwrap().skills.skills.len(), 1);
+    }
+
+    #[test]
+    fn batch_import_with_no_candidates_does_not_create_agent_root() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let invalid = home.join("not-a-skill");
+        let agent_root = home.join(".agents").join("skills");
+        fs::create_dir_all(&invalid).unwrap();
+
+        let result = import_skill_directories(vec![invalid.display().to_string()]).unwrap();
+
+        assert!(!result.changed);
+        assert_eq!(result.skipped.len(), 1);
+        assert!(!agent_root.exists());
+    }
+
+    #[test]
+    fn batch_import_fails_when_agent_global_root_is_not_discoverable() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let source_dir = location.codex_home.join("source-demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let error = import_skill_directories(vec![source_dir.display().to_string()]).unwrap_err();
+
+        assert_eq!(error, "Agent global skills root is not discoverable");
     }
 
     #[test]

@@ -17,7 +17,7 @@ mod toml_store;
 use app_state::AppState;
 use mcp_server_store::{McpServerDraft, McpServerSaveResult};
 use model_provider_store::{ModelProviderDraft, ModelProviderSaveResult};
-use skill_store::SkillContent;
+use skill_store::{SkillContent, SkillImportBatchResult};
 use toml_store::{DraftChange, FileToken, PreviewResult, SaveResult};
 
 #[tauri::command]
@@ -106,6 +106,11 @@ fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
     skill_store::import_skill_directory(directory).map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn import_skill_directories(directories: Vec<String>) -> Result<SkillImportBatchResult, String> {
+    skill_store::import_skill_directories(directories).map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -124,7 +129,8 @@ pub fn run() {
             read_skill_content,
             preview_skill_enabled,
             save_skill_enabled,
-            import_skill_directory
+            import_skill_directory,
+            import_skill_directories
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

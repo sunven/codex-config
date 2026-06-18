@@ -3,10 +3,10 @@ import { BookOpen, Plus } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Switch } from "./components/ui/switch";
-import type { AppState, SaveResult } from "./appState";
+import type { AppState, SaveResult, SkillImportBatchResult } from "./appState";
 import {
   globalSkillsWorkspace,
-  importedSkillPath,
+  importedSkillBatchPath,
   type SkillContent,
 } from "./globalSkills";
 import { displayPath, formatBytes } from "./formatters";
@@ -33,11 +33,13 @@ export function SkillsWorkspace({
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState<SkillContent | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<SkillImportBatchResult | null>(null);
   const importingRef = useRef(false);
 
   async function readSkill(path: string) {
     onError(null);
     onStatusMessage(null);
+    setImportResult(null);
     setSelectedPath(path);
 
     try {
@@ -54,6 +56,7 @@ export function SkillsWorkspace({
   async function saveSkillEnabled(path: string, enabled: boolean) {
     onError(null);
     onStatusMessage(null);
+    setImportResult(null);
 
     try {
       const result = await invoke<SaveResult>("save_skill_enabled", {
@@ -72,7 +75,7 @@ export function SkillsWorkspace({
     }
   }
 
-  async function importSkillDirectory() {
+  async function importSkillDirectories() {
     if (importingRef.current) {
       return;
     }
@@ -81,29 +84,36 @@ export function SkillsWorkspace({
     setImporting(true);
     onError(null);
     onStatusMessage(null);
+    setImportResult(null);
 
     try {
       const selected = await open({
         directory: true,
-        multiple: false,
-        title: "选择 skill 目录",
+        multiple: true,
+        title: "选择 skill 目录或父目录",
       });
 
-      if (!selected || Array.isArray(selected)) {
+      const directories = selectedDirectories(selected);
+      if (directories.length === 0) {
         return;
       }
 
-      const result = await invoke<SaveResult>("import_skill_directory", {
-        directory: selected,
+      const result = await invoke<SkillImportBatchResult>("import_skill_directories", {
+        directories,
       });
-      onStateChange(result.state);
-      setSelectedPath(importedSkillPath(result.state.skills.skills, selected));
+      if (result.state) {
+        onStateChange(result.state);
+        setSelectedPath(
+          importedSkillBatchPath(
+            result.state.skills.skills,
+            [...result.imported, ...result.existing].map((item) => item.skillPath),
+            directories,
+          ),
+        );
+      }
       setContent(null);
-      onStatusMessage(
-        result.changed
-          ? "已导入 skill。重启 Codex 或开启新会话后生效。"
-          : "Skill 已经导入。重启 Codex 或开启新会话后生效。",
-      );
+      setImportResult(result);
+      onStatusMessage(importStatusMessage(result));
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -119,10 +129,11 @@ export function SkillsWorkspace({
       selectedPath={selectedPath}
       content={content}
       importing={importing}
+      importResult={importResult}
       onQueryChange={setQuery}
       onSelect={readSkill}
       onSaveToggle={saveSkillEnabled}
-      onImport={importSkillDirectory}
+      onImport={importSkillDirectories}
     />
   );
 }
@@ -133,6 +144,7 @@ function SkillsPanel({
   selectedPath,
   content,
   importing,
+  importResult,
   onQueryChange,
   onSelect,
   onSaveToggle,
@@ -143,6 +155,7 @@ function SkillsPanel({
   selectedPath: string | null;
   content: SkillContent | null;
   importing: boolean;
+  importResult: SkillImportBatchResult | null;
   onQueryChange: (value: string) => void;
   onSelect: (path: string) => void;
   onSaveToggle: (path: string, enabled: boolean) => void;
@@ -184,6 +197,8 @@ function SkillsPanel({
           ))}
         </div>
       </div>
+
+      <SkillImportDetails result={importResult} homeDir={state.homeDir} />
 
       <div className="grid grid-cols-[minmax(240px,0.42fr)_minmax(0,0.58fr)] gap-3 max-[940px]:grid-cols-1">
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -273,4 +288,151 @@ function SkillsPanel({
       </div>
     </section>
   );
+}
+
+function selectedDirectories(selected: string | string[] | null) {
+  if (!selected) {
+    return [];
+  }
+
+  return Array.isArray(selected) ? selected : [selected];
+}
+
+function importStatusMessage(result: SkillImportBatchResult) {
+  const imported = result.imported.length;
+  const existing = result.existing.length;
+  const skipped = result.skipped.length;
+  const conflicts = result.conflicts.length;
+  const parts = [];
+
+  if (imported > 0) {
+    parts.push(`已导入 ${imported} 个 skills`);
+  }
+  if (existing > 0) {
+    parts.push(`${existing} 个已存在`);
+  }
+  if (skipped > 0) {
+    parts.push(`${skipped} 个跳过`);
+  }
+  if (conflicts > 0) {
+    parts.push(`${conflicts} 个名称冲突`);
+  }
+
+  if (parts.length === 0) {
+    return "没有找到可导入的 skill。请选择包含 SKILL.md 的目录，或选择包含多个 skill 子目录的父目录。";
+  }
+
+  const suffix = result.refreshError
+    ? `状态刷新失败：${result.refreshError}`
+    : "重启 Codex 或开启新会话后生效。";
+
+  return `${parts.join("，")}。${suffix}`;
+}
+
+function SkillImportDetails({
+  result,
+  homeDir,
+}: {
+  result: SkillImportBatchResult | null;
+  homeDir?: string;
+}) {
+  if (!result || !shouldShowImportDetails(result)) {
+    return null;
+  }
+
+  const rows = importDetailRows(result);
+  const visibleRows = rows.slice(0, 12);
+  const hiddenCount = rows.length - visibleRows.length;
+
+  return (
+    <div className="mb-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2">
+      <div className="mb-1.5 text-[0.74rem] font-extrabold text-[var(--muted-foreground)]">
+        导入结果明细
+      </div>
+      <div className="grid gap-1">
+        {visibleRows.map((row) => (
+          <div
+            className="grid grid-cols-[96px_minmax(0,1fr)] gap-2 rounded-[var(--radius)] bg-[var(--card)] px-2 py-1.5 text-[0.76rem]"
+            key={`${row.kind}-${row.path}-${row.message}`}
+          >
+            <Badge className="w-fit" variant={row.variant}>
+              {row.label}
+            </Badge>
+            <span className="min-w-0 break-words">
+              {displayPath(row.path, homeDir)}
+              <span className="text-[var(--muted-foreground)]">{" -> "}{row.message}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      {hiddenCount > 0 && (
+        <details className="mt-2 text-[0.76rem] font-semibold">
+          <summary>查看其余 {hiddenCount} 条结果</summary>
+          <div className="mt-1 grid gap-1">
+            {rows.slice(12).map((row) => (
+              <div
+                className="grid grid-cols-[96px_minmax(0,1fr)] gap-2 rounded-[var(--radius)] bg-[var(--card)] px-2 py-1.5"
+                key={`${row.kind}-${row.path}-${row.message}`}
+              >
+                <Badge className="w-fit" variant={row.variant}>
+                  {row.label}
+                </Badge>
+                <span className="min-w-0 break-words">
+                  {displayPath(row.path, homeDir)}
+                  <span className="text-[var(--muted-foreground)]">{" -> "}{row.message}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      {result.refreshError && (
+        <div className="mt-2 rounded-[var(--radius)] bg-[#fff7ed] px-2 py-1.5 text-[0.76rem] font-semibold text-[#9a3412]">
+          文件系统导入已完成，但状态刷新失败：{result.refreshError}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function shouldShowImportDetails(result: SkillImportBatchResult) {
+  return (
+    result.refreshError ||
+    result.existing.length > 0 ||
+    result.skipped.length > 0 ||
+    result.conflicts.length > 0
+  );
+}
+
+function importDetailRows(result: SkillImportBatchResult) {
+  return [
+    ...result.imported.map((item) => ({
+      kind: "imported",
+      label: "已导入",
+      variant: "success" as const,
+      path: item.sourceDirectory,
+      message: item.linkDirectory,
+    })),
+    ...result.existing.map((item) => ({
+      kind: "existing",
+      label: "已存在",
+      variant: "primary" as const,
+      path: item.sourceDirectory,
+      message: item.linkDirectory,
+    })),
+    ...result.conflicts.map((problem) => ({
+      kind: "conflict",
+      label: "冲突",
+      variant: "destructive" as const,
+      path: problem.sourceDirectory,
+      message: problem.reason,
+    })),
+    ...result.skipped.map((problem) => ({
+      kind: "skipped",
+      label: "跳过",
+      variant: "muted" as const,
+      path: problem.sourceDirectory,
+      message: problem.reason,
+    })),
+  ];
 }

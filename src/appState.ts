@@ -67,3 +67,26 @@ export type SaveResult = {
   changed: boolean;
   state: AppState;
 };
+
+export type SkillImportBatchResult = {
+  changed: boolean;
+  state?: AppState;
+  refreshError?: string;
+  imported: SkillImportItem[];
+  existing: SkillImportItem[];
+  skipped: SkillImportProblem[];
+  conflicts: SkillImportProblem[];
+};
+
+export type SkillImportItem = {
+  name: string;
+  sourceDirectory: string;
+  linkDirectory: string;
+  skillPath: string;
+};
+
+export type SkillImportProblem = {
+  sourceDirectory: string;
+  code: string;
+  reason: string;
+};

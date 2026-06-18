@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   globalSkillsWorkspace,
+  importedSkillBatchPath,
   importedSkillPath,
   type SkillState,
   type SkillSummary,
@@ -94,5 +95,36 @@ describe("global skills workspace", () => {
     );
     expect(importedSkillPath(skills, "/Users/test/skills/missing")).toBe(skills[0]!.path);
     expect(importedSkillPath([], "/Users/test/skills/missing")).toBeNull();
+  });
+
+  it("chooses the first imported batch skill before existing fallbacks", () => {
+    const batchSkills = [
+      {
+        ...skills[0]!,
+        path: "/Users/test/.agents/skills/alpha/SKILL.md",
+        directory: "/Users/test/.agents/skills/alpha",
+        source: "Agent global skills",
+      },
+      {
+        ...skills[1]!,
+        path: "/Users/test/.agents/skills/beta/SKILL.md",
+        directory: "/Users/test/.agents/skills/beta",
+        source: "Agent global skills",
+      },
+    ];
+
+    expect(
+      importedSkillBatchPath(
+        batchSkills,
+        [
+          "/Users/test/.agents/skills/beta/SKILL.md",
+          "/Users/test/.agents/skills/alpha/SKILL.md",
+        ],
+        ["/Users/test/skills/alpha"],
+      ),
+    ).toBe("/Users/test/.agents/skills/beta/SKILL.md");
+    expect(
+      importedSkillBatchPath(batchSkills, [], ["/Users/test/skills/alpha"]),
+    ).toBe("/Users/test/.agents/skills/alpha/SKILL.md");
   });
 });

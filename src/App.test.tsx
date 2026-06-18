@@ -804,6 +804,18 @@ describe("Skills workspace", () => {
       .mockResolvedValueOnce({
         changed: true,
         state: nextState,
+        refreshError: undefined,
+        imported: [
+          {
+            name: "imported",
+            sourceDirectory: "/Users/test/skills/imported",
+            linkDirectory: "/Users/test/.agents/skills/imported",
+            skillPath: "/Users/test/.agents/skills/imported/SKILL.md",
+          },
+        ],
+        existing: [],
+        skipped: [],
+        conflicts: [],
       });
 
     render(<App />);
@@ -817,13 +829,13 @@ describe("Skills workspace", () => {
 
     expect(openMock).toHaveBeenCalledWith({
       directory: true,
-      multiple: false,
-      title: "选择 skill 目录",
+      multiple: true,
+      title: "选择 skill 目录或父目录",
     });
-    expect(invokeMock).toHaveBeenCalledWith("import_skill_directory", {
-      directory: "/Users/test/skills/imported",
+    expect(invokeMock).toHaveBeenCalledWith("import_skill_directories", {
+      directories: ["/Users/test/skills/imported"],
     });
-    expect(await screen.findByText(/已导入 skill。/)).toBeVisible();
+    expect(await screen.findByText(/已导入 1 个 skills。/)).toBeVisible();
     expect(skills).toHaveTextContent("1 skills");
     expect(skills).toHaveTextContent("软链");
     expect(skills).toHaveTextContent("原始位置：/Users/test/skills/imported");
@@ -834,6 +846,149 @@ describe("Skills workspace", () => {
     expect(within(skills).getByRole("button", { name: "选择 skill imported" })).toBeVisible();
     expect(within(skills).getByRole("heading", { name: "imported" })).toBeVisible();
     expect(within(skills).getByText("/Users/test/.agents/skills/imported")).toBeVisible();
+  });
+
+  it("imports multiple selected directories and shows mixed batch details", async () => {
+    const user = userEvent.setup();
+    const initialState = appStateWithSkills();
+    const nextState = appStateWithSkills({
+      skills: {
+        roots: [
+          {
+            path: "/Users/test/.codex/skills",
+            label: "Codex global skills",
+            exists: true,
+          },
+          {
+            path: "/Users/test/.agents/skills",
+            label: "Agent global skills",
+            exists: true,
+          },
+        ],
+        skills: [
+          {
+            name: "alpha",
+            path: "/Users/test/.agents/skills/alpha/SKILL.md",
+            directory: "/Users/test/.agents/skills/alpha",
+            symlink: true,
+            targetDirectory: "/Users/test/skills/alpha",
+            source: "Agent global skills",
+            enabled: true,
+            configured: false,
+            size: 1024,
+          },
+          {
+            name: "beta",
+            path: "/Users/test/.agents/skills/beta/SKILL.md",
+            directory: "/Users/test/.agents/skills/beta",
+            symlink: true,
+            targetDirectory: "/Users/test/skills/beta",
+            source: "Agent global skills",
+            enabled: true,
+            configured: false,
+            size: 1024,
+          },
+        ],
+      },
+    });
+    openMock.mockResolvedValueOnce([
+      "/Users/test/skills/alpha",
+      "/Users/test/skills/beta",
+      "/Users/test/skills/broken",
+      "/Users/test/skills/conflict",
+    ]);
+    invokeMock
+      .mockResolvedValueOnce(initialState)
+      .mockResolvedValueOnce({
+        changed: true,
+        state: nextState,
+        refreshError: undefined,
+        imported: [
+          {
+            name: "alpha",
+            sourceDirectory: "/Users/test/skills/alpha",
+            linkDirectory: "/Users/test/.agents/skills/alpha",
+            skillPath: "/Users/test/.agents/skills/alpha/SKILL.md",
+          },
+        ],
+        existing: [
+          {
+            name: "beta",
+            sourceDirectory: "/Users/test/skills/beta",
+            linkDirectory: "/Users/test/.agents/skills/beta",
+            skillPath: "/Users/test/.agents/skills/beta/SKILL.md",
+          },
+        ],
+        skipped: [
+          {
+            sourceDirectory: "/Users/test/skills/broken",
+            code: "no_skill_found",
+            reason: "no SKILL.md found in selected directory",
+          },
+        ],
+        conflicts: [
+          {
+            sourceDirectory: "/Users/test/skills/conflict",
+            code: "destination_conflict",
+            reason: "a skill entry with this directory name already exists",
+          },
+        ],
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("import_skill_directories", {
+      directories: [
+        "/Users/test/skills/alpha",
+        "/Users/test/skills/beta",
+        "/Users/test/skills/broken",
+        "/Users/test/skills/conflict",
+      ],
+    });
+    expect(
+      await screen.findByText("已导入 1 个 skills，1 个已存在，1 个跳过，1 个名称冲突。重启 Codex 或开启新会话后生效。"),
+    ).toBeVisible();
+    expect(within(skills).getByText("导入结果明细")).toBeVisible();
+    expect(within(skills).getByText("已导入")).toBeVisible();
+    expect(within(skills).getByText("已存在")).toBeVisible();
+    expect(within(skills).getByText("冲突")).toBeVisible();
+    expect(within(skills).getByText("跳过")).toBeVisible();
+    expect(within(skills).getByText(/no SKILL\.md found/)).toBeVisible();
+    expect(within(skills).getByText(/a skill entry with this directory name already exists/)).toBeVisible();
+    expect(within(skills).getByRole("heading", { name: "alpha" })).toBeVisible();
+  });
+
+  it("folds import details after twelve rows", async () => {
+    const user = userEvent.setup();
+    const skipped = Array.from({ length: 13 }, (_, index) => ({
+      sourceDirectory: `/Users/test/skills/broken-${index}`,
+      code: "no_skill_found",
+      reason: "no SKILL.md found in selected directory",
+    }));
+    openMock.mockResolvedValueOnce("/Users/test/skills/bundle");
+    invokeMock
+      .mockResolvedValueOnce(appStateWithSkills())
+      .mockResolvedValueOnce({
+        changed: false,
+        state: appStateWithSkills(),
+        refreshError: undefined,
+        imported: [],
+        existing: [],
+        skipped,
+        conflicts: [],
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
+
+    expect(await within(skills).findByText("查看其余 1 条结果")).toBeVisible();
   });
 
   it("does not import when the skill directory picker is canceled", async () => {
@@ -850,11 +1005,11 @@ describe("Skills workspace", () => {
 
     expect(openMock).toHaveBeenCalledWith({
       directory: true,
-      multiple: false,
-      title: "选择 skill 目录",
+      multiple: true,
+      title: "选择 skill 目录或父目录",
     });
     expect(invokeMock).toHaveBeenCalledTimes(1);
-    expect(invokeMock).not.toHaveBeenCalledWith("import_skill_directory", expect.anything());
+    expect(invokeMock).not.toHaveBeenCalledWith("import_skill_directories", expect.anything());
     expect(skills).toHaveTextContent("2 skills");
   });
 
@@ -877,6 +1032,41 @@ describe("Skills workspace", () => {
     );
     expect(skills).toHaveTextContent("2 skills");
     expect(within(skills).getByRole("button", { name: "选择 skill tdd" })).toBeVisible();
+  });
+
+  it("shows refresh warnings without hiding imported batch outcomes", async () => {
+    const user = userEvent.setup();
+    openMock.mockResolvedValueOnce("/Users/test/skills/imported");
+    invokeMock
+      .mockResolvedValueOnce(appStateWithSkills())
+      .mockResolvedValueOnce({
+        changed: true,
+        state: undefined,
+        refreshError: "config.toml parse failed",
+        imported: [
+          {
+            name: "imported",
+            sourceDirectory: "/Users/test/skills/imported",
+            linkDirectory: "/Users/test/.agents/skills/imported",
+            skillPath: "/Users/test/.agents/skills/imported/SKILL.md",
+          },
+        ],
+        existing: [],
+        skipped: [],
+        conflicts: [],
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
+
+    expect(
+      await screen.findByText("已导入 1 个 skills。状态刷新失败：config.toml parse failed"),
+    ).toBeVisible();
+    expect(within(skills).getByText("文件系统导入已完成，但状态刷新失败：config.toml parse failed")).toBeVisible();
+    expect(within(skills).getByText("已导入")).toBeVisible();
   });
 
   it("disables skill import when the app is not writable", async () => {

@@ -80,6 +80,32 @@ export function importedSkillPath(skills: SkillSummary[], selectedDirectory: str
   return imported?.path ?? skills[0]?.path ?? null;
 }
 
+export function importedSkillBatchPath(
+  skills: SkillSummary[],
+  preferredSkillPaths: string[],
+  fallbackDirectories: string[],
+) {
+  for (const skillPath of preferredSkillPaths) {
+    const imported = skills.find(
+      (skill) => skill.source === "Agent global skills" && skill.path === skillPath,
+    );
+
+    if (imported) {
+      return imported.path;
+    }
+  }
+
+  for (const directory of fallbackDirectories) {
+    const imported = importedSkillPath(skills, directory);
+
+    if (imported) {
+      return imported;
+    }
+  }
+
+  return skills[0]?.path ?? null;
+}
+
 function skillMatchesQuery(skill: SkillSummary, normalizedQuery: string) {
   return [skill.name, skill.description, skill.path, skill.source]
     .filter(Boolean)
