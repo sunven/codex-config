@@ -6,7 +6,7 @@ import {
   type McpServerDraft,
   type ModelProviderDraft,
 } from "./configEditWorkflow";
-import { type AppState } from "./appState";
+import { type AppState, type CodexSessionState } from "./appState";
 import {
   emptyMcpServerDraft,
   emptyModelProviderDraft,
@@ -40,6 +40,7 @@ function App() {
   const [rawTomlDraft, setRawTomlDraft] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const configEditWorkflow = useConfigEditWorkflow<AppState>({
     currentState: state,
     onCommitState: applyAppState,
@@ -68,6 +69,20 @@ function App() {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSessions() {
+    setSessionsLoading(true);
+    try {
+      const sessions = await invoke<CodexSessionState>("load_sessions");
+      setState((current) =>
+        current ? { ...current, codexSessions: sessions } : current,
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSessionsLoading(false);
     }
   }
 
@@ -164,6 +179,13 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (activeTab === "sessions" && state && !state.codexSessions && !sessionsLoading) {
+      void loadSessions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, state]);
+
+  useEffect(() => {
     const title = appTitle(state);
     document.title = title;
 
@@ -191,6 +213,30 @@ function App() {
           <ShieldAlert size={18} />
           <span>{error}</span>
         </Notice>
+      )}
+
+      {loading && !state && !error && (
+        <div className="mx-auto max-w-[1440px]" aria-busy="true" aria-label="正在加载配置">
+          <div className="mb-4 flex gap-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-[42px] min-w-[132px] flex-none animate-pulse rounded-[var(--radius)] bg-[var(--muted)]"
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 max-[940px]:grid-cols-1">
+            <div className="flex flex-col gap-3">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="h-16 animate-pulse rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)]"
+                />
+              ))}
+            </div>
+            <div className="h-72 animate-pulse rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)]" />
+          </div>
+        </div>
       )}
 
       {state && (
@@ -238,6 +284,7 @@ function App() {
               <div className="min-w-0">
                 <SessionsWorkspace
                   state={state}
+                  sessionsLoading={sessionsLoading}
                   onStateChange={applyAppState}
                   onError={setError}
                   onStatusMessage={setStatusMessage}

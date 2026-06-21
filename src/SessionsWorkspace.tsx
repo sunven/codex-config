@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppState } from "./appState";
+import type { AppState, CodexSessionState } from "./appState";
 import {
   codexSessionBrowserState,
   sessionDeleteLabel,
@@ -15,6 +15,7 @@ import { cn } from "./components/ui/utils";
 
 type SessionsWorkspaceProps = {
   state: AppState;
+  sessionsLoading?: boolean;
   onStateChange: (state: AppState) => void;
   onError: (message: string | null) => void;
   onStatusMessage: (message: string | null) => void;
@@ -22,6 +23,7 @@ type SessionsWorkspaceProps = {
 
 export function SessionsWorkspace({
   state,
+  sessionsLoading,
   onStateChange,
   onError,
   onStatusMessage,
@@ -48,9 +50,19 @@ export function SessionsWorkspace({
     }
   }
 
+  const codexSessions = state.codexSessions;
+  if (!codexSessions) {
+    return (
+      <CompactEmpty>
+        {sessionsLoading ? "正在加载 Codex sessions…" : "尚未加载 Codex sessions。"}
+      </CompactEmpty>
+    );
+  }
+
   return (
     <SessionsPanel
       state={state}
+      codexSessions={codexSessions}
       pendingDeleteId={pendingDeleteId}
       onDelete={deleteSession}
     />
@@ -59,14 +71,16 @@ export function SessionsWorkspace({
 
 function SessionsPanel({
   state,
+  codexSessions,
   pendingDeleteId,
   onDelete,
 }: {
   state: AppState;
+  codexSessions: CodexSessionState;
   pendingDeleteId: string | null;
   onDelete: (id: string) => void;
 }) {
-  const sessions = state.codexSessions.sessions;
+  const sessions = codexSessions.sessions;
   const [activeYear, setActiveYear] = useState<string | null>(null);
   const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
   const {
@@ -87,7 +101,7 @@ function SessionsPanel({
         <div>
           <h2 id="codex-sessions-title">Codex sessions</h2>
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
-            {displayPath(state.codexSessions.sessionsDir, state.homeDir)}
+            {displayPath(codexSessions.sessionsDir, state.homeDir)}
           </p>
         </div>
         {sessionYears.length > 0 && (

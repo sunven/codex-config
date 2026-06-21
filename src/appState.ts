@@ -30,7 +30,7 @@ export type AppState = {
   fields: FieldState[];
   modelProviders: ModelProviderState;
   mcpServers: McpServerState;
-  codexSessions: CodexSessionState;
+  codexSessions?: CodexSessionState;
   skills: SkillState;
   rawToml: string;
   parseIssue?: { message: string };

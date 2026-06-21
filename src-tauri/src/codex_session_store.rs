@@ -1,6 +1,6 @@
 use crate::config_locator;
-use serde::Serialize;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Component, Path, PathBuf};
@@ -158,8 +158,8 @@ fn parse_session(path: &Path) -> ParsedSession {
             continue;
         }
 
-        let value = match serde_json::from_str::<Value>(trimmed) {
-            Ok(value) => value,
+        let envelope = match serde_json::from_str::<LineEnvelope>(trimmed) {
+            Ok(envelope) => envelope,
             Err(error) => {
                 set_parse_error(
                     &mut parsed,
@@ -169,15 +169,30 @@ fn parse_session(path: &Path) -> ParsedSession {
             }
         };
 
-        if let Some(timestamp) = string_field(&value, "timestamp") {
+        if let Some(timestamp) = envelope.timestamp {
             parsed.last_timestamp = Some(timestamp);
         }
 
-        let payload = value.get("payload").unwrap_or(&Value::Null);
-        match string_field(&value, "type").as_deref() {
-            Some("session_meta") => parse_meta(payload, &mut parsed),
-            Some("response_item") => parse_response_item(payload, &mut parsed),
-            Some("event_msg") => parse_event_msg(payload, &mut parsed),
+        let Some(payload) = envelope.payload else {
+            continue;
+        };
+
+        match envelope.kind.as_deref() {
+            Some("session_meta") => {
+                if let Ok(meta) = serde_json::from_str::<MetaPayload>(payload.get()) {
+                    parse_meta(meta, &mut parsed);
+                }
+            }
+            Some("response_item") => {
+                if let Ok(message) = serde_json::from_str::<MessagePayload>(payload.get()) {
+                    parse_response_item(message, &mut parsed);
+                }
+            }
+            Some("event_msg") => {
+                if let Ok(event) = serde_json::from_str::<EventPayload>(payload.get()) {
+                    parse_event_msg(event, &mut parsed);
+                }
+            }
             _ => {}
         }
     }
@@ -185,48 +200,84 @@ fn parse_session(path: &Path) -> ParsedSession {
     parsed
 }
 
-fn parse_meta(payload: &Value, parsed: &mut ParsedSession) {
-    parsed.session_id = parsed
-        .session_id
-        .take()
-        .or_else(|| string_field(payload, "id"));
-    parsed.created_at = parsed
-        .created_at
-        .take()
-        .or_else(|| string_field(payload, "timestamp"));
-    parsed.cwd = parsed.cwd.take().or_else(|| string_field(payload, "cwd"));
-    parsed.cli_version = parsed
-        .cli_version
-        .take()
-        .or_else(|| string_field(payload, "cli_version"));
-    parsed.model_provider = parsed
-        .model_provider
-        .take()
-        .or_else(|| string_field(payload, "model_provider"));
+#[derive(Deserialize)]
+struct LineEnvelope<'a> {
+    timestamp: Option<String>,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    #[serde(borrow, default)]
+    payload: Option<&'a RawValue>,
 }
 
-fn parse_response_item(payload: &Value, parsed: &mut ParsedSession) {
-    if string_field(payload, "type").as_deref() != Some("message") {
+#[derive(Deserialize)]
+struct MetaPayload {
+    id: Option<String>,
+    timestamp: Option<String>,
+    cwd: Option<String>,
+    cli_version: Option<String>,
+    model_provider: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct MessagePayload<'a> {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    role: Option<String>,
+    #[serde(borrow, default)]
+    content: Option<&'a RawValue>,
+}
+
+#[derive(Deserialize)]
+struct EventPayload {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    message: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ContentItem {
+    text: Option<String>,
+}
+
+fn parse_meta(meta: MetaPayload, parsed: &mut ParsedSession) {
+    parsed.session_id = parsed.session_id.take().or(meta.id);
+    parsed.created_at = parsed.created_at.take().or(meta.timestamp);
+    parsed.cwd = parsed.cwd.take().or(meta.cwd);
+    parsed.cli_version = parsed.cli_version.take().or(meta.cli_version);
+    parsed.model_provider = parsed.model_provider.take().or(meta.model_provider);
+}
+
+fn parse_response_item(message: MessagePayload, parsed: &mut ParsedSession) {
+    if message.kind.as_deref() != Some("message") {
         return;
     }
 
     parsed.message_count += 1;
 
-    if string_field(payload, "role").as_deref() != Some("user") {
+    if message.role.as_deref() != Some("user") {
         return;
     }
 
     parsed.user_message_count += 1;
-    maybe_set_title(parsed, content_text(payload.get("content")));
+
+    // Only the first user message becomes the title, so skip parsing the
+    // (potentially large) content payload once a title is already set.
+    if parsed.title.is_some() {
+        return;
+    }
+
+    if let Some(content) = message.content {
+        maybe_set_title(parsed, content_text(content));
+    }
 }
 
-fn parse_event_msg(payload: &Value, parsed: &mut ParsedSession) {
-    if string_field(payload, "type").as_deref() != Some("user_message") {
+fn parse_event_msg(event: EventPayload, parsed: &mut ParsedSession) {
+    if event.kind.as_deref() != Some("user_message") {
         return;
     }
 
     parsed.user_message_count += 1;
-    maybe_set_title(parsed, string_field(payload, "message"));
+    maybe_set_title(parsed, event.message);
 }
 
 fn maybe_set_title(parsed: &mut ParsedSession, text: Option<String>) {
@@ -249,14 +300,12 @@ fn maybe_set_title(parsed: &mut ParsedSession, text: Option<String>) {
     parsed.title = Some(truncate_chars(&compact, TITLE_LIMIT));
 }
 
-fn content_text(value: Option<&Value>) -> Option<String> {
-    let Value::Array(items) = value? else {
-        return None;
-    };
+fn content_text(content: &RawValue) -> Option<String> {
+    let items = serde_json::from_str::<Vec<ContentItem>>(content.get()).ok()?;
 
     let parts = items
-        .iter()
-        .filter_map(|item| string_field(item, "text"))
+        .into_iter()
+        .filter_map(|item| item.text)
         .collect::<Vec<_>>();
 
     if parts.is_empty() {
@@ -324,10 +373,6 @@ fn path_id(path: &Path) -> String {
         .join("/")
 }
 
-fn string_field(value: &Value, key: &str) -> Option<String> {
-    value.get(key)?.as_str().map(str::to_string)
-}
-
 fn set_parse_error(parsed: &mut ParsedSession, error: String) {
     if parsed.parse_error.is_none() {
         parsed.parse_error = Some(error);
@@ -393,6 +438,46 @@ mod tests {
         assert_eq!(state.sessions[0].title, "做一个 session 的管理");
         assert_eq!(state.sessions[0].cwd, Some("/repo".to_string()));
         assert_eq!(state.sessions[0].user_message_count, 1);
+    }
+
+    #[test]
+    fn title_uses_first_user_message_while_counts_stay_exact() {
+        // Guards the parser optimization: large assistant content after the
+        // title is skipped for title extraction, but every message line is
+        // still counted and the last timestamp reflects the final line.
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let session_path = location
+            .codex_home
+            .join("sessions")
+            .join("2026")
+            .join("06")
+            .join("07")
+            .join("rollout-counts.jsonl");
+        fs::create_dir_all(session_path.parent().unwrap()).unwrap();
+        let huge_reply = "x".repeat(20_000);
+        let contents = format!(
+            concat!(
+                "{{\"timestamp\":\"2026-06-07T02:00:00.000Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"sid\"}}}}\n",
+                "{{\"timestamp\":\"2026-06-07T02:00:01.000Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"user\",\"content\":[{{\"type\":\"input_text\",\"text\":\"first question\"}}]}}}}\n",
+                "{{\"timestamp\":\"2026-06-07T02:00:02.000Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{{\"type\":\"output_text\",\"text\":\"{reply}\"}}]}}}}\n",
+                "{{\"timestamp\":\"2026-06-07T02:00:03.000Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"user\",\"content\":[{{\"type\":\"input_text\",\"text\":\"second question\"}}]}}}}\n"
+            ),
+            reply = huge_reply
+        );
+        fs::write(&session_path, contents).unwrap();
+
+        let state = state(&location.codex_home);
+
+        assert_eq!(state.sessions.len(), 1);
+        let session = &state.sessions[0];
+        assert_eq!(session.title, "first question");
+        assert_eq!(session.message_count, 3);
+        assert_eq!(session.user_message_count, 2);
+        assert_eq!(
+            session.last_timestamp,
+            Some("2026-06-07T02:00:03.000Z".to_string())
+        );
     }
 
     #[test]

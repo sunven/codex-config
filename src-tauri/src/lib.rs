@@ -26,6 +26,12 @@ fn load_state() -> Result<AppState, String> {
 }
 
 #[tauri::command]
+fn load_sessions() -> Result<codex_session_store::CodexSessionState, String> {
+    let location = config_locator::locate().map_err(|error| error.to_string())?;
+    Ok(codex_session_store::state(&location.codex_home))
+}
+
+#[tauri::command]
 fn save_changes(
     changes: Vec<DraftChange>,
     file_token: Option<FileToken>,
@@ -79,7 +85,7 @@ fn save_codex_binary_path(path: Option<String>) -> Result<AppState, String> {
 #[tauri::command]
 fn delete_session(id: String) -> Result<AppState, String> {
     codex_session_store::delete(id).map_err(|error| error.to_string())?;
-    app_state::load_state().map_err(|error| error.to_string())
+    app_state::load_state_with_sessions().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -118,6 +124,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             load_state,
+            load_sessions,
             save_changes,
             save_raw_toml,
             save_model_provider,

@@ -287,6 +287,24 @@ describe("App shell", () => {
     expect(screen.getByRole("tab", { name: "Skills" })).toBeVisible();
   });
 
+  it("shows a loading skeleton before the initial state resolves", async () => {
+    let resolveState: (value: AppState) => void = () => {};
+    invokeMock.mockReturnValueOnce(
+      new Promise<AppState>((resolve) => {
+        resolveState = resolve;
+      }),
+    );
+
+    render(<App />);
+
+    expect(screen.getByLabelText("正在加载配置")).toBeVisible();
+
+    resolveState(appState());
+
+    expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
+    expect(screen.queryByLabelText("正在加载配置")).not.toBeInTheDocument();
+  });
+
   it("switches between the primary workspaces from the tab bar", async () => {
     const user = userEvent.setup();
     invokeMock.mockResolvedValueOnce(appState());
@@ -1164,5 +1182,27 @@ describe("Sessions workspace", () => {
     expect(sessions).toHaveTextContent("当前 Codex Home 下没有 session 记录。");
     expect(sessions).toHaveTextContent("会话数量");
     expect(sessions).toHaveTextContent("0");
+  });
+
+  it("lazily loads sessions only after the Sessions tab is opened", async () => {
+    const user = userEvent.setup();
+    const baseState = appState();
+    const sessionState = baseState.codexSessions;
+    const { codexSessions: _omitted, ...stateWithoutSessions } = baseState;
+    invokeMock
+      .mockResolvedValueOnce(stateWithoutSessions as AppState)
+      .mockResolvedValueOnce(sessionState);
+
+    render(<App />);
+
+    // Initial paint must not request sessions — that is the white-screen fix.
+    expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "load_state");
+
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
+
+    expect(await screen.findByText("Refactor config UI")).toBeVisible();
+    expect(invokeMock).toHaveBeenCalledWith("load_sessions");
   });
 });
