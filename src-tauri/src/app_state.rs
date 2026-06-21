@@ -22,7 +22,7 @@ pub struct AppState {
     pub fields: Vec<FieldState>,
     pub model_providers: ModelProviderState,
     pub mcp_servers: McpServerState,
-    pub codex_sessions: CodexSessionState,
+    pub codex_sessions: Option<CodexSessionState>,
     pub skills: SkillState,
     pub raw_toml: String,
     pub parse_issue: Option<ParseIssue>,
@@ -72,11 +72,23 @@ pub enum FieldKind {
 }
 
 pub fn load_state() -> Result<AppState, String> {
+    load_state_inner(false)
+}
+
+pub fn load_state_with_sessions() -> Result<AppState, String> {
+    load_state_inner(true)
+}
+
+fn load_state_inner(include_sessions: bool) -> Result<AppState, String> {
     let location = config_locator::locate()?;
     let loaded = toml_store::load(&location.config_path)?;
     let preferences = app_preferences::load();
     let codex = codex_probe::probe_with_preferences(&preferences);
-    let codex_sessions = codex_session_store::state(&location.codex_home);
+    let codex_sessions = if include_sessions {
+        Some(codex_session_store::state(&location.codex_home))
+    } else {
+        None
+    };
 
     let mut readonly_reason = None;
     let mut status = HealthStatus::Ready;

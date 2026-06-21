@@ -8,7 +8,12 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="padding:24px;font-family:system-ui,sans-serif">
+        <div style="height:42px;width:200px;border-radius:4px;background:#f6f6f6;animation:cfgpulse 1.2s ease-in-out infinite"></div>
+      </div>
+    </div>
+    <style>@keyframes cfgpulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
