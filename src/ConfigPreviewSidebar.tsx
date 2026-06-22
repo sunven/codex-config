@@ -50,16 +50,15 @@ function RawToml({
   onSave: () => void;
 }) {
   return (
-    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="raw-toml-title">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3">
       <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <Edit3 size={18} />
         <div>
-          <h2 id="raw-toml-title">高级 TOML 编辑</h2>
+          <h2>高级 TOML 编辑</h2>
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">用于编辑尚未提供专用控件的复杂配置。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <Button
-            aria-label="保存原始 TOML"
             className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
             disabled={!writable || !dirty}
             onClick={onSave}
@@ -71,9 +70,8 @@ function RawToml({
         </div>
       </div>
       {state.parseIssue && (
-        <div className="mb-2 rounded-[var(--radius)] border border-[#fecaca] bg-[var(--destructive-soft)] p-2 text-[#991b1b]" role="alert">{state.parseIssue.message}</div>
+        <div className="mb-2 rounded-[var(--radius)] border border-[#fecaca] bg-[var(--destructive-soft)] p-2 text-[#991b1b]">{state.parseIssue.message}</div>
       )}
-      <label className="sr-only" htmlFor="raw-toml-editor">原始 TOML</label>
       <Textarea
         className="min-h-80"
         id="raw-toml-editor"

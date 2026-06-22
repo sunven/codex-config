@@ -25,21 +25,17 @@ export function SettingsForm({
   onSave: () => void;
 }) {
   const groupedFields = groupFields(fields);
-  const saveLabel =
-    title === "全局配置" ? "保存全局配置" : `保存${title}`;
-
   return (
-    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby={sectionTitleId(title)}>
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3">
       <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <FileCode2 size={18} />
         <div>
-          <h2 id={sectionTitleId(title)}>{title}</h2>
+          <h2>{title}</h2>
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">保存会直接写入 config.toml。</p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <Button
             className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
-            aria-label={saveLabel}
             disabled={!writable || !dirty}
             onClick={onSave}
             variant="primary"
@@ -165,10 +161,6 @@ function FieldValue({
       onChange={(event) => onChange(event.currentTarget.value)}
     />
   );
-}
-
-function sectionTitleId(title: string) {
-  return `${slugify(title)}-settings-title`;
 }
 
 function fieldControlId(title: string, path: string) {

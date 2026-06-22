@@ -6,32 +6,26 @@ import { CompactEmpty } from "./components/ui/compact-empty";
 import { Input } from "./components/ui/input";
 
 export function TableEntryEditor({
-  titleId,
   title,
   description,
   countLabel,
-  saveLabel,
   saveButtonText,
   writable,
   dirty,
   onSave,
-  newEntryAriaLabel,
   newEntryText,
   onNewEntry,
   emptyMessage,
   entries,
   form,
 }: {
-  titleId: string;
   title: string;
   description: ReactNode;
   countLabel: string;
-  saveLabel: string;
   saveButtonText: string;
   writable: boolean;
   dirty: boolean;
   onSave: () => void;
-  newEntryAriaLabel: string;
   newEntryText: string;
   onNewEntry: () => void;
   emptyMessage: string;
@@ -39,17 +33,16 @@ export function TableEntryEditor({
   form: ReactNode;
 }) {
   return (
-    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby={titleId}>
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3">
       <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <FileCode2 size={18} />
         <div>
-          <h2 id={titleId}>{title}</h2>
+          <h2>{title}</h2>
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">{description}</p>
         </div>
         <Badge size="count">{countLabel}</Badge>
         <div className="ml-auto flex flex-wrap justify-end gap-1.5 max-[940px]:ml-0 max-[940px]:w-full [&>button]:max-[940px]:flex-1 [&>button]:max-[940px]:justify-center">
           <Button
-            aria-label={saveLabel}
             className="ml-auto max-[940px]:ml-0 max-[940px]:w-full max-[940px]:justify-center !min-h-7 !px-2.5"
             disabled={!writable || !dirty}
             onClick={onSave}
@@ -64,7 +57,6 @@ export function TableEntryEditor({
       <div className="grid grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] gap-3 max-[940px]:grid-cols-1">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Button
-            aria-label={newEntryAriaLabel}
             className="flex w-full min-w-0 flex-row items-center whitespace-normal border-[var(--border)] bg-[var(--muted)] p-2 text-left font-bold text-[var(--foreground)]"
             onClick={onNewEntry}
             variant="ghost"

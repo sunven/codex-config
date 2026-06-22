@@ -209,14 +209,14 @@ function App() {
       </header>
 
       {error && (
-        <Notice role="alert" variant="destructive">
+        <Notice variant="destructive">
           <ShieldAlert size={18} />
           <span>{error}</span>
         </Notice>
       )}
 
       {loading && !state && !error && (
-        <div className="mx-auto max-w-[1440px]" aria-busy="true" aria-label="正在加载配置">
+        <div className="mx-auto max-w-[1440px]">
           <div className="mb-4 flex gap-2">
             {[0, 1, 2, 3].map((i) => (
               <div

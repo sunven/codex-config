@@ -7,8 +7,6 @@ import {
   emptyModelProviderDraft,
   isMcpServerDraftDirty,
   isModelProviderDraftDirty,
-  mcpServerDraftId,
-  modelProviderDraftId,
   type McpServerDraft,
   type ModelProviderDraft,
 } from "./configTableEntries";
@@ -39,8 +37,6 @@ export function ModelProvidersPanel({
 }) {
   const providers = state.modelProviders.providers;
   const dirty = isModelProviderDraftDirty(draft, providers);
-  const draftProviderId = modelProviderDraftId(draft);
-  const saveLabel = `保存 provider ${draftProviderId}`;
 
   function patch(patch: Partial<ModelProviderDraft>) {
     onDraftChange({ ...draft, ...patch });
@@ -55,7 +51,6 @@ export function ModelProvidersPanel({
           return (
             <div className={cn("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === provider.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={provider.id}>
               <button
-                aria-label={`选择 provider ${providerName}`}
                 className="flex w-full min-w-0 cursor-pointer flex-col gap-[5px] border-0 bg-transparent p-0 text-left text-inherit"
                 onClick={() => onDraftChange(draftFromModelProvider(provider))}
                 type="button"
@@ -78,7 +73,6 @@ export function ModelProvidersPanel({
               </button>
               <div className="flex flex-wrap gap-[5px]">
                 <Button
-                  aria-label={`删除 provider ${provider.id}`}
                   disabled={!state.writable || reserved}
                   onClick={() => onDelete(provider.id)}
                   title={reserved ? "内置 provider 不能删除" : `删除 provider ${provider.id}`}
@@ -95,16 +89,13 @@ export function ModelProvidersPanel({
 
   return (
     <TableEntryEditor
-      titleId="model-providers-title"
       title="Model providers"
       description={<>管理写入 <code>model_providers</code> 的自定义 provider。</>}
       countLabel={`${providers.length} providers`}
-      saveLabel={saveLabel}
       saveButtonText="保存 provider"
       writable={state.writable}
       dirty={dirty}
       onSave={onSave}
-      newEntryAriaLabel="新建 model provider"
       newEntryText="新建 provider"
       onNewEntry={() => onDraftChange(emptyModelProviderDraft())}
       emptyMessage="还没有自定义 model provider。"
@@ -232,8 +223,6 @@ export function McpServersPanel({
 }) {
   const servers = state.mcpServers.servers;
   const dirty = isMcpServerDraftDirty(draft, servers);
-  const draftServerId = mcpServerDraftId(draft);
-  const saveLabel = `保存 MCP server ${draftServerId}`;
 
   function patch(patch: Partial<McpServerDraft>) {
     onDraftChange({ ...draft, ...patch });
@@ -247,7 +236,6 @@ export function McpServersPanel({
           return (
             <div className={cn("flex w-full min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2 text-left text-[var(--foreground)]", draft.originalId === server.id && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.16)]")} key={server.id}>
               <button
-                aria-label={`选择 MCP server ${server.id}`}
                 className="flex w-full min-w-0 cursor-pointer flex-col gap-[5px] border-0 bg-transparent p-0 text-left text-inherit"
                 onClick={() => onDraftChange(draftFromMcpServer(server))}
                 type="button"
@@ -274,7 +262,6 @@ export function McpServersPanel({
               </button>
               <div className="flex flex-wrap gap-[5px]">
                 <Button
-                  aria-label={`删除 MCP server ${server.id}`}
                   disabled={!state.writable}
                   onClick={() => onDelete(server.id)}
                   title={`删除 MCP server ${server.id}`}
@@ -291,16 +278,13 @@ export function McpServersPanel({
 
   return (
     <TableEntryEditor
-      titleId="mcp-servers-title"
       title="MCP servers"
       description={<>管理写入 <code>mcp_servers</code> 的 server 启动配置。</>}
       countLabel={`${servers.length} servers`}
-      saveLabel={saveLabel}
       saveButtonText="保存 server"
       writable={state.writable}
       dirty={dirty}
       onSave={onSave}
-      newEntryAriaLabel="新建 MCP server"
       newEntryText="新建 MCP server"
       onNewEntry={() => onDraftChange(emptyMcpServerDraft())}
       emptyMessage="还没有配置 MCP server。"

@@ -264,6 +264,20 @@ function appStateWithSkills(overrides: Partial<AppState> = {}): AppState {
   });
 }
 
+async function findSectionByHeading(name: string | RegExp) {
+  const heading = await screen.findByRole("heading", { name });
+  const section = heading.closest("section");
+  expect(section).not.toBeNull();
+  return section as HTMLElement;
+}
+
+function cardByText(container: HTMLElement, text: string | RegExp) {
+  const element = within(container).getByText(text);
+  const card = element.closest("div[class*='bg-[var(--muted)]'], div[class*='bg-[#eff6ff]'], div[class*='bg-[#f0fdf4]']");
+  expect(card).not.toBeNull();
+  return card as HTMLElement;
+}
+
 describe("App shell", () => {
   beforeEach(() => {
     invokeMock.mockReset();
@@ -281,10 +295,10 @@ describe("App shell", () => {
     await waitFor(() => {
       expect(document.title).toBe("codex-config /opt/homebrew/bin/codex codex 1.2.3");
     });
-    expect(screen.getByRole("tab", { name: "Codex 配置" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Sessions" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "MCP Servers" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Skills" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Codex 配置" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Sessions" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "MCP Servers" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Skills" })).toBeVisible();
   });
 
   it("shows a loading skeleton before the initial state resolves", async () => {
@@ -297,12 +311,12 @@ describe("App shell", () => {
 
     render(<App />);
 
-    expect(screen.getByLabelText("正在加载配置")).toBeVisible();
+    expect(document.querySelector(".animate-pulse")).toBeInTheDocument();
 
     resolveState(appState());
 
     expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
-    expect(screen.queryByLabelText("正在加载配置")).not.toBeInTheDocument();
+    expect(document.querySelector(".animate-pulse")).not.toBeInTheDocument();
   });
 
   it("switches between the primary workspaces from the tab bar", async () => {
@@ -313,16 +327,13 @@ describe("App shell", () => {
 
     expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
 
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
-    expect(screen.getByRole("tab", { name: "Sessions", selected: true })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
     expect(screen.getByRole("heading", { name: "Codex sessions" })).toBeVisible();
 
-    await user.click(screen.getByRole("tab", { name: "MCP Servers" }));
-    expect(screen.getByRole("tab", { name: "MCP Servers", selected: true })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "MCP Servers" }));
     expect(screen.getByRole("heading", { name: "MCP servers" })).toBeVisible();
 
-    await user.click(screen.getByRole("tab", { name: "Skills" }));
-    expect(screen.getByRole("tab", { name: "Skills", selected: true })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Skills" }));
     expect(screen.getByRole("heading", { name: "全局 Skills" })).toBeVisible();
   });
 
@@ -331,7 +342,7 @@ describe("App shell", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("config.toml parse failed");
+    expect(await screen.findByText("config.toml parse failed")).toBeVisible();
   });
 
   it("disables the refresh action while the app state is reloading", async () => {
@@ -367,9 +378,7 @@ describe("Config workbench", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
-
-    const globalSettings = screen.getByRole("region", { name: "全局配置" });
+    const globalSettings = await findSectionByHeading("全局配置");
     expect(globalSettings).toHaveTextContent("Model");
     expect(globalSettings).toHaveTextContent("model");
     expect(screen.getByDisplayValue("gpt-5")).toBeVisible();
@@ -377,7 +386,7 @@ describe("Config workbench", () => {
     expect(globalSettings).toHaveTextContent("Shell environment policy");
     expect(screen.getByRole("combobox", { name: "Approval policy" })).toBeVisible();
 
-    expect(screen.getByRole("button", { name: "保存全局配置" })).toBeDisabled();
+    expect(within(globalSettings).getByRole("button", { name: "保存到 config.toml" })).toBeDisabled();
   });
 
   it("saves global settings directly without requiring a preview", async () => {
@@ -396,14 +405,14 @@ describe("Config workbench", () => {
 
     render(<App />);
 
-    const globalSettings = await screen.findByRole("region", { name: "全局配置" });
+    const globalSettings = await findSectionByHeading("全局配置");
     const modelInput = within(globalSettings).getByLabelText("Model");
     await user.clear(modelInput);
     await user.type(modelInput, "gpt-5-mini");
 
-    expect(screen.getByRole("button", { name: "保存全局配置" })).toBeEnabled();
+    expect(within(globalSettings).getByRole("button", { name: "保存到 config.toml" })).toBeEnabled();
 
-    await user.click(screen.getByRole("button", { name: "保存全局配置" }));
+    await user.click(within(globalSettings).getByRole("button", { name: "保存到 config.toml" }));
 
     expect(invokeMock).toHaveBeenCalledWith("save_changes", {
       changes: [{ path: "model", scope: "root", action: "set", value: "gpt-5-mini" }],
@@ -448,13 +457,13 @@ describe("Config workbench", () => {
 
     render(<App />);
 
-    const globalSettings = await screen.findByRole("region", { name: "全局配置" });
+    const globalSettings = await findSectionByHeading("全局配置");
 
     await user.selectOptions(within(globalSettings).getByLabelText("Reasoning effort"), "high");
     expect(invokeMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "保存全局配置" })).toBeEnabled();
+    expect(within(globalSettings).getByRole("button", { name: "保存到 config.toml" })).toBeEnabled();
 
-    await user.click(screen.getByRole("button", { name: "保存全局配置" }));
+    await user.click(within(globalSettings).getByRole("button", { name: "保存到 config.toml" }));
     await screen.findByText("已保存。");
     await user.click(screen.getByRole("button", { name: "刷新" }));
 
@@ -484,7 +493,8 @@ describe("Config workbench", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "保存全局配置" })).toBeDisabled();
+    const globalSettings = await findSectionByHeading("全局配置");
+    expect(within(globalSettings).getByRole("button", { name: "保存到 config.toml" })).toBeDisabled();
   });
 });
 
@@ -510,17 +520,18 @@ describe("Raw TOML", () => {
 
     render(<App />);
 
-    const rawToml = await screen.findByRole("region", { name: "高级 TOML 编辑" });
+    const rawToml = await findSectionByHeading("高级 TOML 编辑");
 
-    expect(within(rawToml).getByRole("alert")).toHaveTextContent("TOML parse error at line 2");
+    expect(within(rawToml).getByText("TOML parse error at line 2")).toBeVisible();
 
-    const editor = within(rawToml).getByRole("textbox", { name: "原始 TOML" });
+    const editor = rawToml.querySelector("#raw-toml-editor") as HTMLTextAreaElement;
+    expect(editor).not.toBeNull();
     await user.clear(editor);
     await user.type(editor, "model = \"gpt-5-mini\"");
 
-    expect(within(rawToml).getByRole("button", { name: "保存原始 TOML" })).toBeEnabled();
+    expect(within(rawToml).getByRole("button", { name: "保存 TOML" })).toBeEnabled();
 
-    await user.click(within(rawToml).getByRole("button", { name: "保存原始 TOML" }));
+    await user.click(within(rawToml).getByRole("button", { name: "保存 TOML" }));
 
     expect(invokeMock).toHaveBeenCalledWith("save_raw_toml", {
       rawToml: "model = \"gpt-5-mini\"",
@@ -558,22 +569,22 @@ describe("Model provider editor", () => {
 
     render(<App />);
 
-    const providers = await screen.findByRole("region", { name: "Model providers" });
+    const providers = await findSectionByHeading("Model providers");
     expect(providers).toHaveTextContent("2 providers");
     expect(providers).toHaveTextContent("Local GPT");
     expect(providers).toHaveTextContent("local-gpt");
     expect(providers).toHaveTextContent("LOCAL_GPT_KEY");
     expect(providers).toHaveTextContent("advanced fields");
     expect(providers).toHaveTextContent("built-in");
-    expect(within(providers).getByRole("button", { name: "新建 model provider" })).toBeVisible();
+    expect(within(providers).getByRole("button", { name: "新建 provider" })).toBeVisible();
 
-    await user.click(within(providers).getByRole("button", { name: "选择 provider Local GPT" }));
+    await user.click(within(providers).getByText("Local GPT"));
     const baseUrlInput = within(providers).getByLabelText("Base URL");
 
     await user.clear(baseUrlInput);
     await user.type(baseUrlInput, "https://models.example.test/v1/updated");
 
-    await user.click(within(providers).getByRole("button", { name: "保存 provider local-gpt" }));
+    await user.click(within(providers).getByRole("button", { name: "保存 provider" }));
 
     expect(invokeMock).toHaveBeenCalledWith("save_model_provider", {
       draft: expect.objectContaining({
@@ -601,10 +612,12 @@ describe("Model provider editor", () => {
 
     render(<App />);
 
-    const providers = await screen.findByRole("region", { name: "Model providers" });
-    expect(within(providers).getByRole("button", { name: "删除 provider openai" })).toBeDisabled();
+    const providers = await findSectionByHeading("Model providers");
+    const localProvider = cardByText(providers, "Local GPT");
+    const openaiProvider = cardByText(providers, "Built-in OpenAI");
+    expect(within(openaiProvider).getByRole("button", { name: "删除" })).toBeDisabled();
 
-    await user.click(within(providers).getByRole("button", { name: "删除 provider local-gpt" }));
+    await user.click(within(localProvider).getByRole("button", { name: "删除" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_model_provider", {
       id: "local-gpt",
@@ -641,9 +654,9 @@ describe("MCP server editor", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "MCP Servers" }));
+    await user.click(await screen.findByRole("button", { name: "MCP Servers" }));
 
-    const servers = screen.getByRole("region", { name: "MCP servers" });
+    const servers = await findSectionByHeading("MCP servers");
     expect(servers).toHaveTextContent("2 servers");
     expect(servers).toHaveTextContent("filesystem");
     expect(servers).toHaveTextContent("@modelcontextprotocol/server-filesystem");
@@ -653,13 +666,13 @@ describe("MCP server editor", () => {
     expect(servers).toHaveTextContent("advanced fields");
     expect(within(servers).getByRole("button", { name: "新建 MCP server" })).toBeVisible();
 
-    await user.click(within(servers).getByRole("button", { name: "选择 MCP server filesystem" }));
+    await user.click(within(servers).getByText("filesystem", { selector: "strong" }));
     const commandInput = within(servers).getByLabelText("Command");
 
     await user.clear(commandInput);
     await user.type(commandInput, "uvx");
 
-    await user.click(within(servers).getByRole("button", { name: "保存 MCP server filesystem" }));
+    await user.click(within(servers).getByRole("button", { name: "保存 server" }));
 
     expect(invokeMock).toHaveBeenCalledWith("save_mcp_server", {
       draft: expect.objectContaining({
@@ -686,11 +699,12 @@ describe("MCP server editor", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "MCP Servers" }));
+    await user.click(await screen.findByRole("button", { name: "MCP Servers" }));
 
-    const servers = screen.getByRole("region", { name: "MCP servers" });
+    const servers = await findSectionByHeading("MCP servers");
+    const filesystemServer = cardByText(servers, "filesystem");
 
-    await user.click(within(servers).getByRole("button", { name: "删除 MCP server filesystem" }));
+    await user.click(within(filesystemServer).getByRole("button", { name: "删除" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_mcp_server", {
       id: "filesystem",
@@ -718,9 +732,9 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
 
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    const skills = await findSectionByHeading("全局 Skills");
     expect(skills).toHaveTextContent("Codex global skills");
     expect(skills).toHaveTextContent("~/skills");
     expect(skills).toHaveTextContent("Agent global skills");
@@ -731,8 +745,9 @@ describe("Skills workspace", () => {
     expect(skills).not.toHaveTextContent(
       "Test-driven development workflow with a deliberately long description",
     );
-    expect(within(skills).getByRole("switch", { name: "停用 skill tdd" })).toBeChecked();
-    expect(within(skills).getByRole("switch", { name: "启用 skill triage" })).not.toBeChecked();
+    const skillSwitches = within(skills).getAllByRole("switch");
+    expect(skillSwitches[0]).toBeChecked();
+    expect(skillSwitches[1]).not.toBeChecked();
 
     const search = within(skills).getByRole("searchbox", { name: "搜索全局 skills" });
     await user.type(search, "triage");
@@ -743,7 +758,7 @@ describe("Skills workspace", () => {
 
     await user.clear(search);
     expect(within(skills).queryByRole("button", { name: "查看 skill tdd" })).not.toBeInTheDocument();
-    await user.click(within(skills).getByRole("button", { name: "选择 skill tdd" }));
+    await user.click(within(skills).getByText("tdd", { selector: "strong" }));
 
     expect(invokeMock).toHaveBeenCalledWith("read_skill_content", {
       path: "/Users/test/.codex/skills/tdd/SKILL.md",
@@ -766,10 +781,10 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
 
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
-    const skillSwitch = within(skills).getByRole("switch", { name: "停用 skill tdd" });
+    const skills = await findSectionByHeading("全局 Skills");
+    const skillSwitch = within(skills).getAllByRole("switch")[0]!;
     expect(skillSwitch).toBeChecked();
 
     await user.click(skillSwitch);
@@ -838,9 +853,9 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
 
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    const skills = await findSectionByHeading("全局 Skills");
     expect(within(skills).getByRole("button", { name: "新增 skill" })).toBeVisible();
 
     await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
@@ -861,7 +876,7 @@ describe("Skills workspace", () => {
     expect(within(skills).getAllByText("原始位置：/Users/test/skills/imported").length).toBeGreaterThan(
       0,
     );
-    expect(within(skills).getByRole("button", { name: "选择 skill imported" })).toBeVisible();
+    expect(within(skills).getByText("imported", { selector: "strong" })).toBeVisible();
     expect(within(skills).getByRole("heading", { name: "imported" })).toBeVisible();
     expect(within(skills).getByText("/Users/test/.agents/skills/imported")).toBeVisible();
   });
@@ -955,8 +970,8 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
+    const skills = await findSectionByHeading("全局 Skills");
     await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
 
     expect(invokeMock).toHaveBeenCalledWith("import_skill_directories", {
@@ -1002,8 +1017,8 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
+    const skills = await findSectionByHeading("全局 Skills");
     await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
 
     expect(await within(skills).findByText("查看其余 1 条结果")).toBeVisible();
@@ -1016,9 +1031,9 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
 
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    const skills = await findSectionByHeading("全局 Skills");
     await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
 
     expect(openMock).toHaveBeenCalledWith({
@@ -1040,16 +1055,14 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
 
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    const skills = await findSectionByHeading("全局 Skills");
     await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Agent global skills root is not discoverable",
-    );
+    expect(await screen.findByText("Agent global skills root is not discoverable")).toBeVisible();
     expect(skills).toHaveTextContent("2 skills");
-    expect(within(skills).getByRole("button", { name: "选择 skill tdd" })).toBeVisible();
+    expect(within(skills).getByText("tdd", { selector: "strong" })).toBeVisible();
   });
 
   it("shows refresh warnings without hiding imported batch outcomes", async () => {
@@ -1076,8 +1089,8 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
-    const skills = screen.getByRole("region", { name: "全局 Skills" });
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
+    const skills = await findSectionByHeading("全局 Skills");
     await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
 
     expect(
@@ -1098,13 +1111,10 @@ describe("Skills workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Skills" }));
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
 
-    expect(
-      within(screen.getByRole("region", { name: "全局 Skills" })).getByRole("button", {
-        name: "新增 skill",
-      }),
-    ).toBeDisabled();
+    const skills = await findSectionByHeading("全局 Skills");
+    expect(within(skills).getByRole("button", { name: "新增 skill" })).toBeDisabled();
   });
 });
 
@@ -1119,23 +1129,23 @@ describe("Sessions workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Sessions" }));
+    await user.click(await screen.findByRole("button", { name: "Sessions" }));
 
-    const sessions = screen.getByRole("region", { name: "Codex sessions" });
+    const sessions = await findSectionByHeading("Codex sessions");
     expect(sessions).toHaveTextContent("~/sessions");
     expect(sessions).toHaveTextContent("会话数量");
     expect(sessions).toHaveTextContent("3");
     expect(sessions).toHaveTextContent("3.0 KB");
 
-    expect(within(sessions).getByRole("tab", { name: /2026/ })).toHaveAttribute("aria-selected", "true");
-    expect(within(sessions).getByRole("tab", { name: /2025/ })).toBeVisible();
-    expect(within(sessions).getByRole("button", { name: /06 月/ })).toHaveAttribute("aria-expanded", "true");
+    expect(within(sessions).getByRole("button", { name: /2026/ })).toBeVisible();
+    expect(within(sessions).getByRole("button", { name: /2025/ })).toBeVisible();
+    expect(within(sessions).getByRole("button", { name: /06 月/ })).toBeVisible();
     expect(sessions).toHaveTextContent("Refactor config UI");
     expect(sessions).toHaveTextContent("3 user / 8 messages");
     expect(sessions).toHaveTextContent("codex 1.2.3");
     expect(sessions).toHaveTextContent("openai");
     expect(sessions).toHaveTextContent("Unexpected JSON token at line 2");
-    expect(within(sessions).getByRole("button", { name: "预览删除 Refactor config UI" })).toBeVisible();
+    expect(within(cardByText(sessions, "Refactor config UI")).getByRole("button", { name: "删除" })).toBeVisible();
   });
 
   it("keeps session deletion gated behind a second confirmation click", async () => {
@@ -1151,13 +1161,16 @@ describe("Sessions workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Sessions" }));
+    await user.click(await screen.findByRole("button", { name: "Sessions" }));
 
-    await user.click(screen.getByRole("button", { name: "预览删除 Refactor config UI" }));
+    const sessions = await findSectionByHeading("Codex sessions");
+    const sessionCard = cardByText(sessions, "Refactor config UI");
+
+    await user.click(within(sessionCard).getByRole("button", { name: "删除" }));
     expect(screen.getByText("再次点击删除会删除这个 Codex 会话 .jsonl 文件。")).toBeVisible();
     expect(invokeMock).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "确认删除 Refactor config UI" }));
+    await user.click(within(sessionCard).getByRole("button", { name: "确认删除" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_session", {
       id: "2026/06/08/rollout-2026-06-08T10-00-00-alpha.jsonl",
@@ -1176,9 +1189,9 @@ describe("Sessions workspace", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("tab", { name: "Sessions" }));
+    await user.click(await screen.findByRole("button", { name: "Sessions" }));
 
-    const sessions = screen.getByRole("region", { name: "Codex sessions" });
+    const sessions = await findSectionByHeading("Codex sessions");
     expect(sessions).toHaveTextContent("当前 Codex Home 下没有 session 记录。");
     expect(sessions).toHaveTextContent("会话数量");
     expect(sessions).toHaveTextContent("0");
@@ -1200,7 +1213,7 @@ describe("Sessions workspace", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock).toHaveBeenNthCalledWith(1, "load_state");
 
-    await user.click(screen.getByRole("tab", { name: "Sessions" }));
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
 
     expect(await screen.findByText("Refactor config UI")).toBeVisible();
     expect(invokeMock).toHaveBeenCalledWith("load_sessions");

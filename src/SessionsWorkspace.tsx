@@ -95,24 +95,22 @@ function SessionsPanel({
   }
 
   return (
-    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="codex-sessions-title">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3">
       <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-3 border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <BookOpen size={18} />
         <div>
-          <h2 id="codex-sessions-title">Codex sessions</h2>
+          <h2>Codex sessions</h2>
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
             {displayPath(codexSessions.sessionsDir, state.homeDir)}
           </p>
         </div>
         {sessionYears.length > 0 && (
-          <div className="flex min-h-[42px] min-w-0 flex-auto items-center justify-center gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Session years">
+          <div className="flex min-h-[42px] min-w-0 flex-auto items-center justify-center gap-1.5 overflow-x-auto pb-0.5">
             {sessionYears.map((year) => (
               <button
-                aria-selected={year.key === selectedYearKey}
                 className={cn("flex min-h-[54px] min-w-[146px] flex-none cursor-pointer flex-col items-start gap-0.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-[7px] text-left text-[var(--foreground)] [&_strong]:text-[0.88rem] [&_strong]:text-[var(--foreground)] [&_span]:whitespace-nowrap [&_span]:text-[0.74rem] [&_span]:text-[var(--muted-foreground)]", year.key === selectedYearKey && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.14)]")}
                 key={year.key}
                 onClick={() => setActiveYear(year.key)}
-                role="tab"
                 type="button"
               >
                 <strong>{year.label}</strong>
@@ -152,12 +150,11 @@ function SessionsPanel({
             return (
               <section className="flex min-w-0 flex-col gap-[7px]" key={group.key}>
                 <button
-                  aria-expanded={!isCollapsed}
-                  className="flex w-full cursor-pointer items-center justify-between gap-2.5 border-x-0 border-t-0 border-b border-[var(--border)] bg-transparent px-0.5 pb-[7px] pt-0 text-left text-inherit focus-visible:rounded-[var(--radius)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(37,99,235,0.32)] [&>strong]:whitespace-nowrap [&>strong]:text-[0.78rem] [&>strong]:text-[var(--muted-foreground)] [&_span]:text-[0.76rem] [&_span]:text-[var(--muted-foreground)]"
+                  className="flex w-full cursor-pointer items-center justify-between gap-2.5 border-x-0 border-t-0 border-b border-[var(--border)] bg-transparent px-0.5 pb-[7px] pt-0 text-left text-inherit [&>strong]:whitespace-nowrap [&>strong]:text-[0.78rem] [&>strong]:text-[var(--muted-foreground)] [&_span]:text-[0.76rem] [&_span]:text-[var(--muted-foreground)]"
                   onClick={() => toggleMonth(group.key)}
                   type="button"
                 >
-                  <span className="inline-flex flex-none text-[var(--muted-foreground)]" aria-hidden="true">
+                  <span className="inline-flex flex-none text-[var(--muted-foreground)]">
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -195,7 +192,6 @@ function SessionsPanel({
                           </div>
                           <div className="flex flex-wrap justify-end gap-[5px]">
                             <Button
-                              aria-label={deleteLabel}
                               onClick={() => onDelete(session.id)}
                               title={deleteLabel}
                               size="sm"

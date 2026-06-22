@@ -169,15 +169,14 @@ function SkillsPanel({
   } = globalSkillsWorkspace(state.skills, query, selectedPath, content);
 
   return (
-    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3" aria-labelledby="global-skills-title">
+    <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3">
       <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-[7px] border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0 flex-wrap items-center [&>div]:min-w-0">
         <BookOpen size={18} />
         <div>
-          <h2 id="global-skills-title">全局 Skills</h2>
+          <h2>全局 Skills</h2>
         </div>
         <Badge size="count">{resultLabel}</Badge>
         <Button
-          aria-label="新增 skill"
           disabled={!state.writable || importing}
           onClick={onImport}
           size="sm"
@@ -218,38 +217,39 @@ function SkillsPanel({
             skills.map((skill) => {
               return (
                 <div
-                  className={cn("relative flex min-w-0 flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--secondary)] py-2.5 pl-3 pr-[84px]", skill.source.toLowerCase().includes("agent") ? "border-[#bbf7d0] bg-[#f0fdf4]" : "border-[#bfdbfe] bg-[#eff6ff]", skill.path === selectedSkill?.path && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.24)]")}
+                  className={cn("relative flex w-full min-w-0 flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--secondary)] p-3", skill.source.toLowerCase().includes("agent") ? "border-[#bbf7d0] bg-[#f0fdf4]" : "border-[#bfdbfe] bg-[#eff6ff]", skill.path === selectedSkill?.path && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.24)]")}
                   key={skill.path}
+                  onClick={() => onSelect(skill.path)}
                 >
-                  <button
-                    aria-label={`选择 skill ${skill.name}`}
-                    className="absolute inset-0 z-0 cursor-pointer border-0 bg-transparent p-0"
-                    onClick={() => onSelect(skill.path)}
-                    type="button"
-                  />
-                  <Badge className="absolute right-3 top-2.5 z-[1] bg-[var(--card)] px-[9px] py-1 font-extrabold leading-[1.1]" variant="card">
-                    {formatBytes(skill.size)}
-                  </Badge>
-                  <div className="relative z-[1] flex min-w-0 items-start gap-[7px]">
+                  <div className="relative z-[0] flex min-w-0 items-start gap-2">
                     <Switch
-                      aria-label={`${skill.enabled ? "停用" : "启用"} skill ${skill.name}`}
                       checked={skill.enabled}
-                      className="z-[2] flex-none"
+                      className="relative z-[2] flex-none"
                       disabled={!state.writable}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
                       onCheckedChange={(checked) => onSaveToggle(skill.path, checked)}
                       size="sm"
                     />
-                    <span className="flex min-w-0 flex-wrap items-center gap-1.5 [&>strong]:text-[var(--foreground)]">
-                      <strong>{skill.name}</strong>
-                      {skill.symlink && <Badge className="py-[3px] text-[0.68rem] font-extrabold leading-none" variant="primary">软链</Badge>}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <span className="flex min-w-0 flex-wrap items-center gap-1.5 [&>strong]:text-[var(--foreground)]">
+                          <strong>{skill.name}</strong>
+                          {skill.symlink && <Badge className="py-[3px] text-[0.68rem] font-extrabold leading-none" variant="primary">软链</Badge>}
+                        </span>
+                        <Badge className="pointer-events-none bg-[var(--card)] px-[9px] py-1 font-extrabold leading-[1.1]" variant="card">
+                          {formatBytes(skill.size)}
+                        </Badge>
+                      </div>
+                      <code className="pointer-events-none relative z-[0] mt-1 block w-full">{displayPath(skill.path, state.homeDir)}</code>
+                      {skill.symlink && skill.targetDirectory && (
+                        <small className="pointer-events-none relative z-[0] mt-1 block w-full break-words text-[0.74rem] font-bold text-[var(--foreground)]">
+                          原始位置：{displayPath(skill.targetDirectory, state.homeDir)}
+                        </small>
+                      )}
+                    </div>
                   </div>
-                  <code>{displayPath(skill.path, state.homeDir)}</code>
-                  {skill.symlink && skill.targetDirectory && (
-                    <small className="relative z-[1] break-words text-[0.74rem] font-bold text-[var(--foreground)]">
-                      原始位置：{displayPath(skill.targetDirectory, state.homeDir)}
-                    </small>
-                  )}
                 </div>
               );
             })
@@ -269,12 +269,6 @@ function SkillsPanel({
                     </p>
                   )}
                 </div>
-                <Badge
-                  className="self-start text-[0.68rem] font-extrabold uppercase"
-                  variant={selectedSkill.enabled ? "success" : "secondary"}
-                >
-                  {selectedSkill.enabled ? "enabled" : "disabled"}
-                </Badge>
               </div>
               <pre className="m-0 max-h-[520px] overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius)] bg-[var(--code-background)] p-2.5 text-[0.76rem] leading-[1.42] text-[var(--code-foreground)]">{selectedMarkdown || "选择左侧 skill 后会显示 SKILL.md 内容。"}</pre>
               <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
