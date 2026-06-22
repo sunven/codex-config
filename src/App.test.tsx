@@ -797,6 +797,51 @@ describe("Skills workspace", () => {
     expect(await screen.findByText("已停用 skill。重启 Codex 后生效。")).toBeVisible();
   });
 
+  it("deletes a skill after an explicit confirmation click", async () => {
+    const user = userEvent.setup();
+    const initialState = appStateWithSkills();
+    const nextState = appStateWithSkills({
+      skills: {
+        ...initialState.skills,
+        skills: [initialState.skills.skills[1]!],
+      },
+    });
+
+    invokeMock
+      .mockResolvedValueOnce(initialState)
+      .mockResolvedValueOnce({
+        changed: true,
+        state: nextState,
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
+
+    const skills = await findSectionByHeading("全局 Skills");
+    const tddCard = within(skills)
+      .getByRole("button", { name: "删除 skill tdd" })
+      .closest("div[class*='bg-[#eff6ff]']");
+    expect(tddCard).not.toBeNull();
+
+    await user.click(within(tddCard as HTMLElement).getByRole("button", { name: "删除 skill tdd" }));
+
+    expect(screen.getByText("再次点击删除会移除这个 skill。")).toBeVisible();
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    await user.click(
+      within(tddCard as HTMLElement).getByRole("button", { name: "确认删除 skill tdd" }),
+    );
+
+    expect(invokeMock).toHaveBeenCalledWith("delete_skill", {
+      path: "/Users/test/.codex/skills/tdd/SKILL.md",
+      fileToken: null,
+    });
+    expect(await screen.findByText("已删除 skill。重启 Codex 或开启新会话后生效。")).toBeVisible();
+    expect(skills).not.toHaveTextContent("tdd");
+    expect(skills).toHaveTextContent("1 skills");
+  });
+
   it("imports a skill directory into Agent global skills", async () => {
     const user = userEvent.setup();
     const initialState = appStateWithSkills();
@@ -1115,6 +1160,7 @@ describe("Skills workspace", () => {
 
     const skills = await findSectionByHeading("全局 Skills");
     expect(within(skills).getByRole("button", { name: "新增 skill" })).toBeDisabled();
+    expect(within(skills).getByRole("button", { name: "删除 skill tdd" })).toBeDisabled();
   });
 });
 

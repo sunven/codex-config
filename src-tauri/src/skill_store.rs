@@ -188,6 +188,32 @@ pub fn save_skill_enabled(
     })
 }
 
+pub fn delete_skill(path: String, file_token: Option<FileToken>) -> Result<SaveResult, String> {
+    let skill_path = verified_discovered_skill_path(&path)?;
+    let canonical_skill_path = canonical_or_self(&skill_path).display().to_string();
+    let skill_dir = skill_path
+        .parent()
+        .ok_or_else(|| "skill path must have a parent directory".to_string())?
+        .to_path_buf();
+    let symlink = fs::symlink_metadata(&skill_dir)
+        .map_err(|error| format!("failed to stat skill directory: {error}"))?
+        .file_type()
+        .is_symlink();
+
+    ensure_config_editable(file_token.as_ref())?;
+
+    remove_skill_directory_entry(&skill_dir, symlink)?;
+
+    let result = config_document_workflow::commit_edit(file_token, |document| {
+        remove_skill_config_entry(document, &canonical_skill_path)
+    })?;
+
+    Ok(SaveResult {
+        changed: true,
+        state: result.state,
+    })
+}
+
 pub fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
     let source_dir = PathBuf::from(directory);
     if !source_dir.is_dir() {
@@ -688,6 +714,59 @@ fn set_skill_enabled_in_document(
     Ok(())
 }
 
+fn remove_skill_config_entry(
+    document: &mut DocumentMut,
+    canonical_path: &str,
+) -> Result<(), String> {
+    let Some(configs) = document
+        .get_mut("skills")
+        .and_then(Item::as_table_mut)
+        .and_then(|skills| skills.get_mut("config"))
+        .and_then(Item::as_array_of_tables_mut)
+    else {
+        return Ok(());
+    };
+
+    configs.retain(|table| {
+        table_string(table, "path")
+            .map(|entry_path| !paths_match(&entry_path, canonical_path))
+            .unwrap_or(true)
+    });
+
+    Ok(())
+}
+
+fn ensure_config_editable(file_token: Option<&FileToken>) -> Result<(), String> {
+    let location = config_locator::locate()?;
+    let loaded = crate::toml_store::load(&location.config_path)?;
+    crate::toml_store::ensure_current_token(&loaded, file_token)?;
+
+    if let Some(issue) = loaded.parse_issue {
+        return Err(format!("cannot edit malformed TOML: {}", issue.message));
+    }
+
+    Ok(())
+}
+
+fn remove_skill_directory_entry(skill_dir: &Path, symlink: bool) -> Result<(), String> {
+    if !symlink {
+        return fs::remove_dir_all(skill_dir)
+            .map_err(|error| format!("failed to remove skill directory: {error}"));
+    }
+
+    #[cfg(unix)]
+    {
+        fs::remove_file(skill_dir)
+            .map_err(|error| format!("failed to remove skill symlink: {error}"))
+    }
+
+    #[cfg(windows)]
+    {
+        fs::remove_dir(skill_dir)
+            .map_err(|error| format!("failed to remove skill symlink: {error}"))
+    }
+}
+
 fn ensure_skills_table(document: &mut DocumentMut) -> Result<(), String> {
     if !document.get("skills").map(Item::is_table).unwrap_or(false) {
         document["skills"] = Item::Table(Table::new());
@@ -748,6 +827,31 @@ fn verified_skill_path(raw_path: &str) -> Result<PathBuf, String> {
     }
 
     Ok(requested)
+}
+
+fn verified_discovered_skill_path(raw_path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(raw_path);
+    if path.file_name().and_then(|name| name.to_str()) != Some("SKILL.md") {
+        return Err("skill path must point to SKILL.md".to_string());
+    }
+    if !path.is_file() {
+        return Err("skill file does not exist".to_string());
+    }
+
+    let location = config_locator::locate()?;
+    let roots = discovery_roots(&location);
+    let allowed = roots.iter().any(|root| {
+        root.path.exists()
+            && skill_paths(&root.path)
+                .into_iter()
+                .any(|skill_path| skill_path == path)
+    });
+
+    if !allowed {
+        return Err("skill path is outside discovered global skill roots".to_string());
+    }
+
+    Ok(path)
 }
 
 fn canonical_or_self(path: &Path) -> PathBuf {
@@ -943,6 +1047,91 @@ description: Skill through a directory symlink.
         assert_eq!(content.name, "linked-demo");
         assert!(preview.changed);
         assert!(preview.candidate_raw_toml.contains("enabled = false"));
+    }
+
+    #[test]
+    fn delete_skill_removes_directory_and_disabled_config_entry() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let skill_dir = location.codex_home.join("skills").join("demo");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let disabled = save_skill_enabled(
+            skill_dir.join("SKILL.md").display().to_string(),
+            false,
+            None,
+        )
+        .unwrap();
+        let token = disabled.state.file_token;
+
+        let result = delete_skill(skill_dir.join("SKILL.md").display().to_string(), token).unwrap();
+
+        assert!(result.changed);
+        assert!(!skill_dir.exists());
+        assert!(result.state.skills.skills.is_empty());
+        assert!(!result.state.raw_toml.contains("[[skills.config]]"));
+    }
+
+    #[test]
+    fn delete_skill_does_not_remove_directory_when_file_token_is_stale() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let skill_dir = location.codex_home.join("skills").join("demo");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let disabled = save_skill_enabled(
+            skill_dir.join("SKILL.md").display().to_string(),
+            false,
+            None,
+        )
+        .unwrap();
+        fs::write(&location.config_path, "model = \"changed\"\n").unwrap();
+
+        let error = delete_skill(
+            skill_dir.join("SKILL.md").display().to_string(),
+            disabled.state.file_token,
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "config.toml 已被其他程序修改。请先刷新，再保存。");
+        assert!(skill_dir.join("SKILL.md").is_file());
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn delete_skill_removes_symlink_but_keeps_original_directory() {
+        let _guard = TestCodexHome::without_codex_home();
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let source_dir = home.join("source-demo");
+        let link_dir = home.join(".agents").join("skills").join("linked-demo");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(link_dir.parent().unwrap()).unwrap();
+        fs::write(source_dir.join("SKILL.md"), "---\nname: linked-demo\n---\n").unwrap();
+        create_dir_symlink(&source_dir, &link_dir);
+
+        let result = delete_skill(link_dir.join("SKILL.md").display().to_string(), None).unwrap();
+
+        assert!(result.changed);
+        assert!(!link_dir.exists());
+        assert!(source_dir.join("SKILL.md").is_file());
+        assert!(result.state.skills.skills.is_empty());
+    }
+
+    #[test]
+    fn delete_skill_rejects_paths_outside_global_skill_roots() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let skill_dir = location.codex_home.join("outside-demo");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "---\nname: demo\n---\n").unwrap();
+
+        let error =
+            delete_skill(skill_dir.join("SKILL.md").display().to_string(), None).unwrap_err();
+
+        assert_eq!(error, "skill path is outside discovered global skill roots");
+        assert!(skill_dir.join("SKILL.md").is_file());
     }
 
     #[cfg(any(unix, windows))]

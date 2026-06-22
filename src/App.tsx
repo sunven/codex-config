@@ -197,8 +197,13 @@ function App() {
   }, [state]);
 
   return (
-    <main className="min-h-screen p-3">
-      <header className="mx-auto mb-5 flex max-w-[1440px] items-start justify-between gap-5 max-[940px]:flex-col max-[940px]:gap-3">
+    <main
+      className={cn(
+        "min-h-screen p-3",
+        activeTab === "skills" && "flex h-screen flex-col overflow-hidden",
+      )}
+    >
+      <header className="mx-auto mb-5 flex w-full max-w-[1440px] items-start justify-between gap-5 max-[940px]:flex-col max-[940px]:gap-3">
         <div className="min-w-0">
           <h1>Codex 配置</h1>
         </div>
@@ -248,7 +253,12 @@ function App() {
           )}
           <TabBar activeTab={activeTab} onChange={switchTab} />
           <section
-            className={cn("mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 max-[940px]:grid-cols-1", (activeTab === "skills" || activeTab === "sessions") && "grid-cols-[minmax(0,1fr)]")}
+            className={cn(
+              "mx-auto grid w-full max-w-[1440px] grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 max-[940px]:grid-cols-1",
+              (activeTab === "skills" || activeTab === "sessions") &&
+                "grid-cols-[minmax(0,1fr)]",
+              activeTab === "skills" && "min-h-0 flex-1",
+            )}
           >
             {activeTab === "config" ? (
               <>
@@ -311,7 +321,7 @@ function App() {
                 />
               </>
             ) : (
-              <div className="min-w-0">
+              <div className="h-full min-h-0 min-w-0">
                 <SkillsWorkspace
                   state={state}
                   onStateChange={applyAppState}

@@ -108,6 +108,11 @@ fn save_skill_enabled(
 }
 
 #[tauri::command]
+fn delete_skill(path: String, file_token: Option<FileToken>) -> Result<SaveResult, String> {
+    skill_store::delete_skill(path, file_token).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
     skill_store::import_skill_directory(directory).map_err(|error| error.to_string())
 }
@@ -136,6 +141,7 @@ pub fn run() {
             read_skill_content,
             preview_skill_enabled,
             save_skill_enabled,
+            delete_skill,
             import_skill_directory,
             import_skill_directories
         ])
