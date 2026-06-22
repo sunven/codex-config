@@ -1,5 +1,9 @@
 mod app_preferences;
 mod app_state;
+mod claude_mcp_store;
+mod claude_session_store;
+mod claude_skill_store;
+mod claude_state;
 mod codex_probe;
 mod codex_session_store;
 mod config_document_workflow;
@@ -15,6 +19,9 @@ mod test_support;
 mod toml_store;
 
 use app_state::AppState;
+use claude_session_store::ClaudeSessionState;
+use claude_skill_store::SkillState as ClaudeSkillState;
+use claude_state::ClaudeState;
 use mcp_server_store::{McpServerDraft, McpServerSaveResult};
 use model_provider_store::{ModelProviderDraft, ModelProviderSaveResult};
 use skill_store::{SkillContent, SkillImportBatchResult};
@@ -128,6 +135,76 @@ fn import_skill_directories(directories: Vec<String>) -> Result<SkillImportBatch
     skill_store::import_skill_directories(directories).map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn load_claude_state() -> Result<ClaudeState, String> {
+    claude_state::load_state().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn load_claude_sessions() -> Result<ClaudeSessionState, String> {
+    let location = config_locator::locate_claude().map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        claude_session_store::state(&location.projects_dir)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn delete_claude_session(id: String) -> Result<ClaudeSessionState, String> {
+    let location = config_locator::locate_claude().map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        claude_session_store::delete(id)?;
+        Ok::<_, String>(claude_session_store::state(&location.projects_dir))
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn delete_claude_sessions_older_than(days: u64) -> Result<ClaudeSessionState, String> {
+    let location = config_locator::locate_claude().map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        claude_session_store::delete_older_than_days(days)?;
+        Ok::<_, String>(claude_session_store::state(&location.projects_dir))
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+fn read_claude_skill_content(path: String) -> Result<claude_skill_store::SkillContent, String> {
+    claude_skill_store::read_skill_content(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn set_claude_skill_enabled(path: String, enabled: bool) -> Result<ClaudeSkillState, String> {
+    claude_skill_store::set_skill_enabled(path, enabled).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn delete_claude_skill(path: String) -> Result<ClaudeSkillState, String> {
+    claude_skill_store::delete_skill(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_claude_mcp_server(
+    draft: McpServerDraft,
+    file_token: Option<FileToken>,
+) -> Result<ClaudeState, String> {
+    claude_mcp_store::save_server(draft, file_token).map_err(|error| error.to_string())?;
+    claude_state::load_state().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn delete_claude_mcp_server(
+    id: String,
+    file_token: Option<FileToken>,
+) -> Result<ClaudeState, String> {
+    claude_mcp_store::delete_server(id, file_token).map_err(|error| error.to_string())?;
+    claude_state::load_state().map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -147,7 +224,16 @@ pub fn run() {
             read_skill_content,
             save_skill_enabled,
             delete_skill,
-            import_skill_directories
+            import_skill_directories,
+            load_claude_state,
+            load_claude_sessions,
+            delete_claude_session,
+            delete_claude_sessions_older_than,
+            read_claude_skill_content,
+            set_claude_skill_enabled,
+            delete_claude_skill,
+            save_claude_mcp_server,
+            delete_claude_mcp_server
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

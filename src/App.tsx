@@ -18,12 +18,21 @@ import {
   type FieldState,
 } from "./configFieldDrafts";
 import { SettingsForm } from "./ConfigFieldsWorkspace";
-import { TabBar, type MainTab } from "./AppShell";
+import { ProductSwitcher, TabBar, type MainTab } from "./AppShell";
 import { McpServersPanel, ModelProvidersPanel } from "./ConfigTablesWorkspace";
 import { ConfigPreviewSidebar } from "./ConfigPreviewSidebar";
 import { displayPath } from "./formatters";
 import { SessionsWorkspace } from "./SessionsWorkspace";
 import { SkillsWorkspace } from "./SkillsWorkspace";
+import { ClaudeSessionsWorkspace } from "./ClaudeSessionsWorkspace";
+import { ClaudeMcpPanel } from "./ClaudeMcpWorkspace";
+import { ClaudeSkillsWorkspace } from "./ClaudeSkillsWorkspace";
+import {
+  type ClaudeProduct,
+  type ClaudeSessionState,
+  type ClaudeState,
+} from "./claudeState";
+import { type SkillState } from "./globalSkills";
 import { useConfigEditWorkflow } from "./useConfigEditWorkflow";
 import { Button } from "./components/ui/button";
 import { Notice } from "./components/ui/notice";
@@ -31,17 +40,32 @@ import { Toaster } from "./components/ui/sonner";
 import { cn } from "./components/ui/utils";
 import "./App.css";
 
+const PRODUCT_STORAGE_KEY = "codex-config:product";
+
+function initialProduct(): ClaudeProduct {
+  return localStorage.getItem(PRODUCT_STORAGE_KEY) === "claude"
+    ? "claude"
+    : "codex";
+}
+
 function App() {
+  const [product, setProduct] = useState<ClaudeProduct>(initialProduct);
   const [state, setState] = useState<AppState | null>(null);
+  const [claudeState, setClaudeState] = useState<ClaudeState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<MainTab>("config");
+  const [activeTab, setActiveTab] = useState<MainTab>(
+    initialProduct() === "claude" ? "sessions" : "config",
+  );
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [modelProviderDraft, setModelProviderDraft] =
     useState<ModelProviderDraft>(emptyModelProviderDraft());
   const [mcpServerDraft, setMcpServerDraft] = useState<McpServerDraft>(emptyMcpServerDraft());
+  const [claudeMcpDraft, setClaudeMcpDraft] = useState<McpServerDraft>(emptyMcpServerDraft());
   const [rawTomlDraft, setRawTomlDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [claudeLoading, setClaudeLoading] = useState(false);
+  const [claudeSessionsLoading, setClaudeSessionsLoading] = useState(false);
   const configEditWorkflow = useConfigEditWorkflow<AppState>({
     currentState: state,
     onCommitState: applyAppState,
@@ -85,6 +109,21 @@ function App() {
     }
   }
 
+  async function loadClaudeState() {
+    setClaudeLoading(true);
+    setError(null);
+
+    try {
+      const nextState = await invoke<ClaudeState>("load_claude_state");
+      setClaudeState(nextState);
+      setClaudeMcpDraft(emptyMcpServerDraft());
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setClaudeLoading(false);
+    }
+  }
+
   async function loadSessions() {
     setSessionsLoading(true);
     try {
@@ -97,6 +136,26 @@ function App() {
     } finally {
       setSessionsLoading(false);
     }
+  }
+
+  async function loadClaudeSessions() {
+    setClaudeSessionsLoading(true);
+    try {
+      const sessions = await invoke<ClaudeSessionState>("load_claude_sessions");
+      setClaudeState((current) => (current ? { ...current, sessions } : current));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setClaudeSessionsLoading(false);
+    }
+  }
+
+  function switchProduct(next: ClaudeProduct) {
+    setProduct(next);
+    localStorage.setItem(PRODUCT_STORAGE_KEY, next);
+    setError(null);
+    configEditWorkflow.reset();
+    setActiveTab(next === "claude" ? "sessions" : "config");
   }
 
   function switchTab(tab: MainTab) {
@@ -185,6 +244,44 @@ function App() {
     return outcome.status === "commit";
   }
 
+  async function saveClaudeMcpServer() {
+    if (!claudeState) {
+      return;
+    }
+
+    try {
+      const result = await invoke<ClaudeState>("save_claude_mcp_server", {
+        draft: claudeMcpDraft,
+        fileToken: claudeState.mcp.fileToken ?? null,
+      });
+      setClaudeState(result);
+      setClaudeMcpDraft(emptyMcpServerDraft());
+      showStatusMessage("已保存 MCP server。");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function deleteClaudeMcpServer(id: string) {
+    if (!claudeState) {
+      return false;
+    }
+
+    try {
+      const result = await invoke<ClaudeState>("delete_claude_mcp_server", {
+        id,
+        fileToken: claudeState.mcp.fileToken ?? null,
+      });
+      setClaudeState(result);
+      setClaudeMcpDraft(emptyMcpServerDraft());
+      showStatusMessage("已删除 MCP server。");
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+      return false;
+    }
+  }
+
   const settingChanges = state ? settingsChanges(state.fields, draftValues) : [];
   const settingsDirty = settingChanges.length > 0;
   const rawTomlDirty = state ? rawTomlDraft !== state.rawToml : false;
@@ -195,11 +292,37 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "sessions" && state && !state.codexSessions && !sessionsLoading) {
+    if (product === "claude" && !claudeState && !claudeLoading) {
+      void loadClaudeState();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, claudeState]);
+
+  useEffect(() => {
+    if (
+      product === "codex" &&
+      activeTab === "sessions" &&
+      state &&
+      !state.codexSessions &&
+      !sessionsLoading
+    ) {
       void loadSessions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, state]);
+  }, [product, activeTab, state]);
+
+  useEffect(() => {
+    if (
+      product === "claude" &&
+      activeTab === "sessions" &&
+      claudeState &&
+      !claudeState.sessions &&
+      !claudeSessionsLoading
+    ) {
+      void loadClaudeSessions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, activeTab, claudeState]);
 
   useEffect(() => {
     const title = appTitle(state);
@@ -212,16 +335,25 @@ function App() {
     void getCurrentWindow().setTitle(title).catch(() => undefined);
   }, [state]);
 
+  const refreshing = product === "claude" ? claudeLoading : loading;
+  const showSkeleton =
+    !error &&
+    (product === "claude" ? claudeLoading && !claudeState : loading && !state);
+
   return (
     <>
       <main className="flex h-screen min-h-0 flex-col overflow-hidden p-3">
       <header className="mx-auto mb-5 flex w-full max-w-[1440px] flex-none items-start justify-between gap-5 max-[940px]:flex-col max-[940px]:gap-3">
-        <div className="min-w-0">
-          <h1>Codex 配置</h1>
+        <div className="flex min-w-0 items-center gap-3">
+          <h1>{product === "claude" ? "Claude Code 配置" : "Codex 配置"}</h1>
+          <ProductSwitcher product={product} onChange={switchProduct} />
         </div>
-        <Button onClick={loadState} disabled={loading}>
+        <Button
+          onClick={product === "claude" ? loadClaudeState : loadState}
+          disabled={refreshing}
+        >
           <RefreshCw size={18} />
-          <span>{loading ? "刷新中" : "刷新"}</span>
+          <span>{refreshing ? "刷新中" : "刷新"}</span>
         </Button>
       </header>
 
@@ -232,7 +364,7 @@ function App() {
         </Notice>
       )}
 
-      {loading && !state && !error && (
+      {showSkeleton && (
         <div className="mx-auto min-h-0 w-full max-w-[1440px] flex-1 overflow-auto">
           <div className="mb-4 flex gap-2">
             {[0, 1, 2, 3].map((i) => (
@@ -256,9 +388,9 @@ function App() {
         </div>
       )}
 
-      {state && (
+      {product === "codex" && state && (
         <>
-          <TabBar activeTab={activeTab} onChange={switchTab} />
+          <TabBar activeTab={activeTab} onChange={switchTab} product="codex" />
           <section
             className={cn(
               "mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 overflow-hidden max-[940px]:grid-cols-1",
@@ -337,6 +469,55 @@ function App() {
                 <SkillsWorkspace
                   state={state}
                   onStateChange={applyAppState}
+                  onError={setError}
+                  onStatusMessage={showStatusMessage}
+                />
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {product === "claude" && claudeState && (
+        <>
+          <TabBar activeTab={activeTab} onChange={switchTab} product="claude" />
+          <section className="mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[minmax(0,1fr)] gap-4 overflow-hidden">
+            {activeTab === "sessions" ? (
+              <div className="min-h-0 min-w-0 overflow-auto pr-1">
+                <ClaudeSessionsWorkspace
+                  sessions={claudeState.sessions}
+                  homeDir={state?.homeDir}
+                  sessionsLoading={claudeSessionsLoading}
+                  onSessionsChange={(sessions) =>
+                    setClaudeState((current) =>
+                      current ? { ...current, sessions } : current,
+                    )
+                  }
+                  onError={setError}
+                  onStatusMessage={showStatusMessage}
+                />
+              </div>
+            ) : activeTab === "mcp" ? (
+              <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-auto pr-1">
+                <ClaudeMcpPanel
+                  mcp={claudeState.mcp}
+                  homeDir={state?.homeDir}
+                  draft={claudeMcpDraft}
+                  onDraftChange={setClaudeMcpDraft}
+                  onSave={saveClaudeMcpServer}
+                  onDelete={deleteClaudeMcpServer}
+                />
+              </div>
+            ) : (
+              <div className="h-full min-h-0 min-w-0">
+                <ClaudeSkillsWorkspace
+                  skills={claudeState.skills}
+                  homeDir={state?.homeDir}
+                  onSkillsChange={(skills: SkillState) =>
+                    setClaudeState((current) =>
+                      current ? { ...current, skills } : current,
+                    )
+                  }
                   onError={setError}
                   onStatusMessage={showStatusMessage}
                 />

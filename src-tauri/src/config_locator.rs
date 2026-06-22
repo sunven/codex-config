@@ -29,6 +29,29 @@ pub fn locate() -> Result<ConfigLocation, String> {
     })
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeLocation {
+    pub claude_home: PathBuf,
+    pub projects_dir: PathBuf,
+    pub skills_dir: PathBuf,
+    pub config_path: PathBuf,
+}
+
+pub fn locate_claude() -> Result<ClaudeLocation, String> {
+    let claude_home = env::var_os("CLAUDE_CONFIG_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home_dir().join(".claude"));
+    let config_path = home_dir().join(".claude.json");
+
+    Ok(ClaudeLocation {
+        projects_dir: claude_home.join("projects"),
+        skills_dir: claude_home.join("skills"),
+        config_path,
+        claude_home,
+    })
+}
+
 pub fn user_home_dir() -> Option<PathBuf> {
     env::var_os("HOME").map(PathBuf::from)
 }

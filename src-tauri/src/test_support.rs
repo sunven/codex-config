@@ -116,6 +116,49 @@ impl Drop for TestCodexHome {
     }
 }
 
+pub struct TestClaudeHome {
+    _lock: std::sync::MutexGuard<'static, ()>,
+    previous_home: Option<std::ffi::OsString>,
+    previous_config_dir: Option<std::ffi::OsString>,
+    _tempdir: TempDir,
+}
+
+impl TestClaudeHome {
+    pub fn new() -> Self {
+        let lock = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let previous_home = std::env::var_os("HOME");
+        let previous_config_dir = std::env::var_os("CLAUDE_CONFIG_DIR");
+        let tempdir = tempdir().unwrap();
+        std::env::set_var("HOME", tempdir.path());
+        std::env::remove_var("CLAUDE_CONFIG_DIR");
+
+        Self {
+            _lock: lock,
+            previous_home,
+            previous_config_dir,
+            _tempdir: tempdir,
+        }
+    }
+}
+
+impl Drop for TestClaudeHome {
+    fn drop(&mut self) {
+        if let Some(previous_home) = &self.previous_home {
+            std::env::set_var("HOME", previous_home);
+        } else {
+            std::env::remove_var("HOME");
+        }
+
+        if let Some(previous_config_dir) = &self.previous_config_dir {
+            std::env::set_var("CLAUDE_CONFIG_DIR", previous_config_dir);
+        } else {
+            std::env::remove_var("CLAUDE_CONFIG_DIR");
+        }
+    }
+}
+
 #[cfg(unix)]
 fn make_executable(path: &std::path::Path) {
     use std::os::unix::fs::PermissionsExt;
