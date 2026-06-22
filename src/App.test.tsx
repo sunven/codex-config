@@ -344,6 +344,27 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { name: "全局 Skills" })).toBeVisible();
   });
 
+  it("keeps page chrome fixed while workspaces scroll internally", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appState());
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "全局配置" })).toBeVisible();
+
+    const appFrame = screen.getByRole("main");
+    expect(appFrame).toHaveClass("h-screen", "overflow-hidden");
+
+    const workspaceGrid = screen.getByRole("heading", { name: "全局配置" }).closest("section")?.parentElement?.parentElement;
+    expect(workspaceGrid).toHaveClass("min-h-0", "flex-1", "overflow-hidden");
+    expect(screen.getByRole("heading", { name: "全局配置" }).closest("section")?.parentElement).toHaveClass("overflow-auto");
+    expect(screen.getByRole("heading", { name: "高级 TOML 编辑" }).closest("section")?.parentElement?.parentElement).toHaveClass("overflow-auto");
+
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
+
+    expect(screen.getByRole("heading", { name: "Codex sessions" }).closest("section")?.parentElement).toHaveClass("overflow-auto");
+  });
+
   it("shows a destructive alert when the app state cannot load", async () => {
     invokeMock.mockRejectedValueOnce("config.toml parse failed");
 

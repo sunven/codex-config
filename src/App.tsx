@@ -214,13 +214,8 @@ function App() {
 
   return (
     <>
-      <main
-        className={cn(
-          "min-h-screen p-3",
-          activeTab === "skills" && "flex h-screen flex-col overflow-hidden",
-        )}
-      >
-      <header className="mx-auto mb-5 flex w-full max-w-[1440px] items-start justify-between gap-5 max-[940px]:flex-col max-[940px]:gap-3">
+      <main className="flex h-screen min-h-0 flex-col overflow-hidden p-3">
+      <header className="mx-auto mb-5 flex w-full max-w-[1440px] flex-none items-start justify-between gap-5 max-[940px]:flex-col max-[940px]:gap-3">
         <div className="min-w-0">
           <h1>Codex 配置</h1>
         </div>
@@ -238,7 +233,7 @@ function App() {
       )}
 
       {loading && !state && !error && (
-        <div className="mx-auto max-w-[1440px]">
+        <div className="mx-auto min-h-0 w-full max-w-[1440px] flex-1 overflow-auto">
           <div className="mb-4 flex gap-2">
             {[0, 1, 2, 3].map((i) => (
               <div
@@ -266,15 +261,16 @@ function App() {
           <TabBar activeTab={activeTab} onChange={switchTab} />
           <section
             className={cn(
-              "mx-auto grid w-full max-w-[1440px] grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 max-[940px]:grid-cols-1",
+              "mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 overflow-hidden max-[940px]:grid-cols-1",
+              (activeTab === "config" || activeTab === "mcp") &&
+                "max-[940px]:grid-rows-[minmax(0,0.5fr)_minmax(0,0.5fr)]",
               (activeTab === "skills" || activeTab === "sessions") &&
                 "grid-cols-[minmax(0,1fr)]",
-              activeTab === "skills" && "min-h-0 flex-1",
             )}
           >
             {activeTab === "config" ? (
               <>
-                <div className="flex min-w-0 flex-col gap-3">
+                <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-auto pr-1">
                   <SettingsForm
                     fields={state.fields}
                     draftValues={draftValues}
@@ -293,17 +289,19 @@ function App() {
                     onDelete={deleteModelProvider}
                   />
                 </div>
-                <ConfigPreviewSidebar
-                  state={state}
-                  rawTomlDraft={rawTomlDraft}
-                  rawTomlDirty={rawTomlDirty}
-                  rawTomlWritable={rawTomlWritable}
-                  onRawTomlChange={updateRawTomlDraft}
-                  onSaveRawToml={saveRawToml}
-                />
+                <div className="min-h-0 min-w-0 overflow-auto pr-1">
+                  <ConfigPreviewSidebar
+                    state={state}
+                    rawTomlDraft={rawTomlDraft}
+                    rawTomlDirty={rawTomlDirty}
+                    rawTomlWritable={rawTomlWritable}
+                    onRawTomlChange={updateRawTomlDraft}
+                    onSaveRawToml={saveRawToml}
+                  />
+                </div>
               </>
             ) : activeTab === "sessions" ? (
-              <div className="min-w-0">
+              <div className="min-h-0 min-w-0 overflow-auto pr-1">
                 <SessionsWorkspace
                   state={state}
                   sessionsLoading={sessionsLoading}
@@ -314,7 +312,7 @@ function App() {
               </div>
             ) : activeTab === "mcp" ? (
               <>
-                <div className="flex min-w-0 flex-col gap-3">
+                <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-auto pr-1">
                   <McpServersPanel
                     state={state}
                     draft={mcpServerDraft}
@@ -323,14 +321,16 @@ function App() {
                     onDelete={deleteMcpServer}
                   />
                 </div>
-                <ConfigPreviewSidebar
-                  state={state}
-                  rawTomlDraft={rawTomlDraft}
-                  rawTomlDirty={rawTomlDirty}
-                  rawTomlWritable={rawTomlWritable}
-                  onRawTomlChange={updateRawTomlDraft}
-                  onSaveRawToml={saveRawToml}
-                />
+                <div className="min-h-0 min-w-0 overflow-auto pr-1">
+                  <ConfigPreviewSidebar
+                    state={state}
+                    rawTomlDraft={rawTomlDraft}
+                    rawTomlDirty={rawTomlDirty}
+                    rawTomlWritable={rawTomlWritable}
+                    onRawTomlChange={updateRawTomlDraft}
+                    onSaveRawToml={saveRawToml}
+                  />
+                </div>
               </>
             ) : (
               <div className="h-full min-h-0 min-w-0">

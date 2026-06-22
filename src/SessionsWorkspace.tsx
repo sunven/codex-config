@@ -163,11 +163,11 @@ function SessionsPanel({
 
   return (
     <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-3">
-      <div className="-mx-3 -mt-3 mb-3 flex min-h-12 items-center gap-3 border-b border-[var(--border)] p-3 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
+      <div className="-mx-3 -mt-3 mb-3 flex min-h-10 items-center gap-3 border-b border-[var(--border)] px-3 py-1.5 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <BookOpen size={18} />
-        <div>
-          <h2>Codex sessions</h2>
-          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
+        <div className="flex min-w-0 max-w-[260px] flex-none items-baseline gap-2 max-[940px]:max-w-full">
+          <h2 className="flex-none whitespace-nowrap">Codex sessions</h2>
+          <p className="truncate text-[0.8rem] text-[var(--muted-foreground)]">
             {displayPath(codexSessions.sessionsDir, state.homeDir)}
           </p>
         </div>
@@ -175,13 +175,13 @@ function SessionsPanel({
           <div className="flex min-h-[42px] min-w-0 flex-auto items-center justify-center gap-1.5 overflow-x-auto pb-0.5">
             {sessionYears.map((year) => (
               <button
-                className={cn("flex min-h-[54px] min-w-[146px] flex-none cursor-pointer flex-col items-start gap-0.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-[7px] text-left text-[var(--foreground)] [&_strong]:text-[0.88rem] [&_strong]:text-[var(--foreground)] [&_span]:whitespace-nowrap [&_span]:text-[0.74rem] [&_span]:text-[var(--muted-foreground)]", year.key === selectedYearKey && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.14)]")}
+                className={cn("flex min-h-[32px] min-w-[214px] flex-none cursor-pointer items-center justify-between gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-0.5 text-left text-[var(--foreground)] [&_strong]:text-[0.88rem] [&_strong]:text-[var(--foreground)] [&_span]:whitespace-nowrap [&_span]:text-[0.74rem] [&_span]:text-[var(--muted-foreground)]", year.key === selectedYearKey && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.14)]")}
                 key={year.key}
                 onClick={() => setActiveYear(year.key)}
                 type="button"
               >
                 <strong>{year.label}</strong>
-                <span className="flex gap-2.5">
+                <span className="flex items-center gap-2.5">
                   <span>{year.sessionCount} sessions</span>
                   <span>{formatBytes(year.totalSize)}</span>
                 </span>
@@ -189,7 +189,7 @@ function SessionsPanel({
             ))}
           </div>
         )}
-        <div className="ml-auto grid flex-none grid-cols-2 gap-3.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] px-2.5 py-1.5 max-[940px]:ml-0 max-[940px]:w-full max-[940px]:grid-cols-1 [&>div]:flex [&>div]:min-w-0 [&>div]:flex-col [&>div]:gap-px [&_span]:text-[0.68rem] [&_span]:font-bold [&_span]:uppercase [&_span]:text-[var(--muted-foreground)] [&_strong]:whitespace-nowrap [&_strong]:text-[0.88rem]">
+        <div className="ml-auto flex flex-none items-center gap-3.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] px-2.5 py-1.5 max-[940px]:ml-0 max-[940px]:w-full max-[940px]:flex-wrap [&>div]:flex [&>div]:min-w-0 [&>div]:items-baseline [&>div]:gap-1.5 [&_span]:whitespace-nowrap [&_span]:text-[0.68rem] [&_span]:font-bold [&_span]:uppercase [&_span]:text-[var(--muted-foreground)] [&_strong]:whitespace-nowrap [&_strong]:text-[0.88rem]">
           <div>
             <span>会话数量</span>
             <strong>{sessions.length}</strong>
@@ -244,9 +244,9 @@ function SessionsPanel({
                   <span className="inline-flex flex-none text-[var(--muted-foreground)]">
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <h3>{group.label}</h3>
-                    <span>{group.sessions.length} sessions</span>
+                  <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <h3 className="flex-none">{group.label}</h3>
+                    <span className="whitespace-nowrap">{group.sessions.length} sessions</span>
                   </div>
                   <strong>{formatBytes(group.totalSize)}</strong>
                 </button>
