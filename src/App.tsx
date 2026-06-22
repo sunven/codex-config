@@ -99,7 +99,7 @@ function App() {
 
     await configEditWorkflow.runCommit({
       kind: "rootSettings",
-      changes: settingsChanges(state.fields, draftValues, "root"),
+      changes: settingsChanges(state.fields, draftValues),
     });
   }
 
@@ -169,7 +169,7 @@ function App() {
     });
   }
 
-  const settingChanges = state ? settingsChanges(state.fields, draftValues, "root") : [];
+  const settingChanges = state ? settingsChanges(state.fields, draftValues) : [];
   const settingsDirty = settingChanges.length > 0;
   const rawTomlDirty = state ? rawTomlDraft !== state.rawToml : false;
   const rawTomlWritable = Boolean(state?.health.codex.found);

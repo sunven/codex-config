@@ -18,7 +18,7 @@ use app_state::AppState;
 use mcp_server_store::{McpServerDraft, McpServerSaveResult};
 use model_provider_store::{ModelProviderDraft, ModelProviderSaveResult};
 use skill_store::{SkillContent, SkillImportBatchResult};
-use toml_store::{DraftChange, FileToken, PreviewResult, SaveResult};
+use toml_store::{DraftChange, FileToken, SaveResult};
 
 #[tauri::command]
 fn load_state() -> Result<AppState, String> {
@@ -94,11 +94,6 @@ fn read_skill_content(path: String) -> Result<SkillContent, String> {
 }
 
 #[tauri::command]
-fn preview_skill_enabled(path: String, enabled: bool) -> Result<PreviewResult, String> {
-    skill_store::preview_skill_enabled(path, enabled).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn save_skill_enabled(
     path: String,
     enabled: bool,
@@ -113,11 +108,6 @@ fn delete_skill(path: String, file_token: Option<FileToken>) -> Result<SaveResul
 }
 
 #[tauri::command]
-fn import_skill_directory(directory: String) -> Result<SaveResult, String> {
-    skill_store::import_skill_directory(directory).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn import_skill_directories(directories: Vec<String>) -> Result<SkillImportBatchResult, String> {
     skill_store::import_skill_directories(directories).map_err(|error| error.to_string())
 }
@@ -126,7 +116,6 @@ fn import_skill_directories(directories: Vec<String>) -> Result<SkillImportBatch
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             load_state,
             load_sessions,
@@ -139,10 +128,8 @@ pub fn run() {
             save_codex_binary_path,
             delete_session,
             read_skill_content,
-            preview_skill_enabled,
             save_skill_enabled,
             delete_skill,
-            import_skill_directory,
             import_skill_directories
         ])
         .run(tauri::generate_context!())

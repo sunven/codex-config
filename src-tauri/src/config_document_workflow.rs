@@ -1,30 +1,6 @@
 use crate::config_locator::{self, ConfigLocation};
-use crate::toml_store::{self, FieldDiff, FileToken, LoadedToml, PreviewResult, SaveResult};
+use crate::toml_store::{self, FileToken, LoadedToml, SaveResult};
 use toml_edit::DocumentMut;
-
-pub fn preview_edit<Edit, Diffs>(edit: Edit, diffs: Diffs) -> Result<PreviewResult, String>
-where
-    Edit: FnOnce(&mut DocumentMut) -> Result<(), String>,
-    Diffs: FnOnce(Option<&DocumentMut>, &DocumentMut) -> Result<Vec<FieldDiff>, String>,
-{
-    let location = config_locator::locate()?;
-    let loaded = toml_store::load(&location.config_path)?;
-    let original_document = loaded.document.clone();
-    let original = loaded.raw.clone();
-    let mut document = editable_document(loaded)?;
-
-    edit(&mut document)?;
-
-    let candidate = serialize_validated_document(&document)?;
-    let field_diffs = diffs(original_document.as_ref(), &document)?;
-
-    Ok(PreviewResult {
-        changed: original != candidate,
-        field_diffs,
-        text_diff: toml_store::simple_diff(&original, &candidate),
-        candidate_raw_toml: candidate,
-    })
-}
 
 pub fn commit_edit<Edit>(file_token: Option<FileToken>, edit: Edit) -> Result<SaveResult, String>
 where

@@ -23,21 +23,19 @@ export function draftValuesFromFields(fields: FieldState[]) {
 export function settingsChanges(
   fields: FieldState[],
   draftValues: Record<string, string>,
-  scope: "root",
 ) {
   return fields.flatMap<DraftChange>((field) => {
     const current =
       field.kind === "boolean" ? (field.value ?? "inherited") : (field.value ?? "");
     const next = draftValues[field.path] ?? current;
 
-    return fieldChange(field, next, scope);
+    return fieldChange(field, next);
   });
 }
 
 export function fieldChange(
   field: FieldState,
   next: string,
-  scope: "root",
 ): DraftChange[] {
   if (!field.editable || field.kind === "status") {
     return [];
@@ -53,15 +51,15 @@ export function fieldChange(
   if (field.kind === "boolean") {
     return [
       next === "inherited"
-        ? { path: field.path, scope, action: "unset" }
-        : { path: field.path, scope, action: "set", value: next === "true" },
+        ? { path: field.path, action: "unset" }
+        : { path: field.path, action: "set", value: next === "true" },
     ];
   }
 
   const trimmed = next.trim();
   return [
     trimmed
-      ? { path: field.path, action: "set", value: trimmed, scope }
-      : { path: field.path, action: "unset", scope },
+      ? { path: field.path, action: "set", value: trimmed }
+      : { path: field.path, action: "unset" },
   ];
 }

@@ -1,5 +1,5 @@
 use crate::config_schema::{self, FieldDefinition};
-use crate::toml_store::{DraftAction, DraftChange, DraftScope};
+use crate::toml_store::{DraftAction, DraftChange};
 use serde_json::Value as JsonValue;
 use toml_edit::{value as toml_value, DocumentMut, Item, Table, Value};
 
@@ -11,10 +11,6 @@ pub fn apply_change(document: &mut DocumentMut, change: &DraftChange) -> Result<
 
     if !field.editable {
         return Err(format!("{} is read-only in this release", field.path));
-    }
-
-    if change.scope.is_some_and(|scope| scope != DraftScope::Root) {
-        return Err("profile-scoped structured edits are no longer supported".to_string());
     }
 
     apply_at_root(document, field, change)
@@ -161,7 +157,6 @@ mod tests {
             &mut document,
             &DraftChange {
                 path: "model".to_string(),
-                scope: None,
                 action: DraftAction::Set,
                 value: Some(JsonValue::String("gpt-5.5".to_string())),
             },
@@ -171,7 +166,6 @@ mod tests {
             &mut document,
             &DraftChange {
                 path: "features.fast_mode".to_string(),
-                scope: None,
                 action: DraftAction::Set,
                 value: Some(JsonValue::Bool(true)),
             },
@@ -185,7 +179,6 @@ mod tests {
             &mut document,
             &DraftChange {
                 path: "model".to_string(),
-                scope: None,
                 action: DraftAction::Unset,
                 value: None,
             },
@@ -193,58 +186,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(root_string(&document, "model"), None);
-    }
-
-    #[test]
-    fn rejects_profile_scoped_structured_edits() {
-        let mut document = r#"
-profile = "work"
-model = "gpt-5.4"
-
-[profiles.personal]
-model = "gpt-5.3"
-"#
-        .parse::<DocumentMut>()
-        .unwrap();
-
-        assert_eq!(
-            apply_change(
-                &mut document,
-                &DraftChange {
-                    path: "model".to_string(),
-                    scope: Some(DraftScope::Profile),
-                    action: DraftAction::Set,
-                    value: Some(JsonValue::String("gpt-5.5".to_string())),
-                },
-            )
-            .unwrap_err(),
-            "profile-scoped structured edits are no longer supported"
-        );
-
-        assert_eq!(
-            apply_change(
-                &mut document,
-                &DraftChange {
-                    path: "features.fast_mode".to_string(),
-                    scope: Some(DraftScope::Profile),
-                    action: DraftAction::Set,
-                    value: Some(JsonValue::Bool(true)),
-                },
-            )
-            .unwrap_err(),
-            "profile-scoped structured edits are no longer supported"
-        );
-
-        assert_eq!(root_string(&document, "model"), Some("gpt-5.4".to_string()));
-        assert!(document
-            .get("profiles")
-            .and_then(Item::as_table)
-            .and_then(|profiles| profiles.get("personal"))
-            .and_then(Item::as_table)
-            .and_then(|personal| personal.get("model"))
-            .and_then(Item::as_value)
-            .and_then(Value::as_str)
-            .is_some_and(|value| value == "gpt-5.3"));
     }
 
     #[test]
@@ -256,7 +197,6 @@ model = "gpt-5.3"
                 &mut document,
                 &DraftChange {
                     path: "does_not_exist".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(JsonValue::String("x".to_string())),
                 },
@@ -269,7 +209,6 @@ model = "gpt-5.3"
                 &mut document,
                 &DraftChange {
                     path: "model_providers".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(JsonValue::String("x".to_string())),
                 },
@@ -282,7 +221,6 @@ model = "gpt-5.3"
                 &mut document,
                 &DraftChange {
                     path: "features.fast_mode".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(JsonValue::String("true".to_string())),
                 },

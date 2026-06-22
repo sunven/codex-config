@@ -415,7 +415,7 @@ describe("Config workbench", () => {
     await user.click(within(globalSettings).getByRole("button", { name: "保存到 config.toml" }));
 
     expect(invokeMock).toHaveBeenCalledWith("save_changes", {
-      changes: [{ path: "model", scope: "root", action: "set", value: "gpt-5-mini" }],
+      changes: [{ path: "model", action: "set", value: "gpt-5-mini" }],
       fileToken: null,
     });
     expect(await screen.findByText("已保存。")).toBeVisible();
@@ -471,7 +471,6 @@ describe("Config workbench", () => {
       changes: [
         {
           path: "model_reasoning_effort",
-          scope: "root",
           action: "set",
           value: "high",
         },

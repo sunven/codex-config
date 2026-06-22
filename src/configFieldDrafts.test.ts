@@ -62,12 +62,10 @@ describe("Codex config field drafts", () => {
           ...draftValuesFromFields(fields),
           "features.fast_mode": "true",
         },
-        "root",
       ),
     ).toEqual([
       {
         path: "features.fast_mode",
-        scope: "root",
         action: "set",
         value: true,
       },
@@ -84,12 +82,10 @@ describe("Codex config field drafts", () => {
         {
           "features.fast_mode": "inherited",
         },
-        "root",
       ),
     ).toEqual([
       {
         path: "features.fast_mode",
-        scope: "root",
         action: "unset",
       },
     ]);
@@ -104,20 +100,17 @@ describe("Codex config field drafts", () => {
           model: " gpt-5.1 ",
           approval_policy: " on-request ",
         },
-        "root",
       ),
     ).toEqual([
       {
         path: "model",
         action: "set",
         value: "gpt-5.1",
-        scope: "root",
       },
       {
         path: "approval_policy",
         action: "set",
         value: "on-request",
-        scope: "root",
       },
     ]);
 
@@ -128,19 +121,17 @@ describe("Codex config field drafts", () => {
           ...draftValuesFromFields(fields),
           model: " ",
         },
-        "root",
       ),
     ).toEqual([
       {
         path: "model",
         action: "unset",
-        scope: "root",
       },
     ]);
   });
 
   it("skips unchanged, status, and read-only fields", () => {
-    expect(settingsChanges(fields, draftValuesFromFields(fields), "root")).toEqual([]);
+    expect(settingsChanges(fields, draftValuesFromFields(fields))).toEqual([]);
     expect(
       settingsChanges(
         [
@@ -152,7 +143,6 @@ describe("Codex config field drafts", () => {
         {
           model: "gpt-5.1",
         },
-        "root",
       ),
     ).toEqual([]);
   });

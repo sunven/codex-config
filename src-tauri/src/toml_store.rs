@@ -31,19 +31,12 @@ pub struct ParseIssue {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub struct DraftChange {
     pub path: String,
-    pub scope: Option<DraftScope>,
     pub action: DraftAction,
     pub value: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum DraftScope {
-    Root,
-    Profile,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -51,25 +44,6 @@ pub enum DraftScope {
 pub enum DraftAction {
     Set,
     Unset,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PreviewResult {
-    pub changed: bool,
-    pub field_diffs: Vec<FieldDiff>,
-    pub text_diff: String,
-    pub candidate_raw_toml: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FieldDiff {
-    pub scope: DraftScope,
-    pub path: String,
-    pub label: String,
-    pub before: String,
-    pub after: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -224,35 +198,6 @@ fn unique_temp_path(path: &Path) -> PathBuf {
     path.with_extension(format!("toml.{timestamp}.tmp"))
 }
 
-pub(crate) fn simple_diff(original: &str, candidate: &str) -> String {
-    if original == candidate {
-        return "No changes".to_string();
-    }
-
-    let original_lines = original.lines().collect::<Vec<_>>();
-    let candidate_lines = candidate.lines().collect::<Vec<_>>();
-    let mut output = String::new();
-    let max_len = original_lines.len().max(candidate_lines.len());
-
-    for index in 0..max_len {
-        match (original_lines.get(index), candidate_lines.get(index)) {
-            (Some(left), Some(right)) if left == right => {}
-            (Some(left), Some(right)) => {
-                output.push_str(&format!("- {left}\n+ {right}\n"));
-            }
-            (Some(left), None) => {
-                output.push_str(&format!("- {left}\n"));
-            }
-            (None, Some(right)) => {
-                output.push_str(&format!("+ {right}\n"));
-            }
-            (None, None) => {}
-        }
-    }
-
-    output
-}
-
 fn file_token(path: &Path, bytes: &[u8]) -> Result<FileToken, String> {
     let metadata = fs::metadata(path).map_err(|error| format!("failed to stat config: {error}"))?;
     let modified_ms = metadata.modified().ok().and_then(|time| {
@@ -333,7 +278,6 @@ fast_mode = false
             loaded,
             &[DraftChange {
                 path: "features.fast_mode".to_string(),
-                scope: None,
                 action: DraftAction::Set,
                 value: Some(serde_json::Value::Bool(true)),
             }],
@@ -450,13 +394,11 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
             &[
                 DraftChange {
                     path: "sandbox_mode".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("workspace-write".to_string())),
                 },
                 DraftChange {
                     path: "approval_policy".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("on-request".to_string())),
                 },
@@ -489,49 +431,41 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
             &[
                 DraftChange {
                     path: "model_provider".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("openai".to_string())),
                 },
                 DraftChange {
                     path: "oss_provider".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("ollama".to_string())),
                 },
                 DraftChange {
                     path: "model_reasoning_summary".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("auto".to_string())),
                 },
                 DraftChange {
                     path: "model_verbosity".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("high".to_string())),
                 },
                 DraftChange {
                     path: "service_tier".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("priority".to_string())),
                 },
                 DraftChange {
                     path: "web_search".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::String("live".to_string())),
                 },
                 DraftChange {
                     path: "hide_agent_reasoning".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::Bool(false)),
                 },
                 DraftChange {
                     path: "show_raw_agent_reasoning".to_string(),
-                    scope: None,
                     action: DraftAction::Set,
                     value: Some(serde_json::Value::Bool(true)),
                 },
@@ -574,30 +508,17 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
     }
 
     #[test]
-    fn profile_scope_is_rejected_for_structured_edits() {
-        let loaded = LoadedToml {
-            raw: String::new(),
-            document: Some(DocumentMut::new()),
-            token: None,
-            parse_issue: None,
-            exists: false,
-        };
+    fn rejects_legacy_scoped_structured_edits() {
+        let error = serde_json::from_value::<DraftChange>(serde_json::json!({
+            "path": "model",
+            "scope": "profile",
+            "action": "set",
+            "value": "gpt-5.5"
+        }))
+        .unwrap_err()
+        .to_string();
 
-        let error = candidate_document(
-            loaded,
-            &[DraftChange {
-                path: "model".to_string(),
-                scope: Some(DraftScope::Profile),
-                action: DraftAction::Set,
-                value: Some(serde_json::Value::String("gpt-5.5".to_string())),
-            }],
-        )
-        .unwrap_err();
-
-        assert_eq!(
-            error,
-            "profile-scoped structured edits are no longer supported"
-        );
+        assert!(error.contains("unknown field `scope`"));
     }
 
     #[test]
@@ -620,7 +541,6 @@ fast_mode = false
         let result = save_changes(
             vec![DraftChange {
                 path: "features.fast_mode".to_string(),
-                scope: None,
                 action: DraftAction::Set,
                 value: Some(serde_json::Value::Bool(true)),
             }],

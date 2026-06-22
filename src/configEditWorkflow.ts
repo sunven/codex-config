@@ -20,7 +20,6 @@ export type FileToken = {
 
 export type DraftChange = {
   path: string;
-  scope?: "root";
   action: "set" | "unset";
   value?: boolean | string;
 };
