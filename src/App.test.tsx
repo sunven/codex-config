@@ -101,7 +101,7 @@ function appState(overrides: Partial<AppState> = {}): AppState {
           cliVersion: "1.2.3",
           modelProvider: "openai",
           size: 1536,
-          modifiedMs: 1780893900000,
+          modifiedMs: Date.now() - 2 * 24 * 60 * 60 * 1000,
           messageCount: 8,
           userMessageCount: 3,
         },
@@ -112,6 +112,7 @@ function appState(overrides: Partial<AppState> = {}): AppState {
           relativePath: "2026/05/31/rollout-2026-05-31T08-00-00-beta.jsonl",
           createdAt: "2026-05-31T00:00:00.000Z",
           size: 512,
+          modifiedMs: Date.now() - 10 * 24 * 60 * 60 * 1000,
           messageCount: 0,
           userMessageCount: 0,
           parseError: "Unexpected JSON token at line 2",
@@ -123,6 +124,7 @@ function appState(overrides: Partial<AppState> = {}): AppState {
           relativePath: "2025/12/24/rollout-2025-12-24T08-00-00-gamma.jsonl",
           createdAt: "2025-12-24T00:00:00.000Z",
           size: 1024,
+          modifiedMs: Date.now() - 40 * 24 * 60 * 60 * 1000,
           messageCount: 4,
           userMessageCount: 1,
         },
@@ -278,6 +280,11 @@ function cardByText(container: HTMLElement, text: string | RegExp) {
   return card as HTMLElement;
 }
 
+async function expectSonnerToast(message: string) {
+  const toastMessage = await screen.findByText(message);
+  expect(toastMessage.closest("[data-sonner-toast]")).toBeInTheDocument();
+}
+
 describe("App shell", () => {
   beforeEach(() => {
     invokeMock.mockReset();
@@ -418,7 +425,7 @@ describe("Config workbench", () => {
       changes: [{ path: "model", action: "set", value: "gpt-5-mini" }],
       fileToken: null,
     });
-    expect(await screen.findByText("已保存。")).toBeVisible();
+    await expectSonnerToast("已保存。");
   });
 
   it("saves select field changes only when the save button is clicked", async () => {
@@ -464,7 +471,7 @@ describe("Config workbench", () => {
     expect(within(globalSettings).getByRole("button", { name: "保存到 config.toml" })).toBeEnabled();
 
     await user.click(within(globalSettings).getByRole("button", { name: "保存到 config.toml" }));
-    await screen.findByText("已保存。");
+    await expectSonnerToast("已保存。");
     await user.click(screen.getByRole("button", { name: "刷新" }));
 
     expect(invokeMock).toHaveBeenCalledWith("save_changes", {
@@ -536,7 +543,7 @@ describe("Raw TOML", () => {
       rawToml: "model = \"gpt-5-mini\"",
       fileToken: null,
     });
-    expect(await screen.findByText("已保存原始 TOML。")).toBeVisible();
+    await expectSonnerToast("已保存原始 TOML。");
   });
 });
 
@@ -592,10 +599,10 @@ describe("Model provider editor", () => {
       }),
       fileToken: null,
     });
-    expect(await screen.findByText(/已保存 model provider/)).toBeVisible();
+    await expectSonnerToast("已保存 model provider。");
   });
 
-  it("deletes providers directly and disables reserved provider deletion", async () => {
+  it("deletes providers after dialog confirmation and disables reserved provider deletion", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithModelProviders())
@@ -617,12 +624,36 @@ describe("Model provider editor", () => {
     expect(within(openaiProvider).getByRole("button", { name: "删除" })).toBeDisabled();
 
     await user.click(within(localProvider).getByRole("button", { name: "删除" }));
+    const dialog = screen.getByRole("dialog", { name: "删除 model provider" });
+    expect(dialog).toHaveTextContent("将删除「local-gpt」对应的 model provider 配置");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_model_provider", {
       id: "local-gpt",
       fileToken: null,
     });
-    expect(await screen.findByText(/已删除 model provider/)).toBeVisible();
+    await expectSonnerToast("已删除 model provider。");
+  });
+
+  it("shows pending state while confirmed provider deletion is running", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithModelProviders());
+    invokeMock.mockReturnValueOnce(new Promise(() => {}));
+
+    render(<App />);
+
+    const providers = await findSectionByHeading("Model providers");
+    const localProvider = cardByText(providers, "Local GPT");
+
+    await user.click(within(localProvider).getByRole("button", { name: "删除" }));
+    const dialog = screen.getByRole("dialog", { name: "删除 model provider" });
+
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    expect(within(dialog).getByRole("button", { name: "删除中" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toBeDisabled();
   });
 });
 
@@ -680,10 +711,10 @@ describe("MCP server editor", () => {
       }),
       fileToken: null,
     });
-    expect(await screen.findByText(/已保存 MCP server/)).toBeVisible();
+    await expectSonnerToast("已保存 MCP server。");
   });
 
-  it("deletes servers directly", async () => {
+  it("deletes servers after dialog confirmation", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appStateWithMcpServers())
@@ -704,12 +735,38 @@ describe("MCP server editor", () => {
     const filesystemServer = cardByText(servers, "filesystem");
 
     await user.click(within(filesystemServer).getByRole("button", { name: "删除" }));
+    const dialog = screen.getByRole("dialog", { name: "删除 MCP server" });
+    expect(dialog).toHaveTextContent("将删除「filesystem」对应的 MCP server 配置");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_mcp_server", {
       id: "filesystem",
       fileToken: null,
     });
-    expect(await screen.findByText(/已删除 MCP server/)).toBeVisible();
+    await expectSonnerToast("已删除 MCP server。");
+  });
+
+  it("shows pending state while confirmed MCP server deletion is running", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithMcpServers());
+    invokeMock.mockReturnValueOnce(new Promise(() => {}));
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "MCP Servers" }));
+
+    const servers = await findSectionByHeading("MCP servers");
+    const filesystemServer = cardByText(servers, "filesystem");
+
+    await user.click(within(filesystemServer).getByRole("button", { name: "删除" }));
+    const dialog = screen.getByRole("dialog", { name: "删除 MCP server" });
+
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    expect(within(dialog).getByRole("button", { name: "删除中" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toBeDisabled();
   });
 });
 
@@ -793,7 +850,7 @@ describe("Skills workspace", () => {
       enabled: false,
       fileToken: null,
     });
-    expect(await screen.findByText("已停用 skill。重启 Codex 后生效。")).toBeVisible();
+    await expectSonnerToast("已停用 skill。重启 Codex 后生效。");
   });
 
   it("deletes a skill after an explicit confirmation click", async () => {
@@ -824,21 +881,43 @@ describe("Skills workspace", () => {
     expect(tddCard).not.toBeNull();
 
     await user.click(within(tddCard as HTMLElement).getByRole("button", { name: "删除 skill tdd" }));
-
-    expect(screen.getByText("再次点击删除会移除这个 skill。")).toBeVisible();
+    const dialog = screen.getByRole("dialog", { name: "删除 skill" });
+    expect(dialog).toHaveTextContent("将删除「tdd」对应的 skill");
     expect(invokeMock).toHaveBeenCalledTimes(1);
 
-    await user.click(
-      within(tddCard as HTMLElement).getByRole("button", { name: "确认删除 skill tdd" }),
-    );
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_skill", {
       path: "/Users/test/.codex/skills/tdd/SKILL.md",
       fileToken: null,
     });
-    expect(await screen.findByText("已删除 skill。重启 Codex 或开启新会话后生效。")).toBeVisible();
+    await expectSonnerToast("已删除 skill。重启 Codex 或开启新会话后生效。");
     expect(skills).not.toHaveTextContent("tdd");
     expect(skills).toHaveTextContent("1 skills");
+  });
+
+  it("shows pending state while confirmed skill deletion is running", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithSkills());
+    invokeMock.mockReturnValueOnce(new Promise(() => {}));
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Skills" }));
+
+    const skills = await findSectionByHeading("全局 Skills");
+    const tddCard = within(skills)
+      .getByRole("button", { name: "删除 skill tdd" })
+      .closest("div[class*='bg-[#eff6ff]']");
+    expect(tddCard).not.toBeNull();
+
+    await user.click(within(tddCard as HTMLElement).getByRole("button", { name: "删除 skill tdd" }));
+    const dialog = screen.getByRole("dialog", { name: "删除 skill" });
+
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    expect(within(dialog).getByRole("button", { name: "删除中" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toBeDisabled();
   });
 
   it("imports a skill directory into Agent global skills", async () => {
@@ -912,7 +991,7 @@ describe("Skills workspace", () => {
     expect(invokeMock).toHaveBeenCalledWith("import_skill_directories", {
       directories: ["/Users/test/skills/imported"],
     });
-    expect(await screen.findByText(/已导入 1 个 skills。/)).toBeVisible();
+    await expectSonnerToast("已导入 1 个 skills。重启 Codex 或开启新会话后生效。");
     expect(skills).toHaveTextContent("1 skills");
     expect(skills).toHaveTextContent("软链");
     expect(skills).toHaveTextContent("原始位置：/Users/test/skills/imported");
@@ -1026,9 +1105,7 @@ describe("Skills workspace", () => {
         "/Users/test/skills/conflict",
       ],
     });
-    expect(
-      await screen.findByText("已导入 1 个 skills，1 个已存在，1 个跳过，1 个名称冲突。重启 Codex 或开启新会话后生效。"),
-    ).toBeVisible();
+    await expectSonnerToast("已导入 1 个 skills，1 个已存在，1 个跳过，1 个名称冲突。重启 Codex 或开启新会话后生效。");
     expect(within(skills).getByText("导入结果明细")).toBeVisible();
     expect(within(skills).getByText("已导入")).toBeVisible();
     expect(within(skills).getByText("已存在")).toBeVisible();
@@ -1137,9 +1214,7 @@ describe("Skills workspace", () => {
     const skills = await findSectionByHeading("全局 Skills");
     await user.click(within(skills).getByRole("button", { name: "新增 skill" }));
 
-    expect(
-      await screen.findByText("已导入 1 个 skills。状态刷新失败：config.toml parse failed"),
-    ).toBeVisible();
+    await expectSonnerToast("已导入 1 个 skills。状态刷新失败：config.toml parse failed");
     expect(within(skills).getByText("文件系统导入已完成，但状态刷新失败：config.toml parse failed")).toBeVisible();
     expect(within(skills).getByText("已导入")).toBeVisible();
   });
@@ -1193,7 +1268,7 @@ describe("Sessions workspace", () => {
     expect(within(cardByText(sessions, "Refactor config UI")).getByRole("button", { name: "删除" })).toBeVisible();
   });
 
-  it("keeps session deletion gated behind a second confirmation click", async () => {
+  it("confirms session deletion in a dialog", async () => {
     const user = userEvent.setup();
     invokeMock
       .mockResolvedValueOnce(appState())
@@ -1212,15 +1287,68 @@ describe("Sessions workspace", () => {
     const sessionCard = cardByText(sessions, "Refactor config UI");
 
     await user.click(within(sessionCard).getByRole("button", { name: "删除" }));
-    expect(screen.getByText("再次点击删除会删除这个 Codex 会话 .jsonl 文件。")).toBeVisible();
+    const dialog = screen.getByRole("dialog", { name: "删除 Codex session" });
+    expect(dialog).toHaveTextContent("将删除「Refactor config UI」对应的 .jsonl 会话文件");
     expect(invokeMock).toHaveBeenCalledTimes(1);
 
-    await user.click(within(sessionCard).getByRole("button", { name: "确认删除" }));
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
 
     expect(invokeMock).toHaveBeenCalledWith("delete_session", {
       id: "2026/06/08/rollout-2026-06-08T10-00-00-alpha.jsonl",
     });
-    expect(await screen.findByText("已删除 Codex session 文件。")).toBeVisible();
+    await expectSonnerToast("已删除 Codex session 文件。");
+  });
+
+  it("bulk deletes old sessions after dialog confirmation", async () => {
+    const user = userEvent.setup();
+    invokeMock
+      .mockResolvedValueOnce(appState())
+      .mockResolvedValueOnce(appState({
+        codexSessions: {
+          sessionsDir: "/Users/test/.codex/sessions",
+          sessions: [],
+        },
+      }));
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Sessions" }));
+
+    const sessions = await findSectionByHeading("Codex sessions");
+    const deleteOldMonth = within(sessions).getByRole("button", {
+      name: "删除 30 天前 1 个",
+    });
+
+    await user.click(deleteOldMonth);
+    const dialog = screen.getByRole("dialog", { name: "批量删除 Codex sessions" });
+    expect(dialog).toHaveTextContent("将删除 1 个 30 天前的 .jsonl 会话文件");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("delete_sessions_older_than", { days: 30 });
+    await expectSonnerToast("已删除 30 天前的 Codex session 文件。");
+  });
+
+  it("shows pending state while confirmed session deletion is running", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appState());
+    invokeMock.mockReturnValueOnce(new Promise(() => {}));
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Sessions" }));
+
+    const sessions = await findSectionByHeading("Codex sessions");
+    const sessionCard = cardByText(sessions, "Refactor config UI");
+
+    await user.click(within(sessionCard).getByRole("button", { name: "删除" }));
+    const dialog = screen.getByRole("dialog", { name: "删除 Codex session" });
+
+    await user.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    expect(within(dialog).getByRole("button", { name: "删除中" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toBeDisabled();
   });
 
   it("shows a quiet empty state when there are no sessions", async () => {
@@ -1245,11 +1373,14 @@ describe("Sessions workspace", () => {
   it("lazily loads sessions only after the Sessions tab is opened", async () => {
     const user = userEvent.setup();
     const baseState = appState();
-    const sessionState = baseState.codexSessions;
+    const sessionState = baseState.codexSessions!;
     const { codexSessions: _omitted, ...stateWithoutSessions } = baseState;
+    let resolveSessions: (value: typeof sessionState) => void = () => {};
     invokeMock
       .mockResolvedValueOnce(stateWithoutSessions as AppState)
-      .mockResolvedValueOnce(sessionState);
+      .mockReturnValueOnce(new Promise<typeof sessionState>((resolve) => {
+        resolveSessions = resolve;
+      }));
 
     render(<App />);
 
@@ -1260,7 +1391,11 @@ describe("Sessions workspace", () => {
 
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
-    expect(await screen.findByText("Refactor config UI")).toBeVisible();
+    expect(screen.getByText("正在加载 Codex sessions…")).toBeVisible();
     expect(invokeMock).toHaveBeenCalledWith("load_sessions");
+
+    resolveSessions(sessionState);
+
+    expect(await screen.findByText("Refactor config UI")).toBeVisible();
   });
 });

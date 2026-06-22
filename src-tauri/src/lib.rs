@@ -26,9 +26,11 @@ fn load_state() -> Result<AppState, String> {
 }
 
 #[tauri::command]
-fn load_sessions() -> Result<codex_session_store::CodexSessionState, String> {
+async fn load_sessions() -> Result<codex_session_store::CodexSessionState, String> {
     let location = config_locator::locate().map_err(|error| error.to_string())?;
-    Ok(codex_session_store::state(&location.codex_home))
+    tauri::async_runtime::spawn_blocking(move || codex_session_store::state(&location.codex_home))
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -83,9 +85,23 @@ fn save_codex_binary_path(path: Option<String>) -> Result<AppState, String> {
 }
 
 #[tauri::command]
-fn delete_session(id: String) -> Result<AppState, String> {
-    codex_session_store::delete(id).map_err(|error| error.to_string())?;
-    app_state::load_state_with_sessions().map_err(|error| error.to_string())
+async fn delete_session(id: String) -> Result<AppState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        codex_session_store::delete(id)?;
+        app_state::load_state_with_sessions()
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn delete_sessions_older_than(days: u64) -> Result<AppState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        codex_session_store::delete_older_than_days(days)?;
+        app_state::load_state_with_sessions()
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -127,6 +143,7 @@ pub fn run() {
             delete_mcp_server,
             save_codex_binary_path,
             delete_session,
+            delete_sessions_older_than,
             read_skill_content,
             save_skill_enabled,
             delete_skill,

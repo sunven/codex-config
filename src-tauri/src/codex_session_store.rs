@@ -4,7 +4,7 @@ use serde_json::value::RawValue;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Component, Path, PathBuf};
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const TITLE_LIMIT: usize = 140;
 
@@ -80,6 +80,44 @@ pub fn delete(id: String) -> Result<(), String> {
 
     fs::remove_file(&path)
         .map_err(|error| format!("删除 Codex session 文件失败：{} ({error})", path.display()))
+}
+
+pub fn delete_older_than_days(days: u64) -> Result<usize, String> {
+    delete_older_than(days, SystemTime::now())
+}
+
+fn delete_older_than(days: u64, now: SystemTime) -> Result<usize, String> {
+    if days == 0 {
+        return Err("删除天数必须大于 0。".to_string());
+    }
+
+    let location = config_locator::locate()?;
+    let sessions_dir = location.codex_home.join("sessions");
+    let cutoff = now
+        .checked_sub(Duration::from_secs(days.saturating_mul(24 * 60 * 60)))
+        .ok_or_else(|| "删除时间范围无效。".to_string())?;
+    let mut paths = Vec::new();
+    collect_session_paths(&sessions_dir, &mut paths);
+    let mut deleted = 0;
+
+    for path in paths {
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        if modified >= cutoff {
+            continue;
+        }
+
+        fs::remove_file(&path).map_err(|error| {
+            format!("删除 Codex session 文件失败：{} ({error})", path.display())
+        })?;
+        deleted += 1;
+    }
+
+    Ok(deleted)
 }
 
 fn collect_session_paths(dir: &Path, paths: &mut Vec<PathBuf>) {
@@ -497,6 +535,41 @@ mod tests {
         delete("2026/06/07/rollout.jsonl".to_string()).unwrap();
 
         assert!(!session_path.exists());
+    }
+
+    #[test]
+    fn deletes_only_sessions_older_than_days() {
+        let _guard = TestCodexHome::new();
+        let location = config_locator::locate().unwrap();
+        let sessions_dir = location.codex_home.join("sessions").join("2026").join("06");
+        let old_session = sessions_dir.join("old.jsonl");
+        let fresh_session = sessions_dir.join("fresh.jsonl");
+        let note = sessions_dir.join("note.txt");
+        fs::create_dir_all(&sessions_dir).unwrap();
+        fs::write(&old_session, "").unwrap();
+        fs::write(&fresh_session, "").unwrap();
+        fs::write(&note, "").unwrap();
+
+        let now = UNIX_EPOCH + Duration::from_secs(2_000_000);
+        File::open(&old_session)
+            .unwrap()
+            .set_modified(now - Duration::from_secs(8 * 24 * 60 * 60))
+            .unwrap();
+        File::open(&fresh_session)
+            .unwrap()
+            .set_modified(now - Duration::from_secs(6 * 24 * 60 * 60))
+            .unwrap();
+        File::open(&note)
+            .unwrap()
+            .set_modified(now - Duration::from_secs(8 * 24 * 60 * 60))
+            .unwrap();
+
+        let deleted = delete_older_than(7, now).unwrap();
+
+        assert_eq!(deleted, 1);
+        assert!(!old_session.exists());
+        assert!(fresh_session.exists());
+        assert!(note.exists());
     }
 
     #[test]

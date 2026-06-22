@@ -66,8 +66,16 @@ export function toggleCollapsedMonth(
   };
 }
 
-export function sessionDeleteLabel(session: CodexSessionSummary, pendingDeleteId: string | null) {
-  return `${pendingDeleteId === session.id ? "确认删除" : "预览删除"} ${session.title}`;
+export function sessionsOlderThanCount(
+  sessions: CodexSessionSummary[],
+  days: number,
+  nowMs = Date.now(),
+) {
+  const cutoffMs = nowMs - days * 24 * 60 * 60 * 1000;
+
+  return sessions.filter((session) => (
+    typeof session.modifiedMs === "number" && session.modifiedMs < cutoffMs
+  )).length;
 }
 
 export function groupCodexSessionsByYear(sessions: CodexSessionSummary[]) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw, ShieldAlert } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { toast } from "sonner";
 import {
   type McpServerDraft,
   type ModelProviderDraft,
@@ -26,6 +27,7 @@ import { SkillsWorkspace } from "./SkillsWorkspace";
 import { useConfigEditWorkflow } from "./useConfigEditWorkflow";
 import { Button } from "./components/ui/button";
 import { Notice } from "./components/ui/notice";
+import { Toaster } from "./components/ui/sonner";
 import { cn } from "./components/ui/utils";
 import "./App.css";
 
@@ -38,15 +40,26 @@ function App() {
     useState<ModelProviderDraft>(emptyModelProviderDraft());
   const [mcpServerDraft, setMcpServerDraft] = useState<McpServerDraft>(emptyMcpServerDraft());
   const [rawTomlDraft, setRawTomlDraft] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const configEditWorkflow = useConfigEditWorkflow<AppState>({
     currentState: state,
     onCommitState: applyAppState,
     onError: setError,
-    onStatusMessage: setStatusMessage,
+    onStatusMessage: showStatusMessage,
   });
+
+  function showStatusMessage(message: string | null) {
+    if (!message) {
+      return;
+    }
+
+    if (message.startsWith("已")) {
+      toast.success(message);
+    } else {
+      toast(message);
+    }
+  }
 
   function applyAppState(nextState: AppState) {
     setState(nextState);
@@ -89,7 +102,6 @@ function App() {
   function switchTab(tab: MainTab) {
     setActiveTab(tab);
     configEditWorkflow.reset();
-    setStatusMessage(null);
   }
 
   async function saveSettings() {
@@ -149,10 +161,12 @@ function App() {
   }
 
   async function deleteModelProvider(id: string) {
-    await configEditWorkflow.runCommit({
+    const outcome = await configEditWorkflow.runCommit({
       kind: "modelProviderDelete",
       id,
     });
+
+    return outcome.status === "commit";
   }
 
   async function saveMcpServer() {
@@ -163,10 +177,12 @@ function App() {
   }
 
   async function deleteMcpServer(id: string) {
-    await configEditWorkflow.runCommit({
+    const outcome = await configEditWorkflow.runCommit({
       kind: "mcpServerDelete",
       id,
     });
+
+    return outcome.status === "commit";
   }
 
   const settingChanges = state ? settingsChanges(state.fields, draftValues) : [];
@@ -197,12 +213,13 @@ function App() {
   }, [state]);
 
   return (
-    <main
-      className={cn(
-        "min-h-screen p-3",
-        activeTab === "skills" && "flex h-screen flex-col overflow-hidden",
-      )}
-    >
+    <>
+      <main
+        className={cn(
+          "min-h-screen p-3",
+          activeTab === "skills" && "flex h-screen flex-col overflow-hidden",
+        )}
+      >
       <header className="mx-auto mb-5 flex w-full max-w-[1440px] items-start justify-between gap-5 max-[940px]:flex-col max-[940px]:gap-3">
         <div className="min-w-0">
           <h1>Codex 配置</h1>
@@ -246,11 +263,6 @@ function App() {
 
       {state && (
         <>
-          {statusMessage && (
-            <Notice className="mb-2" variant="success">
-              {statusMessage}
-            </Notice>
-          )}
           <TabBar activeTab={activeTab} onChange={switchTab} />
           <section
             className={cn(
@@ -297,7 +309,7 @@ function App() {
                   sessionsLoading={sessionsLoading}
                   onStateChange={applyAppState}
                   onError={setError}
-                  onStatusMessage={setStatusMessage}
+                  onStatusMessage={showStatusMessage}
                 />
               </div>
             ) : activeTab === "mcp" ? (
@@ -326,14 +338,16 @@ function App() {
                   state={state}
                   onStateChange={applyAppState}
                   onError={setError}
-                  onStatusMessage={setStatusMessage}
+                  onStatusMessage={showStatusMessage}
                 />
               </div>
             )}
           </section>
         </>
       )}
-    </main>
+      </main>
+      <Toaster />
+    </>
   );
 }
 

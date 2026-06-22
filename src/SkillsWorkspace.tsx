@@ -13,6 +13,15 @@ import { displayPath, formatBytes } from "./formatters";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { CompactEmpty } from "./components/ui/compact-empty";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "./components/ui/dialog";
 import { Input } from "./components/ui/input";
 import { cn } from "./components/ui/utils";
 
@@ -21,6 +30,11 @@ type SkillsWorkspaceProps = {
 	onStateChange: (state: AppState) => void;
 	onError: (message: string | null) => void;
 	onStatusMessage: (message: string | null) => void;
+};
+
+type DeleteSkillDialogState = {
+	path: string;
+	name: string;
 };
 
 export function SkillsWorkspace({
@@ -33,7 +47,9 @@ export function SkillsWorkspace({
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
 	const [content, setContent] = useState<SkillContent | null>(null);
 	const [importing, setImporting] = useState(false);
-	const [pendingDeletePath, setPendingDeletePath] = useState<string | null>(null);
+	const [deleteDialog, setDeleteDialog] =
+		useState<DeleteSkillDialogState | null>(null);
+	const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 	const [importResult, setImportResult] =
 		useState<SkillImportBatchResult | null>(null);
 	const importingRef = useRef(false);
@@ -43,7 +59,7 @@ export function SkillsWorkspace({
 		onStatusMessage(null);
 		setImportResult(null);
 		setSelectedPath(path);
-		setPendingDeletePath(null);
+		setDeleteDialog(null);
 
 		try {
 			setContent(
@@ -60,7 +76,7 @@ export function SkillsWorkspace({
 		onError(null);
 		onStatusMessage(null);
 		setImportResult(null);
-		setPendingDeletePath(null);
+		setDeleteDialog(null);
 
 		try {
 			const result = await invoke<SaveResult>("save_skill_enabled", {
@@ -79,30 +95,41 @@ export function SkillsWorkspace({
 		}
 	}
 
-	async function deleteSkill(path: string) {
-		if (pendingDeletePath !== path) {
-			setPendingDeletePath(path);
-			onError(null);
-			onStatusMessage("再次点击删除会移除这个 skill。");
+	function requestDeleteSkill(target: DeleteSkillDialogState) {
+		setDeleteSubmitting(false);
+		setDeleteDialog(target);
+		onError(null);
+		onStatusMessage(null);
+	}
+
+	async function confirmDeleteSkill() {
+		if (!deleteDialog || deleteSubmitting) {
 			return;
 		}
+
+		const target = deleteDialog;
 
 		onError(null);
 		onStatusMessage(null);
 		setImportResult(null);
+		setDeleteSubmitting(true);
 
 		try {
 			const result = await invoke<SaveResult>("delete_skill", {
-				path,
+				path: target.path,
 				fileToken: state.fileToken ?? null,
 			});
 			onStateChange(result.state);
-			setSelectedPath(null);
-			setContent(null);
-			setPendingDeletePath(null);
+			if (selectedPath === target.path) {
+				setSelectedPath(null);
+				setContent(null);
+			}
+			setDeleteDialog(null);
 			onStatusMessage("已删除 skill。重启 Codex 或开启新会话后生效。");
 		} catch (error) {
 			onError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setDeleteSubmitting(false);
 		}
 	}
 
@@ -116,7 +143,7 @@ export function SkillsWorkspace({
 		onError(null);
 		onStatusMessage(null);
 		setImportResult(null);
-		setPendingDeletePath(null);
+		setDeleteDialog(null);
 
 		try {
 			const selected = await open({
@@ -160,20 +187,49 @@ export function SkillsWorkspace({
 	}
 
 	return (
-		<SkillsPanel
-			state={state}
-			query={query}
-			selectedPath={selectedPath}
-			content={content}
-			importing={importing}
-			pendingDeletePath={pendingDeletePath}
-			importResult={importResult}
-			onQueryChange={setQuery}
-			onSelect={readSkill}
-			onSaveToggle={saveSkillEnabled}
-			onDelete={deleteSkill}
-			onImport={importSkillDirectories}
-		/>
+		<>
+			<SkillsPanel
+				state={state}
+				query={query}
+				selectedPath={selectedPath}
+				content={content}
+				importing={importing}
+				importResult={importResult}
+				onQueryChange={setQuery}
+				onSelect={readSkill}
+				onSaveToggle={saveSkillEnabled}
+				onDelete={requestDeleteSkill}
+				onImport={importSkillDirectories}
+			/>
+			<Dialog
+				open={deleteDialog !== null}
+				onOpenChange={(open) => !open && !deleteSubmitting && setDeleteDialog(null)}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>删除 skill</DialogTitle>
+						<DialogDescription>
+							将删除「{deleteDialog?.name ?? ""}」对应的 skill。重启 Codex 或开启新会话后生效。
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose asChild>
+							<Button disabled={deleteSubmitting}>取消</Button>
+						</DialogClose>
+						<Button disabled={deleteSubmitting} variant="primary" onClick={confirmDeleteSkill}>
+							{deleteSubmitting ? (
+								"删除中"
+							) : (
+								<>
+									<Trash2 data-icon="inline-start" />
+									确认删除
+								</>
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 }
 
@@ -183,7 +239,6 @@ function SkillsPanel({
 	selectedPath,
 	content,
 	importing,
-	pendingDeletePath,
 	importResult,
 	onQueryChange,
 	onSelect,
@@ -196,12 +251,11 @@ function SkillsPanel({
 	selectedPath: string | null;
 	content: SkillContent | null;
 	importing: boolean;
-	pendingDeletePath: string | null;
 	importResult: SkillImportBatchResult | null;
 	onQueryChange: (value: string) => void;
 	onSelect: (path: string) => void;
 	onSaveToggle: (path: string, enabled: boolean) => void;
-	onDelete: (path: string) => void;
+	onDelete: (target: DeleteSkillDialogState) => void;
 	onImport: () => void;
 }) {
 	const {
@@ -266,8 +320,6 @@ function SkillsPanel({
 							<CompactEmpty>没有发现匹配的全局 skill。</CompactEmpty>
 						) : (
 							skills.map((skill) => {
-								const deleting = pendingDeletePath === skill.path;
-
 								return (
 									<div
 										className={cn(
@@ -316,18 +368,18 @@ function SkillsPanel({
 														{formatBytes(skill.size)}
 													</Badge>
 													<Button
-														aria-label={`${deleting ? "确认删除" : "删除"} skill ${skill.name}`}
+														aria-label={`删除 skill ${skill.name}`}
 														className="relative z-[2] ml-auto size-7 flex-none justify-center p-0 text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
 														disabled={!state.writable}
 														onClick={(event) => {
 															event.stopPropagation();
-															onDelete(skill.path);
+															onDelete({ path: skill.path, name: skill.name });
 														}}
 														size="sm"
-														title={`${deleting ? "确认删除" : "删除"} skill ${skill.name}`}
+														title={`删除 skill ${skill.name}`}
 														variant="ghost"
 													>
-														<Trash2 size={14} />
+														<Trash2 data-icon="inline-start" />
 													</Button>
 												</div>
 												<code className="pointer-events-none relative z-[0] mt-1 block w-full">

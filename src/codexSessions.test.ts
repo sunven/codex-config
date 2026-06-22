@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   codexSessionBrowserState,
-  sessionDeleteLabel,
+  sessionsOlderThanCount,
   toggleCollapsedMonth,
   type CodexSessionSummary,
 } from "./codexSessions";
@@ -14,6 +14,7 @@ const sessions: CodexSessionSummary[] = [
     relativePath: "2026/06/08/rollout-alpha.jsonl",
     createdAt: "2026-06-08T00:00:00.000Z",
     size: 1024,
+    modifiedMs: 2_000,
     messageCount: 4,
     userMessageCount: 2,
   },
@@ -24,6 +25,7 @@ const sessions: CodexSessionSummary[] = [
     relativePath: "2025/12/24/rollout-beta.jsonl",
     createdAt: "2025-12-24T00:00:00.000Z",
     size: 512,
+    modifiedMs: 1_000,
     messageCount: 2,
     userMessageCount: 1,
   },
@@ -33,6 +35,7 @@ const sessions: CodexSessionSummary[] = [
     path: "/Users/test/.codex/sessions/loose.jsonl",
     relativePath: "loose.jsonl",
     size: 256,
+    modifiedMs: 3_000,
     messageCount: 0,
     userMessageCount: 0,
   },
@@ -74,12 +77,22 @@ describe("Codex session browser state", () => {
     });
   });
 
-  it("keeps collapse state and delete labels explicit", () => {
+  it("keeps collapse state explicit", () => {
     expect(toggleCollapsedMonth({}, "2026/06")).toEqual({ "2026/06": true });
     expect(toggleCollapsedMonth({ "2026/06": true }, "2026/06")).toEqual({
       "2026/06": false,
     });
-    expect(sessionDeleteLabel(sessions[0]!, null)).toBe("预览删除 Alpha");
-    expect(sessionDeleteLabel(sessions[0]!, sessions[0]!.id)).toBe("确认删除 Alpha");
+  });
+
+  it("counts sessions older than a fixed day threshold", () => {
+    expect(sessionsOlderThanCount(sessions, 1, 24 * 60 * 60 * 1000 + 2_500)).toBe(2);
+    expect(sessionsOlderThanCount(sessions, 7, 3_000)).toBe(0);
+    expect(
+      sessionsOlderThanCount(
+        [{ ...sessions[0]!, modifiedMs: undefined }],
+        1,
+        10 * 24 * 60 * 60 * 1000,
+      ),
+    ).toBe(0);
   });
 });

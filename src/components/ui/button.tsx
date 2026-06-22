@@ -26,7 +26,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, type = "button", variant = "default", size = "md", ...props }, ref) => (
     <button
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55]",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-[var(--radius)] transition-[background-color,border-color,color,box-shadow,transform] duration-[120ms] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.55] [&_[data-icon]]:size-3.5",
         variantClasses[variant],
         sizeClasses[size],
         className,

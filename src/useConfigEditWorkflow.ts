@@ -46,9 +46,10 @@ export function useConfigEditWorkflow<TState extends { fileToken?: FileToken; ho
 
   async function runCommit(intent: ConfigEditIntent) {
     onError(null);
-    applyWorkflowOutcome(
-      await runConfigEditCommit<TState>(intent, currentState?.fileToken),
-    );
+    const outcome = await runConfigEditCommit<TState>(intent, currentState?.fileToken);
+    applyWorkflowOutcome(outcome);
+
+    return outcome;
   }
 
   return {

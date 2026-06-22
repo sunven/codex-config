@@ -1,16 +1,26 @@
 import { useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import type { AppState, CodexSessionState } from "./appState";
 import {
   codexSessionBrowserState,
-  sessionDeleteLabel,
+  sessionsOlderThanCount,
   toggleCollapsedMonth,
 } from "./codexSessions";
 import { displayPath, formatBytes, formatIsoDateTime } from "./formatters";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { CompactEmpty } from "./components/ui/compact-empty";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./components/ui/dialog";
 import { cn } from "./components/ui/utils";
 
 type SessionsWorkspaceProps = {
@@ -21,6 +31,10 @@ type SessionsWorkspaceProps = {
   onStatusMessage: (message: string | null) => void;
 };
 
+type DeleteDialogState =
+  | { kind: "single"; id: string; title: string }
+  | { kind: "bulk"; days: number; count: number };
+
 export function SessionsWorkspace({
   state,
   sessionsLoading,
@@ -28,26 +42,45 @@ export function SessionsWorkspace({
   onError,
   onStatusMessage,
 }: SessionsWorkspaceProps) {
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
-  async function deleteSession(id: string) {
-    if (pendingDeleteId !== id) {
-      setPendingDeleteId(id);
-      onStatusMessage("再次点击删除会删除这个 Codex 会话 .jsonl 文件。");
+  async function confirmDelete() {
+    if (!deleteDialog || deleteSubmitting) {
       return;
     }
 
+    const target = deleteDialog;
+    setDeleteSubmitting(true);
     onError(null);
     onStatusMessage(null);
 
     try {
-      const nextState = await invoke<AppState>("delete_session", { id });
+      const nextState = target.kind === "single"
+        ? await invoke<AppState>("delete_session", { id: target.id })
+        : await invoke<AppState>("delete_sessions_older_than", { days: target.days });
       onStateChange(nextState);
-      setPendingDeleteId(null);
-      onStatusMessage("已删除 Codex session 文件。");
+      toast.success(
+        target.kind === "single"
+          ? "已删除 Codex session 文件。"
+          : `已删除 ${target.days} 天前的 Codex session 文件。`,
+      );
+      setDeleteDialog(null);
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDeleteSubmitting(false);
     }
+  }
+
+  function requestDeleteSession(session: { id: string; title: string }) {
+    setDeleteSubmitting(false);
+    setDeleteDialog({ kind: "single", id: session.id, title: session.title });
+  }
+
+  function requestDeleteSessionsOlderThan(days: number, count: number) {
+    setDeleteSubmitting(false);
+    setDeleteDialog({ kind: "bulk", days, count });
   }
 
   const codexSessions = state.codexSessions;
@@ -60,25 +93,59 @@ export function SessionsWorkspace({
   }
 
   return (
-    <SessionsPanel
-      state={state}
-      codexSessions={codexSessions}
-      pendingDeleteId={pendingDeleteId}
-      onDelete={deleteSession}
-    />
+    <>
+      <SessionsPanel
+        state={state}
+        codexSessions={codexSessions}
+        onDelete={requestDeleteSession}
+        onDeleteOlderThan={requestDeleteSessionsOlderThan}
+      />
+      <Dialog
+        open={deleteDialog !== null}
+        onOpenChange={(open) => !open && !deleteSubmitting && setDeleteDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deleteDialog?.kind === "bulk" ? "批量删除 Codex sessions" : "删除 Codex session"}
+            </DialogTitle>
+            <DialogDescription>
+              {deleteDialog?.kind === "bulk"
+                ? `将删除 ${deleteDialog.count} 个 ${deleteDialog.days} 天前的 .jsonl 会话文件，不会修改 config.toml。`
+                : `将删除「${deleteDialog?.title ?? ""}」对应的 .jsonl 会话文件，不会修改 config.toml。`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button disabled={deleteSubmitting}>取消</Button>
+            </DialogClose>
+            <Button disabled={deleteSubmitting} variant="primary" onClick={confirmDelete}>
+              {deleteSubmitting ? (
+                "删除中"
+              ) : (
+                <>
+                  <Trash2 data-icon="inline-start" />
+                  确认删除
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 function SessionsPanel({
   state,
   codexSessions,
-  pendingDeleteId,
   onDelete,
+  onDeleteOlderThan,
 }: {
   state: AppState;
   codexSessions: CodexSessionState;
-  pendingDeleteId: string | null;
-  onDelete: (id: string) => void;
+  onDelete: (session: { id: string; title: string }) => void;
+  onDeleteOlderThan: (days: number, count: number) => void;
 }) {
   const sessions = codexSessions.sessions;
   const [activeYear, setActiveYear] = useState<string | null>(null);
@@ -135,9 +202,29 @@ function SessionsPanel({
       </div>
 
       {sessions.length > 0 && (
-        <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)] mb-2.5 mt-0">
-          删除会移除对应的 <code>.jsonl</code> 会话文件，不会修改 <code>config.toml</code>。
-        </p>
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
+            删除会移除对应的 <code>.jsonl</code> 会话文件，不会修改 <code>config.toml</code>。
+          </p>
+          <div className="flex flex-wrap justify-end gap-[5px]">
+            {[7, 30].map((days) => {
+              const count = sessionsOlderThanCount(sessions, days);
+
+              return (
+                <Button
+                  disabled={count === 0}
+                  key={days}
+                  onClick={() => onDeleteOlderThan(days, count)}
+                  size="sm"
+                  title={`删除 ${days} 天前 ${count} 个 Codex session`}
+                >
+                  <Trash2 data-icon="inline-start" />
+                  删除 {days} 天前 {count} 个
+                </Button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div className="flex min-w-0 flex-col gap-3.5">
@@ -166,8 +253,7 @@ function SessionsPanel({
                 {!isCollapsed && (
                   <div className="flex min-w-0 flex-col gap-2">
                     {group.sessions.map((session) => {
-                      const deleting = pendingDeleteId === session.id;
-                      const deleteLabel = sessionDeleteLabel(session, pendingDeleteId);
+                      const deleteLabel = `删除 ${session.title}`;
 
                       return (
                         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-2.5 text-left text-[var(--foreground)] max-[940px]:grid-cols-1" key={session.id}>
@@ -192,12 +278,12 @@ function SessionsPanel({
                           </div>
                           <div className="flex flex-wrap justify-end gap-[5px]">
                             <Button
-                              onClick={() => onDelete(session.id)}
+                              onClick={() => onDelete({ id: session.id, title: session.title })}
                               title={deleteLabel}
                               size="sm"
                             >
-                              <Trash2 size={14} />
-                              {deleting ? "确认删除" : "删除"}
+                              <Trash2 data-icon="inline-start" />
+                              删除
                             </Button>
                           </div>
                         </div>
