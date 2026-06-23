@@ -780,7 +780,7 @@ fn verified_skill_path(raw_path: &str) -> Result<PathBuf, String> {
         return Err("skill path is outside discovered global skill roots".to_string());
     }
 
-    Ok(requested)
+    Ok(path)
 }
 
 fn verified_discovered_skill_path(raw_path: &str) -> Result<PathBuf, String> {
@@ -999,6 +999,7 @@ description: Skill through a directory symlink.
         let saved = save_skill_enabled(skill_path, false, None).unwrap();
 
         assert_eq!(content.name, "linked-demo");
+        assert_eq!(content.path, state.skills[0].path);
         assert!(saved.changed);
         assert!(saved.state.raw_toml.contains("enabled = false"));
     }
