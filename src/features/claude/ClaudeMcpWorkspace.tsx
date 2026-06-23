@@ -5,16 +5,16 @@ import {
   emptyMcpServerDraft,
   isMcpServerDraftDirty,
   type McpServerDraft,
-} from "./configTableEntries";
+} from "../config/configTableEntries";
 import type { ClaudeMcpState } from "./claudeState";
 import {
   LabeledInput,
   StringListEditor,
   StringMapEditor,
   TableEntryEditor,
-} from "./ConfigTableEntryEditor";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
+} from "../config/ConfigTableEntryEditor";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -23,9 +23,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "./components/ui/dialog";
-import { Notice } from "./components/ui/notice";
-import { cn } from "./components/ui/utils";
+} from "../../components/ui/dialog";
+import { Notice } from "../../components/ui/notice";
+import { cn } from "../../components/ui/utils";
 
 export function ClaudeMcpPanel({
   mcp,

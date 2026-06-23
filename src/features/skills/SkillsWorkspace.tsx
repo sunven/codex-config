@@ -2,17 +2,21 @@ import { useRef, useState } from "react";
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Switch } from "./components/ui/switch";
-import type { AppState, SaveResult, SkillImportBatchResult } from "./appState";
+import { Switch } from "../../components/ui/switch";
+import type {
+	AppState,
+	SaveResult,
+	SkillImportBatchResult,
+} from "../../state/appState";
 import {
 	globalSkillsWorkspace,
 	importedSkillBatchPath,
 	type SkillContent,
 } from "./globalSkills";
-import { displayPath, formatBytes } from "./formatters";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
-import { CompactEmpty } from "./components/ui/compact-empty";
+import { displayPath, formatBytes } from "../../lib/formatters";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { CompactEmpty } from "../../components/ui/compact-empty";
 import {
 	Dialog,
 	DialogClose,
@@ -21,9 +25,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "./components/ui/dialog";
-import { Input } from "./components/ui/input";
-import { cn } from "./components/ui/utils";
+} from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
+import { cn } from "../../components/ui/utils";
 
 type SkillsWorkspaceProps = {
 	state: AppState;

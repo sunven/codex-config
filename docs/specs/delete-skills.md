@@ -12,8 +12,8 @@ React + TypeScript frontend, Tauri commands, Rust backend using existing TOML wo
 - Rust tests: `cargo test --manifest-path src-tauri/Cargo.toml`
 
 ## Project Structure
-- `src/SkillsWorkspace.tsx` -> Skills UI and command invocation
-- `src/App.test.tsx` -> UI behavior tests
+- `src/features/skills/SkillsWorkspace.tsx` -> Skills UI and command invocation
+- `src/app/App.test.tsx` -> UI behavior tests
 - `src-tauri/src/skill_store.rs` -> Skill discovery and filesystem operations
 - `src-tauri/src/lib.rs` -> Tauri command registration
 

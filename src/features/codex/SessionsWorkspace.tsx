@@ -2,15 +2,20 @@ import { useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import type { ClaudeSessionState } from "./claudeState";
+import type { AppState, CodexSessionState } from "../../state/appState";
 import {
-  claudeSessionsOlderThanCount,
-  groupClaudeSessionsByProject,
-} from "./claudeState";
-import { displayPath, formatBytes, formatIsoDateTime } from "./formatters";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
-import { CompactEmpty } from "./components/ui/compact-empty";
+  codexSessionBrowserState,
+  sessionsOlderThanCount,
+  toggleCollapsedMonth,
+} from "./codexSessions";
+import {
+  displayPath,
+  formatBytes,
+  formatIsoDateTime,
+} from "../../lib/formatters";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { CompactEmpty } from "../../components/ui/compact-empty";
 import {
   Dialog,
   DialogClose,
@@ -19,13 +24,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "./components/ui/dialog";
+} from "../../components/ui/dialog";
+import { cn } from "../../components/ui/utils";
 
-type ClaudeSessionsWorkspaceProps = {
-  sessions: ClaudeSessionState | undefined;
-  homeDir?: string;
+type SessionsWorkspaceProps = {
+  state: AppState;
   sessionsLoading?: boolean;
-  onSessionsChange: (sessions: ClaudeSessionState) => void;
+  onStateChange: (state: AppState) => void;
   onError: (message: string | null) => void;
   onStatusMessage: (message: string | null) => void;
 };
@@ -34,14 +39,13 @@ type DeleteDialogState =
   | { kind: "single"; id: string; title: string }
   | { kind: "bulk"; days: number; count: number };
 
-export function ClaudeSessionsWorkspace({
-  sessions,
-  homeDir,
+export function SessionsWorkspace({
+  state,
   sessionsLoading,
-  onSessionsChange,
+  onStateChange,
   onError,
   onStatusMessage,
-}: ClaudeSessionsWorkspaceProps) {
+}: SessionsWorkspaceProps) {
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
@@ -57,13 +61,13 @@ export function ClaudeSessionsWorkspace({
 
     try {
       const nextState = target.kind === "single"
-        ? await invoke<ClaudeSessionState>("delete_claude_session", { id: target.id })
-        : await invoke<ClaudeSessionState>("delete_claude_sessions_older_than", { days: target.days });
-      onSessionsChange(nextState);
+        ? await invoke<AppState>("delete_session", { id: target.id })
+        : await invoke<AppState>("delete_sessions_older_than", { days: target.days });
+      onStateChange(nextState);
       toast.success(
         target.kind === "single"
-          ? "已删除 Claude session 文件。"
-          : `已删除 ${target.days} 天前的 Claude session 文件。`,
+          ? "已删除 Codex session 文件。"
+          : `已删除 ${target.days} 天前的 Codex session 文件。`,
       );
       setDeleteDialog(null);
     } catch (error) {
@@ -83,19 +87,20 @@ export function ClaudeSessionsWorkspace({
     setDeleteDialog({ kind: "bulk", days, count });
   }
 
-  if (!sessions) {
+  const codexSessions = state.codexSessions;
+  if (!codexSessions) {
     return (
       <CompactEmpty>
-        {sessionsLoading ? "正在加载 Claude sessions…" : "尚未加载 Claude sessions。"}
+        {sessionsLoading ? "正在加载 Codex sessions…" : "尚未加载 Codex sessions。"}
       </CompactEmpty>
     );
   }
 
   return (
     <>
-      <ClaudeSessionsPanel
-        sessions={sessions}
-        homeDir={homeDir}
+      <SessionsPanel
+        state={state}
+        codexSessions={codexSessions}
         onDelete={requestDeleteSession}
         onDeleteOlderThan={requestDeleteSessionsOlderThan}
       />
@@ -106,12 +111,12 @@ export function ClaudeSessionsWorkspace({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deleteDialog?.kind === "bulk" ? "批量删除 Claude sessions" : "删除 Claude session"}
+              {deleteDialog?.kind === "bulk" ? "批量删除 Codex sessions" : "删除 Codex session"}
             </DialogTitle>
             <DialogDescription>
               {deleteDialog?.kind === "bulk"
-                ? `将删除 ${deleteDialog.count} 个 ${deleteDialog.days} 天前的 .jsonl 会话文件，不会修改 ~/.claude.json。`
-                : `将删除「${deleteDialog?.title ?? ""}」对应的 .jsonl 会话文件，不会修改 ~/.claude.json。`}
+                ? `将删除 ${deleteDialog.count} 个 ${deleteDialog.days} 天前的 .jsonl 会话文件，不会修改 config.toml。`
+                : `将删除「${deleteDialog?.title ?? ""}」对应的 .jsonl 会话文件，不会修改 config.toml。`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -135,27 +140,29 @@ export function ClaudeSessionsWorkspace({
   );
 }
 
-function ClaudeSessionsPanel({
-  sessions,
-  homeDir,
+function SessionsPanel({
+  state,
+  codexSessions,
   onDelete,
   onDeleteOlderThan,
 }: {
-  sessions: ClaudeSessionState;
-  homeDir?: string;
+  state: AppState;
+  codexSessions: CodexSessionState;
   onDelete: (session: { id: string; title: string }) => void;
   onDeleteOlderThan: (days: number, count: number) => void;
 }) {
-  const sessionList = sessions.sessions;
-  const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
-  const groups = groupClaudeSessionsByProject(sessionList);
-  const totalSessionSize = sessionList.reduce((total, session) => total + session.size, 0);
+  const sessions = codexSessions.sessions;
+  const [activeYear, setActiveYear] = useState<string | null>(null);
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
+  const {
+    years: sessionYears,
+    selectedYearKey,
+    selectedYear,
+    totalSessionSize,
+  } = codexSessionBrowserState(sessions, activeYear);
 
-  function toggleProject(projectKey: string) {
-    setCollapsedProjects((current) => ({
-      ...current,
-      [projectKey]: !(current[projectKey] ?? false),
-    }));
+  function toggleMonth(monthKey: string) {
+    setCollapsedMonths((current) => toggleCollapsedMonth(current, monthKey));
   }
 
   return (
@@ -163,15 +170,33 @@ function ClaudeSessionsPanel({
       <div className="-mx-3 -mt-3 mb-3 flex min-h-10 items-center gap-3 border-b border-[var(--border)] px-3 py-1.5 max-[940px]:flex-wrap max-[940px]:items-start [&>div]:min-w-0">
         <BookOpen size={18} />
         <div className="flex min-w-0 max-w-[260px] flex-none items-baseline gap-2 max-[940px]:max-w-full">
-          <h2 className="flex-none whitespace-nowrap">Claude sessions</h2>
+          <h2 className="flex-none whitespace-nowrap">Codex sessions</h2>
           <p className="truncate text-[0.8rem] text-[var(--muted-foreground)]">
-            {displayPath(sessions.projectsDir, homeDir)}
+            {displayPath(codexSessions.sessionsDir, state.homeDir)}
           </p>
         </div>
+        {sessionYears.length > 0 && (
+          <div className="flex min-h-[42px] min-w-0 flex-auto items-center justify-center gap-1.5 overflow-x-auto pb-0.5">
+            {sessionYears.map((year) => (
+              <button
+                className={cn("flex min-h-[32px] min-w-[214px] flex-none cursor-pointer items-center justify-between gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-0.5 text-left text-[var(--foreground)] [&_strong]:text-[0.88rem] [&_strong]:text-[var(--foreground)] [&_span]:whitespace-nowrap [&_span]:text-[0.74rem] [&_span]:text-[var(--muted-foreground)]", year.key === selectedYearKey && "border-[var(--primary)] shadow-[0_0_0_2px_rgba(37,99,235,0.14)]")}
+                key={year.key}
+                onClick={() => setActiveYear(year.key)}
+                type="button"
+              >
+                <strong>{year.label}</strong>
+                <span className="flex items-center gap-2.5">
+                  <span>{year.sessionCount} sessions</span>
+                  <span>{formatBytes(year.totalSize)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="ml-auto flex flex-none items-center gap-3.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] px-2.5 py-1.5 max-[940px]:ml-0 max-[940px]:w-full max-[940px]:flex-wrap [&>div]:flex [&>div]:min-w-0 [&>div]:items-baseline [&>div]:gap-1.5 [&_span]:whitespace-nowrap [&_span]:text-[0.68rem] [&_span]:font-bold [&_span]:uppercase [&_span]:text-[var(--muted-foreground)] [&_strong]:whitespace-nowrap [&_strong]:text-[0.88rem]">
           <div>
             <span>会话数量</span>
-            <strong>{sessionList.length}</strong>
+            <strong>{sessions.length}</strong>
           </div>
           <div>
             <span>总大小</span>
@@ -180,14 +205,14 @@ function ClaudeSessionsPanel({
         </div>
       </div>
 
-      {sessionList.length > 0 && (
+      {sessions.length > 0 && (
         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
           <p className="mt-1 text-[0.8rem] text-[var(--muted-foreground)]">
-            删除会移除对应的 <code>.jsonl</code> 会话文件，不会修改 <code>~/.claude.json</code>。
+            删除会移除对应的 <code>.jsonl</code> 会话文件，不会修改 <code>config.toml</code>。
           </p>
           <div className="flex flex-wrap justify-end gap-[5px]">
             {[7, 30].map((days) => {
-              const count = claudeSessionsOlderThanCount(sessionList, days);
+              const count = sessionsOlderThanCount(sessions, days);
 
               return (
                 <Button
@@ -195,7 +220,7 @@ function ClaudeSessionsPanel({
                   key={days}
                   onClick={() => onDeleteOlderThan(days, count)}
                   size="sm"
-                  title={`删除 ${days} 天前 ${count} 个 Claude session`}
+                  title={`删除 ${days} 天前 ${count} 个 Codex session`}
                 >
                   <Trash2 data-icon="inline-start" />
                   删除 {days} 天前 {count} 个
@@ -207,17 +232,17 @@ function ClaudeSessionsPanel({
       )}
 
       <div className="flex min-w-0 flex-col gap-3.5">
-        {sessionList.length === 0 ? (
-          <CompactEmpty>当前 Claude Home 下没有 session 记录。</CompactEmpty>
-        ) : (
-          groups.map((group) => {
-            const isCollapsed = collapsedProjects[group.key] ?? false;
+        {sessions.length === 0 ? (
+          <CompactEmpty>当前 Codex Home 下没有 session 记录。</CompactEmpty>
+        ) : selectedYear ? (
+          selectedYear.months.map((group) => {
+            const isCollapsed = collapsedMonths[group.key] ?? false;
 
             return (
               <section className="flex min-w-0 flex-col gap-[7px]" key={group.key}>
                 <button
                   className="flex w-full cursor-pointer items-center justify-between gap-2.5 border-x-0 border-t-0 border-b border-[var(--border)] bg-transparent px-0.5 pb-[7px] pt-0 text-left text-inherit [&>strong]:whitespace-nowrap [&>strong]:text-[0.78rem] [&>strong]:text-[var(--muted-foreground)] [&_span]:text-[0.76rem] [&_span]:text-[var(--muted-foreground)]"
-                  onClick={() => toggleProject(group.key)}
+                  onClick={() => toggleMonth(group.key)}
                   type="button"
                 >
                   <span className="inline-flex flex-none text-[var(--muted-foreground)]">
@@ -243,17 +268,13 @@ function ClaudeSessionsPanel({
                                 {formatBytes(session.size)}
                               </Badge>
                             </div>
-                            <code>{displayPath(session.path, homeDir)}</code>
+                            <code>{displayPath(session.path, state.homeDir)}</code>
                             <div className="flex flex-wrap gap-1.5 text-[0.78rem] text-[var(--muted-foreground)] [&>span]:break-words">
                               <span>{formatIsoDateTime(session.lastTimestamp ?? session.createdAt)}</span>
                               <span>{session.userMessageCount} user / {session.messageCount} messages</span>
-                              {session.cwd && <span>{displayPath(session.cwd, homeDir)}</span>}
-                              {session.cliVersion && <span>claude {session.cliVersion}</span>}
-                              {session.gitBranch && (
-                                <Badge className="flex-none self-start px-[9px] py-1 font-extrabold leading-[1.1]">
-                                  {session.gitBranch}
-                                </Badge>
-                              )}
+                              {session.cwd && <span>{displayPath(session.cwd, state.homeDir)}</span>}
+                              {session.cliVersion && <span>codex {session.cliVersion}</span>}
+                              {session.modelProvider && <span>{session.modelProvider}</span>}
                             </div>
                             {session.parseError && (
                               <p className="text-[0.8rem] text-[var(--destructive)]">{session.parseError}</p>
@@ -277,6 +298,8 @@ function ClaudeSessionsPanel({
               </section>
             );
           })
+        ) : (
+          <CompactEmpty>当前 Codex Home 下没有 session 记录。</CompactEmpty>
         )}
       </div>
     </section>

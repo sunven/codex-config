@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { BookOpen, Trash2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { Switch } from "./components/ui/switch";
+import { Switch } from "../../components/ui/switch";
 import {
 	globalSkillsWorkspace,
 	type SkillContent,
 	type SkillState,
-} from "./globalSkills";
-import { displayPath, formatBytes } from "./formatters";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
-import { CompactEmpty } from "./components/ui/compact-empty";
+} from "../skills/globalSkills";
+import { displayPath, formatBytes } from "../../lib/formatters";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { CompactEmpty } from "../../components/ui/compact-empty";
 import {
 	Dialog,
 	DialogClose,
@@ -19,9 +19,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "./components/ui/dialog";
-import { Input } from "./components/ui/input";
-import { cn } from "./components/ui/utils";
+} from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
+import { cn } from "../../components/ui/utils";
 
 type ClaudeSkillsWorkspaceProps = {
 	skills: SkillState;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
-import type { AppState } from "./appState";
+import type { AppState } from "../../state/appState";
 import {
   draftFromMcpServer,
   draftFromModelProvider,
@@ -18,8 +18,8 @@ import {
   StringMapEditor,
   TableEntryEditor,
 } from "./ConfigTableEntryEditor";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -28,9 +28,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "./components/ui/dialog";
-import { Select } from "./components/ui/select";
-import { cn } from "./components/ui/utils";
+} from "../../components/ui/dialog";
+import { Select } from "../../components/ui/select";
+import { cn } from "../../components/ui/utils";
 
 export function ModelProvidersPanel({
   state,

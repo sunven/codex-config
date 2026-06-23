@@ -12,9 +12,9 @@ React + TypeScript frontend, Tauri commands, Rust backend using the existing `co
 - Rust tests: `cargo test --manifest-path src-tauri/Cargo.toml`
 
 ## Project Structure
-- `src/SessionsWorkspace.tsx` -> Sessions UI and command invocation
-- `src/codexSessions.ts` -> Session summary helpers
-- `src/App.test.tsx` -> UI behavior tests
+- `src/features/codex/SessionsWorkspace.tsx` -> Sessions UI and command invocation
+- `src/features/codex/codexSessions.ts` -> Session summary helpers
+- `src/app/App.test.tsx` -> UI behavior tests
 - `src-tauri/src/codex_session_store.rs` -> Session discovery and deletion
 - `src-tauri/src/lib.rs` -> Tauri command registration
 

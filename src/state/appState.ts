@@ -1,11 +1,11 @@
-import type { FileToken } from "./configEditWorkflow";
-import type { FieldState } from "./configFieldDrafts";
+import type { FileToken } from "../features/config/configEditWorkflow";
+import type { FieldState } from "../features/config/configFieldDrafts";
 import type {
   McpServerTableEntry,
   ModelProviderTableEntry,
-} from "./configTableEntries";
-import type { CodexSessionSummary } from "./codexSessions";
-import type { SkillState } from "./globalSkills";
+} from "../features/config/configTableEntries";
+import type { CodexSessionSummary } from "../features/codex/codexSessions";
+import type { SkillState } from "../features/skills/globalSkills";
 
 export type HealthStatus = "ready" | "readOnly" | "needsAttention";
 

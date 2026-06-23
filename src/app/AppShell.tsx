@@ -1,5 +1,5 @@
-import { cn } from "./components/ui/utils";
-import type { ClaudeProduct } from "./claudeState";
+import { cn } from "../components/ui/utils";
+import type { ClaudeProduct } from "../features/claude/claudeState";
 
 export type MainTab = "config" | "sessions" | "mcp" | "skills";
 

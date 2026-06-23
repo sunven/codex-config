@@ -1,9 +1,9 @@
 import { FileCode2 } from "lucide-react";
 import type { FieldState } from "./configFieldDrafts";
-import { Button } from "./components/ui/button";
-import { CompactEmpty } from "./components/ui/compact-empty";
-import { Input } from "./components/ui/input";
-import { Select } from "./components/ui/select";
+import { Button } from "../../components/ui/button";
+import { CompactEmpty } from "../../components/ui/compact-empty";
+import { Input } from "../../components/ui/input";
+import { Select } from "../../components/ui/select";
 
 export function SettingsForm({
   fields,

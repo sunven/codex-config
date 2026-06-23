@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { FileCode2, Plus } from "lucide-react";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
-import { CompactEmpty } from "./components/ui/compact-empty";
-import { Input } from "./components/ui/input";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { CompactEmpty } from "../../components/ui/compact-empty";
+import { Input } from "../../components/ui/input";
 
 export function TableEntryEditor({
   title,

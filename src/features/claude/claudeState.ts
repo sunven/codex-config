@@ -1,7 +1,7 @@
-import type { McpServerEntry } from "./appState";
-import type { FileToken } from "./configEditWorkflow";
-import type { McpServerDraft } from "./configTableEntries";
-import type { SkillState } from "./globalSkills";
+import type { McpServerEntry } from "../../state/appState";
+import type { FileToken } from "../config/configEditWorkflow";
+import type { McpServerDraft } from "../config/configTableEntries";
+import type { SkillState } from "../skills/globalSkills";
 
 export type ClaudeProduct = "codex" | "claude";
 

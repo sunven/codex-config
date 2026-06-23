@@ -1,7 +1,7 @@
 import { Edit3 } from "lucide-react";
-import type { AppState } from "./appState";
-import { Button } from "./components/ui/button";
-import { Textarea } from "./components/ui/textarea";
+import type { AppState } from "../../state/appState";
+import { Button } from "../../components/ui/button";
+import { Textarea } from "../../components/ui/textarea";
 
 type ConfigPreviewSidebarProps = {
   state: AppState;

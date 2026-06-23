@@ -6,38 +6,41 @@ import { toast } from "sonner";
 import {
   type McpServerDraft,
   type ModelProviderDraft,
-} from "./configEditWorkflow";
-import { type AppState, type CodexSessionState } from "./appState";
+} from "../features/config/configEditWorkflow";
+import { type AppState, type CodexSessionState } from "../state/appState";
 import {
   emptyMcpServerDraft,
   emptyModelProviderDraft,
-} from "./configTableEntries";
+} from "../features/config/configTableEntries";
 import {
   draftValuesFromFields,
   settingsChanges,
   type FieldState,
-} from "./configFieldDrafts";
-import { SettingsForm } from "./ConfigFieldsWorkspace";
+} from "../features/config/configFieldDrafts";
+import { SettingsForm } from "../features/config/ConfigFieldsWorkspace";
 import { ProductSwitcher, TabBar, type MainTab } from "./AppShell";
-import { McpServersPanel, ModelProvidersPanel } from "./ConfigTablesWorkspace";
-import { ConfigPreviewSidebar } from "./ConfigPreviewSidebar";
-import { displayPath } from "./formatters";
-import { SessionsWorkspace } from "./SessionsWorkspace";
-import { SkillsWorkspace } from "./SkillsWorkspace";
-import { ClaudeSessionsWorkspace } from "./ClaudeSessionsWorkspace";
-import { ClaudeMcpPanel } from "./ClaudeMcpWorkspace";
-import { ClaudeSkillsWorkspace } from "./ClaudeSkillsWorkspace";
+import {
+  McpServersPanel,
+  ModelProvidersPanel,
+} from "../features/config/ConfigTablesWorkspace";
+import { ConfigPreviewSidebar } from "../features/config/ConfigPreviewSidebar";
+import { displayPath } from "../lib/formatters";
+import { SessionsWorkspace } from "../features/codex/SessionsWorkspace";
+import { SkillsWorkspace } from "../features/skills/SkillsWorkspace";
+import { ClaudeSessionsWorkspace } from "../features/claude/ClaudeSessionsWorkspace";
+import { ClaudeMcpPanel } from "../features/claude/ClaudeMcpWorkspace";
+import { ClaudeSkillsWorkspace } from "../features/claude/ClaudeSkillsWorkspace";
 import {
   type ClaudeProduct,
   type ClaudeSessionState,
   type ClaudeState,
-} from "./claudeState";
-import { type SkillState } from "./globalSkills";
-import { useConfigEditWorkflow } from "./useConfigEditWorkflow";
-import { Button } from "./components/ui/button";
-import { Notice } from "./components/ui/notice";
-import { Toaster } from "./components/ui/sonner";
-import { cn } from "./components/ui/utils";
+} from "../features/claude/claudeState";
+import { type SkillState } from "../features/skills/globalSkills";
+import { useConfigEditWorkflow } from "../features/config/useConfigEditWorkflow";
+import { Button } from "../components/ui/button";
+import { Notice } from "../components/ui/notice";
+import { Toaster } from "../components/ui/sonner";
+import { cn } from "../components/ui/utils";
 import "./App.css";
 
 const PRODUCT_STORAGE_KEY = "codex-config:product";

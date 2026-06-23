@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import type { AppState } from "./appState";
+import type { AppState } from "../state/appState";
 
 const invokeMock = vi.hoisted(() => vi.fn());
 const openMock = vi.hoisted(() => vi.fn());
