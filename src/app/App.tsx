@@ -27,6 +27,8 @@ import { ConfigPreviewSidebar } from "../features/config/ConfigPreviewSidebar";
 import { displayPath } from "../lib/formatters";
 import { SessionsWorkspace } from "../features/codex/SessionsWorkspace";
 import { SkillsWorkspace } from "../features/skills/SkillsWorkspace";
+import { PluginsWorkspace } from "../features/plugins/PluginsWorkspace";
+import type { MarketplaceAddRequest } from "../features/plugins/codexPlugins";
 import { ClaudeSessionsWorkspace } from "../features/claude/ClaudeSessionsWorkspace";
 import { ClaudeMcpPanel } from "../features/claude/ClaudeMcpWorkspace";
 import { ClaudeSkillsWorkspace } from "../features/claude/ClaudeSkillsWorkspace";
@@ -69,6 +71,7 @@ function App() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [claudeLoading, setClaudeLoading] = useState(false);
   const [claudeSessionsLoading, setClaudeSessionsLoading] = useState(false);
+  const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
   const configEditWorkflow = useConfigEditWorkflow<AppState>({
     currentState: state,
     onCommitState: applyAppState,
@@ -247,6 +250,97 @@ function App() {
     return outcome.status === "commit";
   }
 
+  async function savePluginEnabled(pluginId: string, enabled: boolean) {
+    if (!state || savingPluginId) {
+      return;
+    }
+
+    setSavingPluginId(pluginId);
+    setError(null);
+
+    try {
+      const result = await invoke<{ changed: boolean; state: AppState }>("save_plugin_enabled", {
+        pluginId,
+        enabled,
+        fileToken: state.fileToken ?? null,
+      });
+      applyAppState(result.state);
+      showStatusMessage(
+        enabled
+          ? "已启用 plugin。重启 Codex 或开启新会话后生效。"
+          : "已停用 plugin。重启 Codex 或开启新会话后生效。",
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSavingPluginId(null);
+    }
+  }
+
+  async function removePlugin(pluginId: string) {
+    setError(null);
+
+    try {
+      const result = await invoke<{ changed: boolean; state: AppState }>("remove_plugin", {
+        pluginId,
+      });
+      applyAppState(result.state);
+      showStatusMessage("已卸载 plugin。外部 app 连接仍需在 ChatGPT 管理。");
+      return true;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function addPluginMarketplace(request: MarketplaceAddRequest) {
+    setError(null);
+
+    try {
+      const result = await invoke<{ changed: boolean; state: AppState }>("add_plugin_marketplace", {
+        request,
+      });
+      applyAppState(result.state);
+      showStatusMessage("已添加 plugin marketplace。");
+      return true;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function removePluginMarketplace(name: string) {
+    setError(null);
+
+    try {
+      const result = await invoke<{ changed: boolean; state: AppState }>(
+        "remove_plugin_marketplace",
+        { name },
+      );
+      applyAppState(result.state);
+      showStatusMessage("已移除 plugin marketplace。");
+      return true;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function upgradePluginMarketplace(name: string | null) {
+    setError(null);
+
+    try {
+      const result = await invoke<{ changed: boolean; state: AppState }>(
+        "upgrade_plugin_marketplace",
+        { name },
+      );
+      applyAppState(result.state);
+      showStatusMessage(
+        name ? "已升级 plugin marketplace。" : "已升级全部 Git plugin marketplaces。",
+      );
+      return true;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async function saveClaudeMcpServer() {
     if (!claudeState) {
       return;
@@ -399,7 +493,7 @@ function App() {
               "mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-4 overflow-hidden max-[940px]:grid-cols-1",
               (activeTab === "config" || activeTab === "mcp") &&
                 "max-[940px]:grid-rows-[minmax(0,0.5fr)_minmax(0,0.5fr)]",
-              (activeTab === "skills" || activeTab === "sessions") &&
+              (activeTab === "skills" || activeTab === "sessions" || activeTab === "plugins") &&
                 "grid-cols-[minmax(0,1fr)]",
             )}
           >
@@ -467,13 +561,27 @@ function App() {
                   />
                 </div>
               </>
-            ) : (
+            ) : activeTab === "skills" ? (
               <div className="h-full min-h-0 min-w-0">
                 <SkillsWorkspace
                   state={state}
                   onStateChange={applyAppState}
                   onError={setError}
                   onStatusMessage={showStatusMessage}
+                />
+              </div>
+            ) : (
+              <div className="h-full min-h-0 min-w-0">
+                <PluginsWorkspace
+                  plugins={state.plugins}
+                  homeDir={state.homeDir}
+                  savingPluginId={savingPluginId}
+                  writable={state.writable}
+                  onSaveEnabled={savePluginEnabled}
+                  onRemove={removePlugin}
+                  onAddMarketplace={addPluginMarketplace}
+                  onRemoveMarketplace={removePluginMarketplace}
+                  onUpgradeMarketplace={upgradePluginMarketplace}
                 />
               </div>
             )}

@@ -5,6 +5,7 @@ use crate::config_locator;
 use crate::config_schema::{self, FieldDefinition};
 use crate::mcp_server_store::{self, McpServerState};
 use crate::model_provider_store::{self, ModelProviderState};
+use crate::plugin_store::{self, PluginState};
 use crate::skill_store::{self, SkillState};
 use crate::toml_store::{self, FileToken, ParseIssue};
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,7 @@ pub struct AppState {
     pub mcp_servers: McpServerState,
     pub codex_sessions: Option<CodexSessionState>,
     pub skills: SkillState,
+    pub plugins: PluginState,
     pub raw_toml: String,
     pub parse_issue: Option<ParseIssue>,
     pub preferences: AppPreferences,
@@ -103,26 +105,26 @@ fn load_state_inner(include_sessions: bool) -> Result<AppState, String> {
 
     let writable = readonly_reason.is_none();
     let schema = config_schema::schema()?;
-    let (fields, model_providers, mcp_servers, skills) =
-        match loaded.document.as_ref() {
-            Some(document) => (
-                fields_from_document(document, writable, schema),
-                model_provider_store::state_from_document(document),
-                mcp_server_store::state_from_document(document),
-                skill_store::state_from_document(Some(document)),
-            ),
-            None => (
-                Vec::new(),
-                ModelProviderState {
-                    providers: Vec::new(),
-                    reserved_ids: Vec::new(),
-                },
-                McpServerState {
-                    servers: Vec::new(),
-                },
-                skill_store::state_from_document(None),
-            ),
-        };
+    let plugins = plugin_store::state(&codex);
+    let (fields, model_providers, mcp_servers, skills) = match loaded.document.as_ref() {
+        Some(document) => (
+            fields_from_document(document, writable, schema),
+            model_provider_store::state_from_document(document),
+            mcp_server_store::state_from_document(document),
+            skill_store::state_from_document(Some(document)),
+        ),
+        None => (
+            Vec::new(),
+            ModelProviderState {
+                providers: Vec::new(),
+                reserved_ids: Vec::new(),
+            },
+            McpServerState {
+                servers: Vec::new(),
+            },
+            skill_store::state_from_document(None),
+        ),
+    };
 
     Ok(AppState {
         home_dir: config_locator::user_home_dir().map(|path| path.display().to_string()),
@@ -142,6 +144,7 @@ fn load_state_inner(include_sessions: bool) -> Result<AppState, String> {
         mcp_servers,
         codex_sessions,
         skills,
+        plugins,
         raw_toml: loaded.raw,
         parse_issue: loaded.parse_issue,
         preferences,

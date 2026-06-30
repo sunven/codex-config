@@ -1,7 +1,7 @@
 import { cn } from "../components/ui/utils";
 import type { ClaudeProduct } from "../features/claude/claudeState";
 
-export type MainTab = "config" | "sessions" | "mcp" | "skills";
+export type MainTab = "config" | "sessions" | "mcp" | "skills" | "plugins";
 
 export function ProductSwitcher({
   product,
@@ -83,6 +83,15 @@ export function TabBar({
       >
         Skills
       </button>
+      {product === "codex" && (
+        <button
+          className={tabClass(activeTab === "plugins")}
+          onClick={() => onChange("plugins")}
+          type="button"
+        >
+          Plugins
+        </button>
+      )}
     </nav>
   );
 }

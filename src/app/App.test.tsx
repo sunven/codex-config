@@ -134,6 +134,11 @@ function appState(overrides: Partial<AppState> = {}): AppState {
       roots: [],
       skills: [],
     },
+    plugins: {
+      installed: [],
+      available: [],
+      marketplaces: [],
+    },
     rawToml: "model = \"gpt-5\"",
     preferences: {},
     ...overrides,
@@ -266,6 +271,74 @@ function appStateWithSkills(overrides: Partial<AppState> = {}): AppState {
   });
 }
 
+function appStateWithPlugins(overrides: Partial<AppState> = {}): AppState {
+  return appState({
+    fileToken: {
+      hash: "plugin-state",
+      size: 120,
+    },
+    plugins: {
+      installed: [
+        {
+          pluginId: "github@openai-api-curated",
+          name: "github",
+          marketplaceName: "openai-api-curated",
+          version: "0.1.6",
+          installed: true,
+          enabled: true,
+          source: {
+            source: "local",
+            path: "/Users/test/.codex/plugins/github",
+          },
+          installPolicy: "AVAILABLE",
+          authPolicy: "ON_INSTALL",
+        },
+      ],
+      available: [
+        {
+          pluginId: "reviewer@team-tools",
+          name: "reviewer",
+          marketplaceName: "team-tools",
+          version: "0.4.0",
+          installed: false,
+          enabled: false,
+          source: {
+            source: "github:openai/team-tools",
+            path: "/Users/test/.codex/plugin-marketplaces/team-tools/reviewer",
+          },
+          installPolicy: "MANUAL",
+          authPolicy: "NEVER",
+        },
+        {
+          pluginId: "lint@team-tools",
+          name: "lint",
+          marketplaceName: "team-tools",
+          version: "0.2.1",
+          installed: false,
+          enabled: false,
+          source: {
+            source: "github:openai/team-tools",
+            path: "/Users/test/.codex/plugin-marketplaces/team-tools/lint",
+          },
+          installPolicy: "AVAILABLE",
+          authPolicy: "ON_INSTALL",
+        },
+      ],
+      marketplaces: [
+        {
+          name: "team-tools",
+          source: "openai/team-tools",
+          rootPath: "/Users/test/.codex/plugin-marketplaces/team-tools",
+          refName: "main",
+          sparse: [".agents/plugins"],
+          kind: "git",
+        },
+      ],
+    },
+    ...overrides,
+  });
+}
+
 async function findSectionByHeading(name: string | RegExp) {
   const heading = await screen.findByRole("heading", { name });
   const section = heading.closest("section");
@@ -306,6 +379,7 @@ describe("App shell", () => {
     expect(screen.getByRole("button", { name: "Sessions" })).toBeVisible();
     expect(screen.getByRole("button", { name: "MCP Servers" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Skills" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Plugins" })).toBeVisible();
   });
 
   it("shows a loading skeleton before the initial state resolves", async () => {
@@ -342,6 +416,9 @@ describe("App shell", () => {
 
     await user.click(screen.getByRole("button", { name: "Skills" }));
     expect(screen.getByRole("heading", { name: "全局 Skills" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Plugins" }));
+    expect(screen.getByRole("heading", { name: "Codex plugins" })).toBeVisible();
   });
 
   it("keeps page chrome fixed while workspaces scroll internally", async () => {
@@ -565,6 +642,398 @@ describe("Raw TOML", () => {
       fileToken: null,
     });
     await expectSonnerToast("已保存原始 TOML。");
+  });
+});
+
+describe("Plugins workspace", () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
+
+  it("shows installed Codex plugins from app state", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithPlugins());
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    expect(plugins).toHaveTextContent("Installed");
+    expect(plugins).toHaveTextContent("Marketplaces");
+    expect(plugins).toHaveTextContent("Available");
+    expect(plugins).toHaveTextContent("github");
+    expect(plugins).toHaveTextContent("github@openai-api-curated");
+    expect(plugins).toHaveTextContent("openai-api-curated");
+    expect(plugins).toHaveTextContent("0.1.6");
+    expect(plugins).toHaveTextContent("ON_INSTALL");
+  });
+
+  it("lists available marketplace plugins as read-only metadata", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithPlugins());
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Available" }));
+
+    expect(plugins).toHaveTextContent("reviewer");
+    expect(plugins).toHaveTextContent("reviewer@team-tools");
+    expect(plugins).toHaveTextContent("team-tools");
+    expect(plugins).toHaveTextContent("0.4.0");
+    expect(plugins).toHaveTextContent("MANUAL");
+    expect(plugins).toHaveTextContent("NEVER");
+    expect(plugins).toHaveTextContent("plugin-marketplaces/team-tools/reviewer");
+    expect(within(plugins).queryByRole("button", {
+      name: /install plugin reviewer|安装 plugin reviewer/i,
+    })).not.toBeInTheDocument();
+  });
+
+  it("filters available plugins without changing installed plugin state", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithPlugins());
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Available" }));
+    await user.type(
+      within(plugins).getByRole("searchbox", { name: "搜索 available plugins" }),
+      "lint",
+    );
+
+    expect(plugins).not.toHaveTextContent("reviewer@team-tools");
+    expect(plugins).toHaveTextContent("lint@team-tools");
+
+    await user.click(within(plugins).getByRole("button", { name: "Installed" }));
+    expect(plugins).toHaveTextContent("github@openai-api-curated");
+    expect(within(plugins).getByRole("switch", { name: "启用或停用 plugin github" })).toBeChecked();
+  });
+
+  it("shows available plugin empty and local error states", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithPlugins({
+      plugins: {
+        installed: appStateWithPlugins().plugins.installed,
+        available: [],
+        marketplaces: appStateWithPlugins().plugins.marketplaces,
+        availableLoadError: "failed to run codex plugin list --available: available failed",
+      },
+    }));
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Available" }));
+
+    expect(plugins).toHaveTextContent("failed to run codex plugin list --available: available failed");
+    expect(plugins).toHaveTextContent("没有可浏览的 marketplace plugin");
+  });
+
+  it("saves installed plugin enablement and refreshes app state", async () => {
+    const user = userEvent.setup();
+    const initialState = appStateWithPlugins();
+    const nextState = appStateWithPlugins({
+      fileToken: {
+        hash: "after-plugin-toggle",
+        size: 172,
+      },
+      plugins: {
+        installed: [
+          {
+            ...initialState.plugins.installed[0]!,
+            enabled: false,
+          },
+        ],
+        available: initialState.plugins.available,
+        marketplaces: initialState.plugins.marketplaces,
+      },
+    });
+
+    invokeMock
+      .mockResolvedValueOnce(initialState)
+      .mockResolvedValueOnce({
+        changed: true,
+        state: nextState,
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    const pluginSwitch = within(plugins).getByRole("switch", {
+      name: "启用或停用 plugin github",
+    });
+    expect(pluginSwitch).toBeChecked();
+
+    await user.click(pluginSwitch);
+
+    expect(invokeMock).toHaveBeenCalledWith("save_plugin_enabled", {
+      pluginId: "github@openai-api-curated",
+      enabled: false,
+      fileToken: {
+        hash: "plugin-state",
+        size: 120,
+      },
+    });
+    await expectSonnerToast("已停用 plugin。重启 Codex 或开启新会话后生效。");
+    expect(within(plugins).getByRole("switch", { name: "启用或停用 plugin github" })).not.toBeChecked();
+  });
+
+  it("shows plugin enablement save errors without changing the row state", async () => {
+    const user = userEvent.setup();
+    invokeMock
+      .mockResolvedValueOnce(appStateWithPlugins())
+      .mockRejectedValueOnce("config.toml 已被其他程序修改。请先刷新，再保存。");
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    const pluginSwitch = within(plugins).getByRole("switch", {
+      name: "启用或停用 plugin github",
+    });
+
+    await user.click(pluginSwitch);
+
+    expect(await screen.findByText("config.toml 已被其他程序修改。请先刷新，再保存。")).toBeVisible();
+    expect(within(plugins).getByRole("switch", { name: "启用或停用 plugin github" })).toBeChecked();
+  });
+
+  it("uninstalls an installed plugin only after confirmation", async () => {
+    const user = userEvent.setup();
+    const nextState = appStateWithPlugins({
+      plugins: {
+        installed: [],
+        available: appStateWithPlugins().plugins.available,
+        marketplaces: appStateWithPlugins().plugins.marketplaces,
+      },
+    });
+
+    invokeMock
+      .mockResolvedValueOnce(appStateWithPlugins())
+      .mockResolvedValueOnce({
+        changed: true,
+        state: nextState,
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "卸载 plugin github" }));
+
+    const dialog = screen.getByRole("dialog", { name: "卸载 plugin" });
+    expect(dialog).toHaveTextContent("将卸载「github」对应的 Codex plugin bundle");
+    expect(dialog).toHaveTextContent("不会移除 ChatGPT 中管理的外部 app 连接");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "确认卸载" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("remove_plugin", {
+      pluginId: "github@openai-api-curated",
+    });
+    await expectSonnerToast("已卸载 plugin。外部 app 连接仍需在 ChatGPT 管理。");
+    expect(plugins).not.toHaveTextContent("github@openai-api-curated");
+  });
+
+  it("shows plugin uninstall failures inside the Plugins workspace", async () => {
+    const user = userEvent.setup();
+    invokeMock
+      .mockResolvedValueOnce(appStateWithPlugins())
+      .mockRejectedValueOnce("failed to run codex plugin remove: remove failed");
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "卸载 plugin github" }));
+    await user.click(within(screen.getByRole("dialog", { name: "卸载 plugin" })).getByRole("button", { name: "确认卸载" }));
+
+    expect(plugins).toHaveTextContent("failed to run codex plugin remove: remove failed");
+    expect(plugins).toHaveTextContent("github@openai-api-curated");
+  });
+
+  it("shows installed plugin empty and local error states", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce({
+      ...appState(),
+      plugins: {
+        installed: [],
+        available: [],
+        marketplaces: [],
+        loadError: "failed to run codex plugin list",
+      },
+    } as AppState);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    expect(plugins).toHaveTextContent("failed to run codex plugin list");
+    expect(plugins).toHaveTextContent("还没有已安装的 Codex plugin");
+    expect(plugins).toHaveTextContent("/plugins");
+  });
+
+  it("lists configured plugin marketplaces", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce(appStateWithPlugins());
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Marketplaces" }));
+
+    expect(plugins).toHaveTextContent("team-tools");
+    expect(plugins).toHaveTextContent("openai/team-tools");
+    expect(plugins).toHaveTextContent("main");
+    expect(plugins).toHaveTextContent(".agents/plugins");
+  });
+
+  it("adds a plugin marketplace with ref and parsed sparse paths", async () => {
+    const user = userEvent.setup();
+    invokeMock
+      .mockResolvedValueOnce(appStateWithPlugins())
+      .mockResolvedValueOnce({
+        changed: true,
+        state: appStateWithPlugins({
+          plugins: {
+            installed: appStateWithPlugins().plugins.installed,
+            available: appStateWithPlugins().plugins.available,
+            marketplaces: [
+              ...appStateWithPlugins().plugins.marketplaces,
+              {
+                name: "lab-tools",
+                source: "openai/lab-tools",
+                rootPath: "/Users/test/.codex/plugin-marketplaces/lab-tools",
+                refName: "main",
+                sparse: [".agents/plugins", "more/plugins"],
+                kind: "git",
+              },
+            ],
+          },
+        }),
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Marketplaces" }));
+    await user.type(within(plugins).getByLabelText("Marketplace source"), "openai/lab-tools");
+    await user.type(within(plugins).getByLabelText("Git ref"), "main");
+    await user.type(
+      within(plugins).getByLabelText("Sparse paths"),
+      ".agents/plugins, more/plugins\n",
+    );
+    await user.click(within(plugins).getByRole("button", { name: "添加 marketplace" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("add_plugin_marketplace", {
+      request: {
+        source: "openai/lab-tools",
+        refName: "main",
+        sparse: [".agents/plugins", "more/plugins"],
+      },
+    });
+    await expectSonnerToast("已添加 plugin marketplace。");
+    expect(plugins).toHaveTextContent("lab-tools");
+  });
+
+  it("removes a plugin marketplace only after confirmation", async () => {
+    const user = userEvent.setup();
+    invokeMock
+      .mockResolvedValueOnce(appStateWithPlugins())
+      .mockResolvedValueOnce({
+        changed: true,
+        state: appStateWithPlugins({
+          plugins: {
+            installed: appStateWithPlugins().plugins.installed,
+            available: appStateWithPlugins().plugins.available,
+            marketplaces: [],
+          },
+        }),
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Marketplaces" }));
+    await user.click(within(plugins).getByRole("button", { name: "移除 marketplace team-tools" }));
+
+    const dialog = screen.getByRole("dialog", { name: "移除 marketplace" });
+    expect(dialog).toHaveTextContent("将移除「team-tools」marketplace source");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "确认移除" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("remove_plugin_marketplace", {
+      name: "team-tools",
+    });
+    await expectSonnerToast("已移除 plugin marketplace。");
+    expect(plugins).not.toHaveTextContent("team-tools");
+  });
+
+  it("upgrades one marketplace or all Git marketplaces", async () => {
+    const user = userEvent.setup();
+    invokeMock
+      .mockResolvedValueOnce(appStateWithPlugins())
+      .mockResolvedValue({
+        changed: true,
+        state: appStateWithPlugins(),
+      });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Marketplaces" }));
+    await user.click(within(plugins).getByRole("button", { name: "升级 marketplace team-tools" }));
+    await user.click(within(plugins).getByRole("button", { name: "升级全部 Git marketplaces" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("upgrade_plugin_marketplace", {
+      name: "team-tools",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("upgrade_plugin_marketplace", {
+      name: null,
+    });
+  });
+
+  it("shows marketplace command failures inside the Plugins workspace", async () => {
+    const user = userEvent.setup();
+    invokeMock
+      .mockResolvedValueOnce(appStateWithPlugins())
+      .mockRejectedValueOnce("failed to run codex plugin marketplace add: marketplace failed");
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Plugins" }));
+
+    const plugins = await findSectionByHeading("Codex plugins");
+    await user.click(within(plugins).getByRole("button", { name: "Marketplaces" }));
+    await user.type(within(plugins).getByLabelText("Marketplace source"), "openai/lab-tools");
+    await user.click(within(plugins).getByRole("button", { name: "添加 marketplace" }));
+
+    expect(plugins).toHaveTextContent(
+      "failed to run codex plugin marketplace add: marketplace failed",
+    );
   });
 });
 

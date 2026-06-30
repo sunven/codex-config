@@ -12,6 +12,7 @@ mod config_schema;
 mod config_table_entry;
 mod mcp_server_store;
 mod model_provider_store;
+mod plugin_store;
 mod schema_write;
 mod skill_store;
 #[cfg(test)]
@@ -24,6 +25,7 @@ use claude_skill_store::SkillState as ClaudeSkillState;
 use claude_state::ClaudeState;
 use mcp_server_store::{McpServerDraft, McpServerSaveResult};
 use model_provider_store::{ModelProviderDraft, ModelProviderSaveResult};
+use plugin_store::MarketplaceAddRequest;
 use skill_store::{SkillContent, SkillImportBatchResult};
 use toml_store::{DraftChange, FileToken, SaveResult};
 
@@ -126,6 +128,36 @@ fn save_skill_enabled(
 }
 
 #[tauri::command]
+fn save_plugin_enabled(
+    plugin_id: String,
+    enabled: bool,
+    file_token: Option<FileToken>,
+) -> Result<SaveResult, String> {
+    plugin_store::save_plugin_enabled(plugin_id, enabled, file_token)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn remove_plugin(plugin_id: String) -> Result<SaveResult, String> {
+    plugin_store::remove_plugin(plugin_id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn add_plugin_marketplace(request: MarketplaceAddRequest) -> Result<SaveResult, String> {
+    plugin_store::add_marketplace(request).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn remove_plugin_marketplace(name: String) -> Result<SaveResult, String> {
+    plugin_store::remove_marketplace(name).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn upgrade_plugin_marketplace(name: Option<String>) -> Result<SaveResult, String> {
+    plugin_store::upgrade_marketplace(name).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn delete_skill(path: String, file_token: Option<FileToken>) -> Result<SaveResult, String> {
     skill_store::delete_skill(path, file_token).map_err(|error| error.to_string())
 }
@@ -223,6 +255,11 @@ pub fn run() {
             delete_sessions_older_than,
             read_skill_content,
             save_skill_enabled,
+            save_plugin_enabled,
+            remove_plugin,
+            add_plugin_marketplace,
+            remove_plugin_marketplace,
+            upgrade_plugin_marketplace,
             delete_skill,
             import_skill_directories,
             load_claude_state,

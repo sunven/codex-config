@@ -6,6 +6,7 @@ import type {
 } from "../features/config/configTableEntries";
 import type { CodexSessionSummary } from "../features/codex/codexSessions";
 import type { SkillState } from "../features/skills/globalSkills";
+import type { PluginState } from "../features/plugins/codexPlugins";
 
 export type HealthStatus = "ready" | "readOnly" | "needsAttention";
 
@@ -32,6 +33,7 @@ export type AppState = {
   mcpServers: McpServerState;
   codexSessions?: CodexSessionState;
   skills: SkillState;
+  plugins: PluginState;
   rawToml: string;
   parseIssue?: { message: string };
   preferences: AppPreferences;
